@@ -16,7 +16,7 @@ from app.models.base_model import (
     FACE_INPUT_DIM,
     MAX_SEQUENCE_LENGTH,
     POSE_INPUT_DIM,
-    SilentBridgeBaseModel,
+    VisionBridgeBaseModel,
 )
 from app.training.isltranslate import collate_ctc_batch
 
@@ -72,7 +72,7 @@ def test_downsampled_batch_passes_through_model_with_finite_ctc_loss():
     out = collate_ctc_batch(batch)
 
     vocab_size = 49  # matches the vocab size in the bug report's logits shape
-    model = SilentBridgeBaseModel(vocab_size=vocab_size)
+    model = VisionBridgeBaseModel(vocab_size=vocab_size)
     logits = model(out["pose"], out["face"])
 
     assert logits.shape[:2] == (2, MAX_SEQUENCE_LENGTH)

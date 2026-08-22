@@ -1,7 +1,7 @@
 """
-BridgeAdapter — the core novel contribution of SilentBridge.
+BridgeAdapter — the core novel contribution of VisionBridge.
 
-Goal: personalize the frozen SilentBridgeBaseModel to a NEW signer's style
+Goal: personalize the frozen VisionBridgeBaseModel to a NEW signer's style
 (hand shape variation, signing speed, regional dialect) using only ~5
 minutes of calibration video, updating < 2% of the base model's parameter
 count, while keeping inference latency < 500ms and memory overhead < 10MB.
@@ -81,7 +81,7 @@ class BridgeAdapterStack(nn.Module):
     def forward_with_base(self, base_model, pose: torch.Tensor, face: torch.Tensor) -> torch.Tensor:
         """Runs the frozen base model's forward pass but inserts each
         BottleneckAdapter after the corresponding shared_encoder layer.
-        Mirrors SilentBridgeBaseModel.forward but layer-by-layer so adapters
+        Mirrors VisionBridgeBaseModel.forward but layer-by-layer so adapters
         can be spliced in."""
         pose_emb = base_model.pose_encoder(pose)
         face_emb = base_model.face_encoder(face)

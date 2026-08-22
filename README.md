@@ -1,4 +1,4 @@
-# SilentBridge
+# VisionBridge
 
 **Few-Shot Signer-Adaptive Continuous Indian Sign Language Translation**
 
@@ -10,7 +10,7 @@ transformer as a frozen base model, plus a lightweight few-shot adapter
 ## Repo layout
 
 ```
-silentbridge/
+visionbridge/
 ├── backend/          FastAPI + SQLite backend, model code, adapters
 │   ├── app/
 │   │   ├── api/       route handlers (auth, translate, calibration, health)
@@ -81,9 +81,9 @@ npx serve frontend
 ## Deployment (Render)
 
 `render.yaml` defines two separate services:
-- `silentbridge-backend` — FastAPI web service, with a persistent Disk
+- `visionbridge-backend` — FastAPI web service, with a persistent Disk
   mounted at `/var/data` so the SQLite DB survives restarts/redeploys.
-- `silentbridge-frontend` — static site serving the `frontend/` folder.
+- `visionbridge-frontend` — static site serving the `frontend/` folder.
 
 Push this repo to GitHub, then in the Render dashboard: **New > Blueprint**,
 point it at the repo, and Render will read `render.yaml` and provision both

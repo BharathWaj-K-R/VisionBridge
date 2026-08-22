@@ -29,4 +29,4 @@ app.include_router(calibration.router, prefix=settings.API_V1_PREFIX)
 
 @app.get("/")
 def root():
-    return {"message": "SilentBridge API — see /docs for the interactive API explorer"}
+    return {"message": "VisionBridge API — see /docs for the interactive API explorer"}

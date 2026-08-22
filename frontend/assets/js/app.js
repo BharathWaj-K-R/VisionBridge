@@ -1,4 +1,4 @@
-/* SilentBridge — shared UI behavior
+/* VisionBridge — shared UI behavior
    No jQuery, no packages. Vanilla JS only. */
 
 (function () {
@@ -31,9 +31,9 @@
     mount.innerHTML = `
       <nav class="sb-nav" aria-label="Primary">
         <div class="container-sb d-flex align-items-center justify-content-between py-3">
-          <a class="navbar-brand" href="/index.html" aria-label="SilentBridge home">
+          <a class="navbar-brand" href="/index.html" aria-label="VisionBridge home">
             <span class="sb-logo-mark" aria-hidden="true"><i class="bi bi-soundwave"></i></span>
-            SilentBridge
+            VisionBridge
           </a>
           <button class="btn btn-ghost-sb d-lg-none btn-icon" type="button"
             aria-expanded="false" aria-controls="sbNavList" data-sb-nav-toggle>
@@ -81,7 +81,7 @@
         <div class="container-sb d-flex flex-wrap gap-3 justify-content-between align-items-center">
           <div class="d-flex align-items-center gap-2">
             <span class="sb-logo-mark" aria-hidden="true"><i class="bi bi-soundwave"></i></span>
-            <span>&copy; ${new Date().getFullYear()} SilentBridge. Designed for accessible communication.</span>
+            <span>&copy; ${new Date().getFullYear()} VisionBridge. Designed for accessible communication.</span>
           </div>
           <div class="d-flex gap-3">
             <a href="/pages/settings.html">Settings</a>

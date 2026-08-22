@@ -1,4 +1,4 @@
-/* SilentBridge — real translate wiring (webcam + MediaPipe Holistic + backend API)
+/* VisionBridge — real translate wiring (webcam + MediaPipe Holistic + backend API)
    FIXED VERSION: Properly pads face and pose keypoints to expected dimensions
    Falls back to the old fake ticker if camera/model/backend unavailable. */
 
@@ -18,7 +18,7 @@
   const cameraFrame = document.querySelector(".sb-camera-frame");
   const placeholder = cameraFrame ? cameraFrame.querySelector(".placeholder") : null;
 
-  const API_BASE = window.SB_API_BASE_URL || "http://localhost:8000/api/v1";
+  const API_BASE = window.VB_API_BASE_URL || "http://localhost:8000/api/v1";
   const FRAME_WINDOW = 50; // buffer this many frames before sending to backend
   const TARGET_FPS = 15;
 
@@ -151,7 +151,7 @@
       // the flatteners). Fail loudly in the console instead of sending
       // shapes the model wasn't trained on and getting a confusing 500
       // or silently garbled predictions back.
-      console.error(`SilentBridge: refusing to send invalid payload — ${validationError}`);
+      console.error(`VisionBridge: refusing to send invalid payload — ${validationError}`);
       return;
     }
 
@@ -179,7 +179,7 @@
         result.latency_ms || clientLatency
       );
     } catch (err) {
-      console.warn("SilentBridge: backend call failed, showing offline notice.", err);
+      console.warn("VisionBridge: backend call failed, showing offline notice.", err);
       setCaption("Backend unavailable — check your connection or try again shortly.", 0, 0);
     }
   }
@@ -270,7 +270,7 @@
 
   // --- Fallback: old fake ticker, used only if real pipeline fails to init ---
   function startFallbackDemo() {
-    console.warn("SilentBridge: falling back to demo ticker (camera/model/backend unavailable).");
+    console.warn("VisionBridge: falling back to demo ticker (camera/model/backend unavailable).");
     const phrases = [
       "Hello, how are you today?",
       "My name is Aarav. Nice to meet you.",
@@ -296,7 +296,7 @@
     try {
       await startRealTranslation();
     } catch (err) {
-      console.warn("SilentBridge: real pipeline failed to start.", err);
+      console.warn("VisionBridge: real pipeline failed to start.", err);
       startFallbackDemo();
     }
   }

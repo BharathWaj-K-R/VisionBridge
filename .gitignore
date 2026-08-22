@@ -7,7 +7,7 @@ __pycache__/
 # Local environment and databases
 .env
 *.db
-silentbridge.db
+visionbridge.db
 
 # Dataset archives, extracted features, and trained weights
 data/raw/

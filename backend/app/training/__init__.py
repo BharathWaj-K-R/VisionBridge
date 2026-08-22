@@ -1,1 +1,1 @@
-"""Training utilities for SilentBridge base-model pretraining."""
+"""Training utilities for VisionBridge base-model pretraining."""

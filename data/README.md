@@ -1,6 +1,6 @@
 # Data workspace
 
-SilentBridge trains against the public ISLTranslate release from Exploration Lab:
+VisionBridge trains against the public ISLTranslate release from Exploration Lab:
 https://github.com/Exploration-Lab/ISLTranslate
 
 The dataset lives on Hugging Face (`Exploration-Lab/iSign`), is **gated**

@@ -8,15 +8,15 @@ from functools import lru_cache
 
 class Settings:
     # --- General ---
-    PROJECT_NAME: str = "SilentBridge"
+    PROJECT_NAME: str = "VisionBridge"
     API_V1_PREFIX: str = "/api/v1"
     ENV: str = os.getenv("ENV", "development")
 
     # --- Database ---
     # SQLite by default (file-based, zero setup). On Render, point this at
     # a path inside a mounted Disk so data survives restarts/redeploys, e.g.
-    # sqlite:////var/data/silentbridge.db
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./silentbridge.db")
+    # sqlite:////var/data/visionbridge.db
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./visionbridge.db")
 
     # --- Auth ---
     SECRET_KEY: str = os.getenv("SECRET_KEY", "dev-secret-change-me")

@@ -1,4 +1,4 @@
-"""Train SilentBridgeBaseModel on preprocessed ISLTranslate keypoints."""
+"""Train VisionBridgeBaseModel on preprocessed ISLTranslate keypoints."""
 from __future__ import annotations
 
 import argparse
@@ -7,7 +7,7 @@ from pathlib import Path
 import torch
 from torch.utils.data import DataLoader, random_split
 
-from app.models.base_model import SilentBridgeBaseModel
+from app.models.base_model import VisionBridgeBaseModel
 from app.training.isltranslate import ISLTranslateKeypointDataset, SimpleCharTokenizer, collate_ctc_batch
 
 
@@ -55,7 +55,7 @@ def train(args: argparse.Namespace) -> None:
     )
 
     device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
-    model = SilentBridgeBaseModel(vocab_size=tokenizer.vocab_size).to(device)
+    model = VisionBridgeBaseModel(vocab_size=tokenizer.vocab_size).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     loss_fn = torch.nn.CTCLoss(blank=0, zero_infinity=True)
 

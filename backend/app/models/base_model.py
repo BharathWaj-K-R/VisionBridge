@@ -74,7 +74,7 @@ class CrossModalFusion(nn.Module):
         return self.norm(pose_emb + fused)
 
 
-class SilentBridgeBaseModel(nn.Module):
+class VisionBridgeBaseModel(nn.Module):
     """Full frozen backbone: pose + face -> fusion -> shared transformer ->
     logits over the output vocabulary (glosses or subword text tokens,
     decided at data-pipeline stage)."""
@@ -119,7 +119,7 @@ class SilentBridgeBaseModel(nn.Module):
 def load_frozen_base_model(
     weights_path: str | None = None,
     **kwargs,
-) -> SilentBridgeBaseModel:
+) -> VisionBridgeBaseModel:
     """Instantiate and freeze the base model.
 
     When a checkpoint is provided, infer vocab_size from the checkpoint's
@@ -137,12 +137,12 @@ def load_frozen_base_model(
                 vocab_size = int(output_head_weight.shape[0])
                 kwargs["vocab_size"] = vocab_size
 
-            model = SilentBridgeBaseModel(**kwargs)
+            model = VisionBridgeBaseModel(**kwargs)
             model.load_state_dict(state)
         else:
-            model = SilentBridgeBaseModel(**kwargs)
+            model = VisionBridgeBaseModel(**kwargs)
     else:
-        model = SilentBridgeBaseModel(**kwargs)
+        model = VisionBridgeBaseModel(**kwargs)
 
     model.freeze()
     model.eval()
