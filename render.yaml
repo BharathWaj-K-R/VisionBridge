@@ -1,18 +1,12 @@
 services:
   # --- Backend: FastAPI web service ---
   - type: web
-    # NOTE: intentionally still "silentbridge-backend" — this IS the live
-    # Render service's name (and therefore its URL: silentbridge-backend-*
-    # .onrender.com). Changing it here does not rename the deployed
-    # service; Render would create a new one under the new name instead,
-    # orphaning the current live URL. Rename on Render's dashboard first
-    # (or via their API), THEN update this file + ALLOWED_ORIGINS below +
-    # frontend/assets/js/config.js's hardcoded fallback URL to match.
-    name: silentbridge-backend
+    name: visionbridge-backend
     runtime: python
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/v1/health
     plan: free
     envVars:
       - key: PYTHON_VERSION
@@ -24,7 +18,7 @@ services:
       - key: DATABASE_URL
         value: sqlite:///./visionbridge.db
       - key: ALLOWED_ORIGINS
-        value: https://silentbridge-frontend.onrender.com
+        value: https://visionbridge-frontend.onrender.com
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
         value: "60"
       - key: CALIBRATION_MIN_SECONDS
@@ -39,10 +33,7 @@ services:
 
   # --- Frontend: static site ---
   - type: web
-    # NOTE: same reasoning as the backend service above — this is the live
-    # Render service name/URL, left unchanged deliberately. See the
-    # backend service's comment.
-    name: silentbridge-frontend
+    name: visionbridge-frontend
     runtime: static
     rootDir: frontend
     buildCommand: ""

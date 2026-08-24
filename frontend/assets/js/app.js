@@ -156,6 +156,37 @@
     });
   }
 
+  function initApiEndpointSettings() {
+    const input = document.querySelector("#apiUrl");
+    const button = document.querySelector("[data-sb-save-api-url]");
+    const status = document.querySelector("[data-sb-api-url-status]");
+    if (!input || !button) return;
+
+    input.value = window.VB_API_BASE_URL || input.value;
+    button.addEventListener("click", () => {
+      let endpoint;
+      try {
+        endpoint = new URL(input.value);
+      } catch {
+        if (status) status.textContent = "Enter a valid http(s) endpoint URL.";
+        return;
+      }
+      if (!/^https?:$/.test(endpoint.protocol)) {
+        if (status) status.textContent = "Endpoint URL must use http or https.";
+        return;
+      }
+
+      const normalized = endpoint.toString().replace(/\/$/, "");
+      try {
+        window.localStorage.setItem("visionbridge.apiBaseUrl", normalized);
+        window.VB_API_BASE_URL = normalized;
+        if (status) status.textContent = "Endpoint saved for future translation requests.";
+      } catch {
+        if (status) status.textContent = "Browser storage is unavailable; the endpoint was not saved.";
+      }
+    });
+  }
+
   // Fake live translation ticker used on the Translate page
   function initFakeTranslation() {
     const captionEl = document.querySelector("[data-sb-caption]");
@@ -213,6 +244,7 @@
     initReveal();
     initRings();
     initCopy();
+    initApiEndpointSettings();
     // initFakeTranslation() removed: translate.html now uses
     // translate-live.js for real webcam + backend wiring, with its own
     // internal fallback if camera/model/backend are unavailable.

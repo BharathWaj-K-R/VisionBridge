@@ -8,7 +8,9 @@ frames) is NOT implemented here. This service expects pre-extracted pose
 and face keypoint tensors. Wire up the extraction step in a separate
 preprocessing module once you've picked a keypoint extractor.
 """
+import pickle
 import time
+from pathlib import Path
 
 import torch
 
@@ -21,6 +23,10 @@ settings = get_settings()
 # Loaded once at process startup, reused across requests.
 _base_model = None
 _id_to_token: dict[int, str] = {}
+
+
+class ModelUnavailableError(RuntimeError):
+    """Raised when the configured trained model cannot safely serve inference."""
 
 
 def _load_vocab(base_model_path: str) -> dict[int, str]:
@@ -41,9 +47,26 @@ def _load_vocab(base_model_path: str) -> dict[int, str]:
 def get_base_model():
     global _base_model, _id_to_token
     if _base_model is None:
-        _base_model = load_frozen_base_model(settings.BASE_MODEL_PATH)
-        _id_to_token = _load_vocab(settings.BASE_MODEL_PATH)
+        model_path = Path(settings.BASE_MODEL_PATH)
+        if not model_path.is_file():
+            raise ModelUnavailableError("The VisionBridge base-model checkpoint is not installed.")
+        try:
+            _base_model = load_frozen_base_model(str(model_path))
+            _id_to_token = _load_vocab(str(model_path))
+        except (OSError, RuntimeError, ValueError, KeyError, EOFError, pickle.UnpicklingError) as exc:
+            raise ModelUnavailableError("The VisionBridge base-model checkpoint could not be loaded.") from exc
     return _base_model
+
+
+def model_status() -> dict[str, str | bool]:
+    """Return non-sensitive model readiness information for health checks."""
+    model_path = Path(settings.BASE_MODEL_PATH)
+    vocab_path = model_path.with_suffix(".vocab.json")
+    available = model_path.is_file() and vocab_path.is_file()
+    return {
+        "available": available,
+        "status": "ready" if available else "unavailable",
+    }
 
 
 CTC_BLANK_ID = 0

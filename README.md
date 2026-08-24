@@ -81,14 +81,14 @@ npx serve frontend
 ## Deployment (Render)
 
 `render.yaml` defines two separate services:
-- `visionbridge-backend` — FastAPI web service, with a persistent Disk
-  mounted at `/var/data` so the SQLite DB survives restarts/redeploys.
+- `visionbridge-backend` — FastAPI web service using ephemeral SQLite
+  storage on Render's free plan.
 - `visionbridge-frontend` — static site serving the `frontend/` folder.
 
 Push this repo to GitHub, then in the Render dashboard: **New > Blueprint**,
 point it at the repo, and Render will read `render.yaml` and provision both
-services. Update `ALLOWED_ORIGINS` (backend) and `API_BASE_URL` in
-`frontend/js/config.js` once you know the actual `.onrender.com` URLs.
+services. Update `ALLOWED_ORIGINS` (backend) and `VB_API_BASE_URL` in
+`frontend/assets/js/config.js` once you know the actual `.onrender.com` URLs.
 
 ## Scope (team of 2)
 

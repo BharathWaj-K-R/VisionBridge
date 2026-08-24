@@ -4,14 +4,16 @@ contract can evolve independently of the DB schema.
 """
 import datetime as dt
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ---------- Users / auth ----------
 
 class UserCreate(BaseModel):
-    username: str
-    password: str
+    username: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_.-]+$")
+    # bcrypt only processes the first 72 bytes; reject longer passwords rather
+    # than silently weakening the effective credential.
+    password: str = Field(min_length=8, max_length=72)
 
 
 class UserOut(BaseModel):
@@ -33,11 +35,11 @@ class CalibrationStartRequest(BaseModel):
 
 
 class CalibrationRequest(BaseModel):
-    user_id: int
-    calibration_seconds: float
+    user_id: int = Field(gt=0)
+    calibration_seconds: float = Field(gt=0)
     pose_keypoints: list[list[float]]  # (frames, feature_dim) — one clip
     face_keypoints: list[list[float]]  # (frames, feature_dim) — one clip
-    target_labels: list[int]  # sentence-level token ids for this clip, no blank token
+    target_labels: list[int] = Field(min_length=1)  # sentence-level token ids for this clip, no blank token
 
 
 class CalibrationResult(BaseModel):
@@ -60,8 +62,8 @@ class AdapterOut(BaseModel):
 # ---------- Translation ----------
 
 class TranslationRequest(BaseModel):
-    user_id: int | None = None
-    adapter_id: int | None = None  # if None, base model only
+    user_id: int | None = Field(default=None, gt=0)
+    adapter_id: int | None = Field(default=None, gt=0)  # if None, base model only
     pose_keypoints: list[list[float]]  # (frames, feature_dim)
     face_keypoints: list[list[float]]  # (frames, feature_dim)
 

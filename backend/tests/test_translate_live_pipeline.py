@@ -30,6 +30,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.models.base_model import FACE_INPUT_DIM, POSE_INPUT_DIM, load_frozen_base_model
 from app.services import inference_service
+from app.services.inference_service import ModelUnavailableError
 
 client = TestClient(app)
 
@@ -195,6 +196,17 @@ def test_translate_endpoint_rejects_empty_payload():
     assert resp.status_code == 422
 
 
+def test_translate_endpoint_rejects_non_finite_keypoints():
+    pose, face = _realistic_keypoints(1)
+    pose[0][0] = float("nan")
+    resp = client.post("/api/v1/translate", json={
+        "user_id": None, "adapter_id": None,
+        "pose_keypoints": pose, "face_keypoints": face,
+    })
+    assert resp.status_code == 422
+    assert "non-finite" in resp.json()["detail"]
+
+
 def test_translate_endpoint_rejects_nonexistent_adapter_id():
     pose, face = _realistic_keypoints(5)
     resp = client.post("/api/v1/translate", json={
@@ -202,6 +214,21 @@ def test_translate_endpoint_rejects_nonexistent_adapter_id():
         "pose_keypoints": pose, "face_keypoints": face,
     })
     assert resp.status_code == 404
+
+
+def test_translate_endpoint_returns_503_when_the_model_is_unavailable(monkeypatch):
+    pose, face = _realistic_keypoints(1)
+
+    def unavailable_model(*_args, **_kwargs):
+        raise ModelUnavailableError("checkpoint unavailable")
+
+    monkeypatch.setattr("app.api.translate.run_inference", unavailable_model)
+    resp = client.post("/api/v1/translate", json={
+        "user_id": None, "adapter_id": None,
+        "pose_keypoints": pose, "face_keypoints": face,
+    })
+    assert resp.status_code == 503
+    assert resp.json()["detail"] == "Translation model is unavailable"
 
 
 @requires_real_weights
@@ -214,9 +241,8 @@ def test_translate_endpoint_end_to_end_with_real_model_and_realistic_keypoints()
 
     prev_cwd = os.getcwd()
     try:
-        # BASE_MODEL_PATH's default ("./app/models/weights/base_model.pt")
-        # is relative, resolved at first-use time by get_base_model() —
-        # matches how the service is actually deployed (run with cwd=backend/).
+        # The configured default model path is anchored to backend/, so it is
+        # independent of the process's current working directory.
         os.chdir(BACKEND_DIR)
         resp = client.post("/api/v1/translate", json={
             "user_id": None, "adapter_id": None,

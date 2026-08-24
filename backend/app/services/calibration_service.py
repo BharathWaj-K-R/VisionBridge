@@ -4,13 +4,15 @@ ground-truth labels, trains a fresh BridgeAdapterStack and saves it to disk,
 keyed to that user, so it can be loaded again for inference later.
 """
 import os
+import pickle
 import uuid
+from pathlib import Path
 
 import torch
 
 from app.core.config import get_settings
-from app.models.base_model import load_frozen_base_model
 from app.models.bridge_adapter import BridgeAdapterStack
+from app.services.inference_service import get_base_model
 
 settings = get_settings()
 
@@ -31,7 +33,7 @@ def calibrate_new_adapter(
     Returns the info needed to create a SignerAdapter DB row (see
     db/models.py) — caller is responsible for persisting that row.
     """
-    base_model = load_frozen_base_model(settings.BASE_MODEL_PATH)
+    base_model = get_base_model()
     n_layers = len(base_model.shared_encoder.layers)
 
     adapter = BridgeAdapterStack(d_model=base_model.d_model, n_layers=n_layers)
@@ -60,8 +62,15 @@ def calibrate_new_adapter(
 
 
 def load_adapter_for_signer(weights_path: str, d_model: int, n_layers: int) -> BridgeAdapterStack:
+    adapter_root = Path(settings.ADAPTER_WEIGHTS_DIR).resolve()
+    candidate = Path(weights_path).resolve()
+    if adapter_root not in candidate.parents or not candidate.is_file():
+        raise FileNotFoundError("Adapter weights are unavailable")
     adapter = BridgeAdapterStack(d_model=d_model, n_layers=n_layers)
-    state = torch.load(weights_path, map_location="cpu")
-    adapter.load_state_dict(state)
+    try:
+        state = torch.load(candidate, map_location="cpu", weights_only=True)
+        adapter.load_state_dict(state)
+    except (OSError, RuntimeError, ValueError, EOFError, pickle.UnpicklingError) as exc:
+        raise RuntimeError("Adapter weights could not be loaded") from exc
     adapter.eval()
     return adapter
