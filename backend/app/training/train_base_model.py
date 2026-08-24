@@ -24,7 +24,9 @@ def run_epoch(model, loader, optimizer, loss_fn, device, max_grad_norm: float, t
         label_lengths = batch["label_lengths"].to(device)
 
         with torch.set_grad_enabled(train):
-            logits = model(pose, face)
+            # Pass post-padding sequence lengths into the Transformer so padded
+            # frames cannot influence valid frames through self/cross attention.
+            logits = model(pose, face, input_lengths)
             log_probs = torch.nn.functional.log_softmax(logits, dim=-1).transpose(0, 1)
             loss = loss_fn(log_probs, labels, input_lengths, label_lengths)
 
@@ -62,18 +64,9 @@ def train(args: argparse.Namespace) -> None:
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # NOTE: previously this trained blindly for all epochs and saved only the
-    # final one, even though a val split was created — the val set was never
-    # actually used. Now we evaluate every epoch and only keep the
-    # best-val-loss checkpoint, so a late epoch that overfits doesn't silently
-    # clobber a better earlier one.
     best_val_loss = float("inf")
     start_epoch = 1
 
-    # Full resumable checkpoint (model + optimizer + epoch + best_val_loss),
-    # separate from output_path (which stays a plain best-weights state_dict
-    # for the API loader). Only written/read if --checkpoint-dir is passed,
-    # so default CLI behavior is unchanged.
     checkpoint_path = Path(args.checkpoint_dir) / "latest.pt" if args.checkpoint_dir else None
     if args.resume and checkpoint_path and checkpoint_path.exists():
         ckpt = torch.load(checkpoint_path, map_location=device)
@@ -96,8 +89,6 @@ def train(args: argparse.Namespace) -> None:
                 torch.save(model.state_dict(), output_path)
                 print(f"  -> new best (val_loss={val_loss:.4f}), saved checkpoint to {output_path}")
         else:
-            # No val split possible (dataset too small) — fall back to
-            # saving every epoch, since there's nothing to compare against.
             print(f"epoch={epoch} train_loss={train_loss:.4f} (no val split — dataset too small)")
             torch.save(model.state_dict(), output_path)
 
