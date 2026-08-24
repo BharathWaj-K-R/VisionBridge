@@ -135,6 +135,34 @@
     return null;
   }
 
+  // Extracts a human-readable message from a failed backend response.
+  // FastAPI error bodies come in two shapes:
+  //   - our own HTTPException(detail="some string")            -> {"detail": "some string"}
+  //   - default Pydantic validation errors (malformed JSON shape) -> {"detail": [{"loc": [...], "msg": "...", ...}, ...]}
+  // Falls back to the raw response text if the body isn't JSON at all.
+  async function extractErrorDetail(res) {
+    let bodyText;
+    try {
+      bodyText = await res.text();
+    } catch {
+      return `HTTP ${res.status}`;
+    }
+    try {
+      const body = JSON.parse(bodyText);
+      if (typeof body.detail === "string") {
+        return body.detail;
+      }
+      if (Array.isArray(body.detail)) {
+        return body.detail
+          .map((e) => (e.loc ? `${e.loc.join(".")}: ${e.msg}` : e.msg || JSON.stringify(e)))
+          .join("; ");
+      }
+    } catch {
+      // not JSON — fall through to raw text
+    }
+    return bodyText || `HTTP ${res.status}`;
+  }
+
   async function sendToBackend() {
     if (poseBuffer.length < FRAME_WINDOW) return;
 
@@ -148,10 +176,11 @@
       // Never send a malformed payload — flattenPose/flattenFace already
       // pad/truncate to a fixed size, so this only fires on a genuine bug
       // (e.g. a future refactor changing EXPECTED_*_DIM without updating
-      // the flatteners). Fail loudly in the console instead of sending
-      // shapes the model wasn't trained on and getting a confusing 500
-      // or silently garbled predictions back.
+      // the flatteners). Show it in the UI too — a client-side validation
+      // failure is just as actionable as a server-side one, and silently
+      // dropping the payload with only a console.error is easy to miss.
       console.error(`VisionBridge: refusing to send invalid payload — ${validationError}`);
+      setCaption(`Validation error: ${validationError}`, 0, 0);
       return;
     }
 
@@ -168,8 +197,15 @@
         }),
       });
       if (!res.ok) {
-        const errorText = await res.text();
-        throw new Error(`Backend returned ${res.status}: ${errorText}`);
+        const detail = await extractErrorDetail(res);
+        // Distinguish client-error (4xx — something about THIS request/payload
+        // is wrong, actionable) from server-error (5xx — backend-side problem)
+        // in the label, but always show the real detail either way instead of
+        // a generic offline notice — a 422 validation message is exactly what
+        // you need to see to debug/tune the pipeline; swallowing it into
+        // "Backend unavailable" hides the actual problem.
+        const label = res.status >= 500 ? `Server error (${res.status})` : `Request rejected (${res.status})`;
+        throw new Error(`${label}: ${detail}`);
       }
       const result = await res.json();
       const clientLatency = performance.now() - start;
@@ -179,8 +215,16 @@
         result.latency_ms || clientLatency
       );
     } catch (err) {
-      console.warn("VisionBridge: backend call failed, showing offline notice.", err);
-      setCaption("Backend unavailable — check your connection or try again shortly.", 0, 0);
+      console.warn("VisionBridge: backend call failed.", err);
+      // err.message already contains the real detail for HTTP-error cases
+      // (thrown above); for network-level failures (DNS, CORS, backend
+      // completely unreachable), err is a raw TypeError like "Failed to
+      // fetch" with no server detail to show, so label it accordingly.
+      const isNetworkFailure = err instanceof TypeError;
+      const message = isNetworkFailure
+        ? "Backend unreachable — check your connection or try again shortly."
+        : err.message;
+      setCaption(message, 0, 0);
     }
   }
 

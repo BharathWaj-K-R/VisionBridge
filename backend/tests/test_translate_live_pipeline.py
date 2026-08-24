@@ -110,6 +110,59 @@ def test_decode_logits_collapses_repeats_and_drops_blanks_with_real_vocab(monkey
     assert text == "ab"
 
 
+@requires_real_weights
+def test_decode_logits_confidence_reflects_the_decoded_text_not_blank_certainty(monkeypatch):
+    """Regression test for the '86% confidence' next to '(no sign detected)'
+    bug: confidence must be about the returned text, not overall frame
+    certainty. A model that is very sure every frame is blank must report
+    LOW confidence (nothing was predicted) — not high confidence borrowed
+    from how sure it was about blanks."""
+    id_to_token = inference_service._load_vocab(str(REAL_WEIGHTS_PATH))
+    monkeypatch.setattr(inference_service, "_id_to_token", id_to_token)
+
+    blank = 0
+    vocab_size = len(id_to_token)
+    frames = 20
+    # Every frame extremely confident it's blank.
+    logits = torch.full((1, frames, vocab_size), -10.0)
+    logits[0, :, blank] = 10.0
+
+    text, confidence = inference_service.decode_logits(logits)
+
+    assert text == "(no sign detected)"
+    assert confidence == 0.0, (
+        f"expected 0.0 confidence for an all-blank prediction, got {confidence} — "
+        "confidence must not be borrowed from blank-frame certainty"
+    )
+
+
+@requires_real_weights
+def test_decode_logits_confidence_ignores_low_confidence_blank_frames(monkeypatch):
+    """A prediction with a clear, confident non-blank token surrounded by
+    weak/uncertain blank frames should report confidence based on the
+    confident non-blank frame, not diluted by the uncertain blanks."""
+    id_to_token = inference_service._load_vocab(str(REAL_WEIGHTS_PATH))
+    monkeypatch.setattr(inference_service, "_id_to_token", id_to_token)
+    token_to_id = {tok: i for i, tok in id_to_token.items()}
+
+    blank = 0
+    a = token_to_id["a"]
+    vocab_size = len(id_to_token)
+
+    # Blank frames only mildly favor blank (low confidence); the "a" frame
+    # is extremely confident.
+    logits = torch.full((3, vocab_size), 0.0)
+    logits[0, blank] = 0.1
+    logits[1, a] = 10.0
+    logits[2, blank] = 0.1
+    logits = logits.unsqueeze(0)
+
+    text, confidence = inference_service.decode_logits(logits)
+
+    assert text == "a"
+    assert confidence > 0.9, f"expected confidence near-certain on the 'a' frame, got {confidence}"
+
+
 def test_translate_endpoint_rejects_mismatched_frame_counts():
     pose, face = _realistic_keypoints(10)
     face = face[:8]  # deliberately mismatched frame count

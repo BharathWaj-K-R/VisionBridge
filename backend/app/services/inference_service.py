@@ -53,7 +53,7 @@ def decode_logits(logits: torch.Tensor) -> tuple[str, float]:
     """Greedy CTC decode: collapse consecutive repeats, then drop blanks.
     This matches the CTC training objective in bridge_adapter.py's
     calibrate() and app/training/train_base_model.py — both use blank=0.
-    Returns decoded text + mean top-token confidence.
+    Returns decoded text + confidence in that specific text.
 
     Uses the real trained vocabulary saved alongside base_model.pt
     (base_model.vocab.json, loaded into _id_to_token by _load_vocab() when
@@ -62,15 +62,22 @@ def decode_logits(logits: torch.Tensor) -> tuple[str, float]:
     training run behind it yet)."""
     probs = torch.softmax(logits, dim=-1)
     top_probs, top_ids = probs.max(dim=-1)  # (batch, frames)
-    confidence = float(top_probs.mean().item())
 
     ids = top_ids[0].tolist()
-    # CTC collapse: drop consecutive duplicates first, THEN drop blanks
-    # (this order matters — it's what distinguishes "aa a" -> "a a" from "aaa" -> "a")
-    collapsed = [i for idx, i in enumerate(ids) if idx == 0 or i != ids[idx - 1]]
-    token_ids = [i for i in collapsed if i != CTC_BLANK_ID]
+    frame_probs = top_probs[0].tolist()
 
-    tokens = [_id_to_token.get(i, f"<{i}>") for i in token_ids]
+    # CTC collapse: drop consecutive duplicates first, THEN drop blanks
+    # (this order matters — it's what distinguishes "aa a" -> "a a" from "aaa" -> "a").
+    # Track each surviving position's own top-probability alongside it, so
+    # confidence can be computed from exactly the frames that produced the
+    # final text — not diluted by (or entirely made of) blank frames.
+    collapsed: list[tuple[int, float]] = [
+        (i, p) for idx, (i, p) in enumerate(zip(ids, frame_probs))
+        if idx == 0 or i != ids[idx - 1]
+    ]
+    non_blank = [(i, p) for i, p in collapsed if i != CTC_BLANK_ID]
+
+    tokens = [_id_to_token.get(i, f"<{i}>") for i, _ in non_blank]
     # SimpleCharTokenizer (app/training/isltranslate.py) is CHARACTER-level —
     # its vocabulary already includes a literal " " (space) token. Joining
     # with " ".join(tokens) would insert an EXTRA space between every single
@@ -78,7 +85,16 @@ def decode_logits(logits: torch.Tensor) -> tuple[str, float]:
     # producing unreadable text even with a perfectly correct model and
     # decode order. Concatenate the characters directly instead.
     text = "".join(tokens)
-    return text or "(no confident prediction)", confidence
+
+    # Confidence in the returned text specifically. If every frame collapsed
+    # to blank (no prediction at all), there is nothing to be confident IN —
+    # report 0.0 rather than the old behavior of averaging in blank-frame
+    # certainty, which could show e.g. "86% confidence" next to empty text
+    # (the model being highly sure every frame was blank, misread as
+    # confidence in a prediction that doesn't exist).
+    confidence = float(sum(p for _, p in non_blank) / len(non_blank)) if non_blank else 0.0
+
+    return text or "(no sign detected)", confidence
 
 
 def run_inference(
