@@ -5,86 +5,75 @@ This is the FROZEN backbone: once pretrained on ISLTranslate / ISL-CSLTR /
 iSign / INCLUDE, its weights never change at inference time. Signer-specific
 personalization happens entirely in BridgeAdapter (see bridge_adapter.py),
 which is the actual novel contribution of this project.
-
-Architecture (encoder-only, since we're doing continuous sign -> text and
-plan to decode with a separate lightweight head or CTC, not full seq2seq):
-
-    pose_stream   -> PoseEncoder   -\
-                                     +--> CrossModalFusion --> TransformerEncoder --> output head
-    face_stream   -> FaceEncoder   -/
-
-Both streams take pre-extracted keypoints (e.g. from MediaPipe Holistic),
-NOT raw video, so this stays lightweight enough to run on a laptop/cloud CPU
-for the demo, with GPU only speeding things up.
 """
 import torch
 import torch.nn as nn
 
-
-# Single source of truth for the MediaPipe Holistic feature contract.
-# Legacy `mp.solutions.holistic` (not the newer face_mesh w/ iris refinement)
-# gives 33 pose landmarks (x,y,z,visibility) and 468 face landmarks (x,y,z).
-# Verified against actual extracted samples — see extract_keypoints.py, which
-# validates every frame against these same constants.
-POSE_INPUT_DIM = 33 * 4   # 132
-FACE_INPUT_DIM = 468 * 3  # 1404
-
-# Hard cap on frames per clip fed to the model, enforced by the positional
-# embedding size below. Real clips can run far longer (e.g. one ISL-CSLTR
-# outlier has 4500 frames) — collate_ctc_batch in
-# app/training/isltranslate.py uniformly downsamples anything longer than
-# this to exactly MAX_SEQUENCE_LENGTH frames before it ever reaches the
-# model, rather than raising the embedding table to fit the outlier.
+POSE_INPUT_DIM = 33 * 4
+FACE_INPUT_DIM = 468 * 3
 MAX_SEQUENCE_LENGTH = 1024
 
 
 class StreamEncoder(nn.Module):
-    """Encodes a single stream of keypoints (pose OR face) into a sequence
-    of d_model-dim embeddings, one per frame."""
+    """Encode one keypoint stream while ignoring padded frames when lengths are supplied."""
 
     def __init__(self, input_dim: int, d_model: int = 256, n_layers: int = 2, n_heads: int = 4):
         super().__init__()
         self.input_proj = nn.Linear(input_dim, d_model)
-        self.pos_embedding = nn.Parameter(torch.zeros(1, MAX_SEQUENCE_LENGTH, d_model))  # supports up to MAX_SEQUENCE_LENGTH frames
+        self.pos_embedding = nn.Parameter(torch.zeros(1, MAX_SEQUENCE_LENGTH, d_model))
         encoder_layer = nn.TransformerEncoderLayer(
-            d_model=d_model, nhead=n_heads, dim_feedforward=d_model * 4,
-            batch_first=True, dropout=0.1,
+            d_model=d_model,
+            nhead=n_heads,
+            dim_feedforward=d_model * 4,
+            batch_first=True,
+            dropout=0.1,
         )
         self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=n_layers)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x: (batch, frames, input_dim)
+    def forward(self, x: torch.Tensor, padding_mask: torch.Tensor | None = None) -> torch.Tensor:
         seq_len = x.shape[1]
         h = self.input_proj(x) + self.pos_embedding[:, :seq_len, :]
-        return self.encoder(h)  # (batch, frames, d_model)
+        return self.encoder(h, src_key_padding_mask=padding_mask)
 
 
 class CrossModalFusion(nn.Module):
-    """Fuses pose and face embeddings via cross-attention: pose attends to
-    face as context, so facial expression (grammar/negation/emotion markers
-    in ISL) modulates the pose-based sign representation."""
+    """Fuse pose and face while preventing attention to padded face frames."""
 
     def __init__(self, d_model: int = 256, n_heads: int = 4):
         super().__init__()
         self.cross_attn = nn.MultiheadAttention(d_model, n_heads, batch_first=True)
         self.norm = nn.LayerNorm(d_model)
 
-    def forward(self, pose_emb: torch.Tensor, face_emb: torch.Tensor) -> torch.Tensor:
-        fused, _ = self.cross_attn(query=pose_emb, key=face_emb, value=face_emb)
+    def forward(
+        self,
+        pose_emb: torch.Tensor,
+        face_emb: torch.Tensor,
+        face_padding_mask: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        fused, _ = self.cross_attn(
+            query=pose_emb,
+            key=face_emb,
+            value=face_emb,
+            key_padding_mask=face_padding_mask,
+        )
         return self.norm(pose_emb + fused)
 
 
 class VisionBridgeBaseModel(nn.Module):
-    """Full frozen backbone: pose + face -> fusion -> shared transformer ->
-    logits over the output vocabulary (glosses or subword text tokens,
-    decided at data-pipeline stage)."""
+    """Pose + face -> fusion -> shared Transformer -> character logits.
+
+    ``lengths`` is optional for backward compatibility. During batched training
+    it is required to prevent padded frames introduced by ``collate_ctc_batch``
+    from influencing real frames through self/cross attention. Single-clip
+    inference can omit it because no padding is present.
+    """
 
     def __init__(
         self,
-        pose_input_dim: int = POSE_INPUT_DIM,  # 33 MediaPipe pose landmarks * 4 (x,y,z,visibility)
-        face_input_dim: int = FACE_INPUT_DIM,  # 468 MediaPipe face landmarks * 3 (x,y,z)
+        pose_input_dim: int = POSE_INPUT_DIM,
+        face_input_dim: int = FACE_INPUT_DIM,
         d_model: int = 256,
-        vocab_size: int = 3000,      # placeholder; set from actual tokenizer/vocab at train time
+        vocab_size: int = 3000,
         shared_layers: int = 4,
         n_heads: int = 4,
     ):
@@ -94,49 +83,66 @@ class VisionBridgeBaseModel(nn.Module):
         self.fusion = CrossModalFusion(d_model, n_heads)
 
         shared_layer = nn.TransformerEncoderLayer(
-            d_model=d_model, nhead=n_heads, dim_feedforward=d_model * 4,
-            batch_first=True, dropout=0.1,
+            d_model=d_model,
+            nhead=n_heads,
+            dim_feedforward=d_model * 4,
+            batch_first=True,
+            dropout=0.1,
         )
         self.shared_encoder = nn.TransformerEncoder(shared_layer, num_layers=shared_layers)
         self.output_head = nn.Linear(d_model, vocab_size)
-
-        # This is the hook point BridgeAdapter attaches to (see bridge_adapter.py):
-        # adapters wrap self.shared_encoder's layers rather than replacing them.
         self.d_model = d_model
 
     def freeze(self):
         for p in self.parameters():
             p.requires_grad = False
 
-    def forward(self, pose: torch.Tensor, face: torch.Tensor) -> torch.Tensor:
-        pose_emb = self.pose_encoder(pose)
-        face_emb = self.face_encoder(face)
-        fused = self.fusion(pose_emb, face_emb)
-        hidden = self.shared_encoder(fused)
-        return self.output_head(hidden)  # (batch, frames, vocab_size)
+    @staticmethod
+    def _padding_mask(lengths: torch.Tensor, max_frames: int) -> torch.Tensor:
+        lengths = lengths.to(dtype=torch.long)
+        positions = torch.arange(max_frames, device=lengths.device).unsqueeze(0)
+        return positions >= lengths.unsqueeze(1)
+
+    def forward(
+        self,
+        pose: torch.Tensor,
+        face: torch.Tensor,
+        lengths: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        if pose.ndim != 3 or face.ndim != 3:
+            raise ValueError("pose and face must be 3-D tensors: (batch, frames, features)")
+        if pose.shape[:2] != face.shape[:2]:
+            raise ValueError("pose and face must have matching batch/frame dimensions")
+
+        padding_mask = None
+        if lengths is not None:
+            if lengths.ndim != 1 or lengths.shape[0] != pose.shape[0]:
+                raise ValueError("lengths must have shape (batch,)")
+            lengths = lengths.to(device=pose.device, dtype=torch.long)
+            if torch.any(lengths <= 0) or torch.any(lengths > pose.shape[1]):
+                raise ValueError("lengths must be in the range [1, frames]")
+            padding_mask = self._padding_mask(lengths, pose.shape[1])
+
+        pose_emb = self.pose_encoder(pose, padding_mask)
+        face_emb = self.face_encoder(face, padding_mask)
+        fused = self.fusion(pose_emb, face_emb, padding_mask)
+        hidden = self.shared_encoder(fused, src_key_padding_mask=padding_mask)
+        return self.output_head(hidden)
 
 
 def load_frozen_base_model(
     weights_path: str | None = None,
     **kwargs,
 ) -> VisionBridgeBaseModel:
-    """Instantiate and freeze the base model.
-
-    When a checkpoint is provided, infer vocab_size from the checkpoint's
-    output head so the model architecture exactly matches the trained weights.
-    """
+    """Instantiate and freeze the base model."""
     if weights_path:
         import os
 
         if os.path.exists(weights_path):
             state = torch.load(weights_path, map_location="cpu")
-
-            # Infer the vocabulary size used during training.
             output_head_weight = state.get("output_head.weight")
             if output_head_weight is not None:
-                vocab_size = int(output_head_weight.shape[0])
-                kwargs["vocab_size"] = vocab_size
-
+                kwargs["vocab_size"] = int(output_head_weight.shape[0])
             model = VisionBridgeBaseModel(**kwargs)
             model.load_state_dict(state)
         else:
