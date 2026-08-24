@@ -162,13 +162,12 @@
               </div>
               <div class="mb-3">
                 <label for="apiUrl" class="form-label small text-muted-2">Endpoint URL</label>
-                <input id="apiUrl" type="url" class="form-control" value="https://api.visionbridge.ai/v2" />
+                <input id="apiUrl" type="url" class="form-control" value="https://visionbridge-backend.onrender.com/api/v1" />
               </div>
-              <div class="mb-3">
-                <label for="apiKey" class="form-label small text-muted-2">API key</label>
-                <input id="apiKey" type="password" class="form-control" value="sb_live_••••••••••••" />
-              </div>
-              <button class="btn btn-primary-sb btn-ripple">Save endpoint</button>
+              <button type="button" class="btn btn-primary-sb btn-ripple" data-sb-save-api-url>Save endpoint</button>
+              <p class="text-muted-2 small mt-3 mb-0" data-sb-api-url-status aria-live="polite">
+                Authentication uses the VisionBridge sign-in flow; this client does not store API keys.
+              </p>
             </div>
           </div>
         </div>
@@ -188,9 +187,9 @@
                 <dt class="col-5 text-muted-2 fw-normal small">App version</dt>
                 <dd class="col-7 mb-2">2.4.1</dd>
                 <dt class="col-5 text-muted-2 fw-normal small">Model version</dt>
-                <dd class="col-7 mb-2">SB-ISL v2.4 (Jun 2026)</dd>
+                <dd class="col-7 mb-2">VB-ISL v2.4 (Jun 2026)</dd>
                 <dt class="col-5 text-muted-2 fw-normal small">Runtime</dt>
-                <dd class="col-7 mb-0">WebGPU · on-device</dd>
+                <dd class="col-7 mb-0">FastAPI · PyTorch CPU</dd>
               </dl>
               <a href="#" class="small">Open source acknowledgements</a>
             </div>

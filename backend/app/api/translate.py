@@ -1,14 +1,16 @@
+import math
+
 import torch
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.db.models import SignerAdapter, TranslationLog
+from app.db.models import SignerAdapter, TranslationLog, User
 from app.db.session import get_db
 from app.models.base_model import FACE_INPUT_DIM, POSE_INPUT_DIM
 from app.schemas.schemas import TranslationRequest, TranslationResult
 from app.services.calibration_service import load_adapter_for_signer
-from app.services.inference_service import get_base_model, run_inference
+from app.services.inference_service import ModelUnavailableError, get_base_model, run_inference
 
 router = APIRouter(prefix="/translate", tags=["translate"])
 settings = get_settings()
@@ -27,18 +29,30 @@ def _validate_keypoints(pose_keypoints: list[list[float]], face_keypoints: list[
             status_code=422,
             detail=f"pose/face frame count mismatch: {len(pose_keypoints)} vs {len(face_keypoints)}",
         )
+    if len(pose_keypoints) > settings.MAX_INFERENCE_FRAMES:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"too many frames: {len(pose_keypoints)}, "
+                f"maximum is {settings.MAX_INFERENCE_FRAMES}"
+            ),
+        )
     for idx, frame in enumerate(pose_keypoints):
         if len(frame) != POSE_INPUT_DIM:
             raise HTTPException(
                 status_code=422,
                 detail=f"pose frame {idx} has {len(frame)} dims, expected {POSE_INPUT_DIM}",
             )
+        if not all(math.isfinite(value) for value in frame):
+            raise HTTPException(status_code=422, detail=f"pose frame {idx} contains a non-finite value")
     for idx, frame in enumerate(face_keypoints):
         if len(frame) != FACE_INPUT_DIM:
             raise HTTPException(
                 status_code=422,
                 detail=f"face frame {idx} has {len(frame)} dims, expected {FACE_INPUT_DIM}",
             )
+        if not all(math.isfinite(value) for value in frame):
+            raise HTTPException(status_code=422, detail=f"face frame {idx} contains a non-finite value")
 
 
 @router.post("", response_model=TranslationResult)
@@ -57,6 +71,9 @@ def translate(
     """
     _validate_keypoints(payload.pose_keypoints, payload.face_keypoints)
 
+    if payload.user_id is not None and not db.get(User, payload.user_id):
+        raise HTTPException(status_code=404, detail="User not found")
+
     pose = torch.tensor(payload.pose_keypoints, dtype=torch.float32).unsqueeze(0)  # (1, frames, dim)
     face = torch.tensor(payload.face_keypoints, dtype=torch.float32).unsqueeze(0)
 
@@ -65,13 +82,21 @@ def translate(
         row = db.query(SignerAdapter).filter(SignerAdapter.id == payload.adapter_id).first()
         if not row:
             raise HTTPException(status_code=404, detail="Adapter not found")
-        base_model = get_base_model()
-        adapter = load_adapter_for_signer(
-            row.weights_path, d_model=base_model.d_model,
-            n_layers=len(base_model.shared_encoder.layers),
-        )
+        if payload.user_id is not None and row.owner_id != payload.user_id:
+            raise HTTPException(status_code=403, detail="Adapter does not belong to the requested user")
+        try:
+            base_model = get_base_model()
+            adapter = load_adapter_for_signer(
+                row.weights_path, d_model=base_model.d_model,
+                n_layers=len(base_model.shared_encoder.layers),
+            )
+        except (ModelUnavailableError, OSError, RuntimeError) as exc:
+            raise HTTPException(status_code=503, detail="Translation model is unavailable") from exc
 
-    result = run_inference(pose, face, adapter=adapter)
+    try:
+        result = run_inference(pose, face, adapter=adapter)
+    except ModelUnavailableError as exc:
+        raise HTTPException(status_code=503, detail="Translation model is unavailable") from exc
 
     log = TranslationLog(
         user_id=payload.user_id,

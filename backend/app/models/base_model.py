@@ -134,19 +134,24 @@ def load_frozen_base_model(
     weights_path: str | None = None,
     **kwargs,
 ) -> VisionBridgeBaseModel:
-    """Instantiate and freeze the base model."""
+    """Instantiate and freeze the configured, trained base model.
+
+    A missing checkpoint is a deployment/configuration error.  Returning a
+    randomly initialized model here would make the translation endpoint look
+    healthy while serving meaningless output.
+    """
     if weights_path:
         import os
 
         if os.path.exists(weights_path):
-            state = torch.load(weights_path, map_location="cpu")
+            state = torch.load(weights_path, map_location="cpu", weights_only=True)
             output_head_weight = state.get("output_head.weight")
             if output_head_weight is not None:
                 kwargs["vocab_size"] = int(output_head_weight.shape[0])
             model = VisionBridgeBaseModel(**kwargs)
             model.load_state_dict(state)
         else:
-            model = VisionBridgeBaseModel(**kwargs)
+            raise FileNotFoundError(f"Base-model checkpoint was not found: {weights_path}")
     else:
         model = VisionBridgeBaseModel(**kwargs)
 
