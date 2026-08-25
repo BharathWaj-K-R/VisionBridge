@@ -4,15 +4,11 @@ contract can evolve independently of the DB schema.
 """
 import datetime as dt
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-
-# ---------- Users / auth ----------
 
 class UserCreate(BaseModel):
     username: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_.-]+$")
-    # bcrypt only processes the first 72 bytes; reject longer passwords rather
-    # than silently weakening the effective credential.
     password: str = Field(min_length=8, max_length=72)
 
 
@@ -28,8 +24,6 @@ class Token(BaseModel):
     token_type: str = "bearer"
 
 
-# ---------- Calibration / adapter ----------
-
 class CalibrationStartRequest(BaseModel):
     user_id: int
 
@@ -37,9 +31,18 @@ class CalibrationStartRequest(BaseModel):
 class CalibrationRequest(BaseModel):
     user_id: int = Field(gt=0)
     calibration_seconds: float = Field(gt=0)
-    pose_keypoints: list[list[float]]  # (frames, feature_dim) — one clip
-    face_keypoints: list[list[float]]  # (frames, feature_dim) — one clip
-    target_labels: list[int] = Field(min_length=1)  # sentence-level token ids for this clip, no blank token
+    pose_keypoints: list[list[float]]
+    face_keypoints: list[list[float]]
+    target_labels: list[int] | None = Field(default=None, min_length=1)
+    target_text: str | None = Field(default=None, min_length=1, max_length=200)
+
+    @model_validator(mode="after")
+    def require_target(self):
+        if self.target_labels is None and not self.target_text:
+            raise ValueError("Provide target_labels or target_text")
+        if self.target_labels is not None and self.target_text:
+            raise ValueError("Provide only one of target_labels or target_text")
+        return self
 
 
 class CalibrationResult(BaseModel):
@@ -59,13 +62,11 @@ class AdapterOut(BaseModel):
     created_at: dt.datetime
 
 
-# ---------- Translation ----------
-
 class TranslationRequest(BaseModel):
     user_id: int | None = Field(default=None, gt=0)
-    adapter_id: int | None = Field(default=None, gt=0)  # if None, base model only
-    pose_keypoints: list[list[float]]  # (frames, feature_dim)
-    face_keypoints: list[list[float]]  # (frames, feature_dim)
+    adapter_id: int | None = Field(default=None, gt=0)
+    pose_keypoints: list[list[float]]
+    face_keypoints: list[list[float]]
 
 
 class TranslationResult(BaseModel):
@@ -75,9 +76,7 @@ class TranslationResult(BaseModel):
     used_adapter: bool
 
 
-# ---------- Ablation / eval ----------
-
 class AblationRow(BaseModel):
-    config_name: str  # e.g. "base_only", "base+face", "base+adapter", "base+face+adapter"
+    config_name: str
     accuracy: float
     calibration_seconds: float | None = None
