@@ -5,7 +5,11 @@ from app.api.deps import get_current_user
 from app.db.models import SignerAdapter, User
 from app.db.session import get_db
 from app.schemas.schemas import AdapterOut
-from app.services.calibration_service import delete_adapter_weights
+from app.services.calibration_service import (
+    finalize_staged_adapter_weight_delete,
+    restore_staged_adapter_weight,
+    stage_adapter_weight_delete,
+)
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -50,15 +54,34 @@ def delete_my_adapter(
         raise HTTPException(status_code=404, detail="Adapter not found")
 
     weights_path = adapter.weights_path
+    try:
+        tombstone = stage_adapter_weight_delete(weights_path)
+    except (OSError, ValueError) as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Adapter deletion could not be staged safely",
+        ) from exc
+
     db.delete(adapter)
     try:
-        delete_adapter_weights(weights_path)
         db.commit()
-    except (OSError, ValueError) as exc:
+    except Exception as exc:
         db.rollback()
+        if tombstone is not None:
+            restore_staged_adapter_weight(tombstone, weights_path)
         raise HTTPException(
             status_code=500,
             detail="Adapter deletion could not be completed safely",
+        ) from exc
+
+    try:
+        finalize_staged_adapter_weight_delete(tombstone)
+    except OSError as exc:
+        # The DB row is already gone. Keep the response successful but leave
+        # the staged file for operational cleanup rather than resurrecting DB state.
+        raise HTTPException(
+            status_code=500,
+            detail="Adapter record deleted, but stored weight cleanup is pending",
         ) from exc
 
     return {"deleted": True, "adapter_id": adapter_id}
