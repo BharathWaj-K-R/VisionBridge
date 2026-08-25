@@ -4,6 +4,7 @@ import torch
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_optional_current_user
 from app.core.config import get_settings
 from app.db.models import SignerAdapter, TranslationLog, User
 from app.db.session import get_db
@@ -59,31 +60,39 @@ def _validate_keypoints(pose_keypoints: list[list[float]], face_keypoints: list[
 def translate(
     payload: TranslationRequest,
     db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_optional_current_user),
 ):
     """Translate one clip's worth of pre-extracted pose + face keypoints.
 
-    Expects a flat JSON body:
-    { "user_id": ..., "adapter_id": ..., "pose_keypoints": [[...]], "face_keypoints": [[...]] }
+    Anonymous base-model inference remains supported for the public demo.
+    Any request that names a user or signer adapter must carry a valid bearer
+    token for that same user so one signer cannot access another signer's
+    adapter by guessing an adapter ID.
 
-    pose_keypoints / face_keypoints: shape (frames, feature_dim), already
-    extracted client- or server-side (e.g. via MediaPipe Holistic). This
-    endpoint does NOT do video decoding or keypoint extraction itself.
+    pose_keypoints / face_keypoints are already extracted client- or
+    server-side (e.g. via MediaPipe Holistic). This endpoint does NOT do video
+    decoding or keypoint extraction itself.
     """
     _validate_keypoints(payload.pose_keypoints, payload.face_keypoints)
 
-    if payload.user_id is not None and not db.get(User, payload.user_id):
-        raise HTTPException(status_code=404, detail="User not found")
+    if payload.user_id is not None:
+        if current_user is None:
+            raise HTTPException(status_code=401, detail="Authentication required for user-scoped translation")
+        if current_user.id != payload.user_id:
+            raise HTTPException(status_code=403, detail="user_id does not match the authenticated user")
 
-    pose = torch.tensor(payload.pose_keypoints, dtype=torch.float32).unsqueeze(0)  # (1, frames, dim)
+    pose = torch.tensor(payload.pose_keypoints, dtype=torch.float32).unsqueeze(0)
     face = torch.tensor(payload.face_keypoints, dtype=torch.float32).unsqueeze(0)
 
     adapter = None
     if payload.adapter_id is not None:
+        if current_user is None:
+            raise HTTPException(status_code=401, detail="Authentication required to use a signer adapter")
         row = db.query(SignerAdapter).filter(SignerAdapter.id == payload.adapter_id).first()
         if not row:
             raise HTTPException(status_code=404, detail="Adapter not found")
-        if payload.user_id is not None and row.owner_id != payload.user_id:
-            raise HTTPException(status_code=403, detail="Adapter does not belong to the requested user")
+        if row.owner_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Adapter does not belong to the authenticated user")
         try:
             base_model = get_base_model()
             adapter = load_adapter_for_signer(
@@ -99,7 +108,7 @@ def translate(
         raise HTTPException(status_code=503, detail="Translation model is unavailable") from exc
 
     log = TranslationLog(
-        user_id=payload.user_id,
+        user_id=current_user.id if current_user is not None and payload.user_id is not None else None,
         adapter_id=payload.adapter_id,
         predicted_text=result["predicted_text"],
         confidence=result["confidence"],
