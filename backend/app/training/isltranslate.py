@@ -1,10 +1,4 @@
-"""ISLTranslate dataset loading utilities.
-
-The upstream ISLTranslate release provides an ``ISLTranslate.csv`` metadata
-file and pre-extracted MediaPipe Holistic feature archives. This module expects
-those archives to be unpacked locally and converted to per-UID feature files
-containing pose and face arrays before model training.
-"""
+"""ISLTranslate dataset loading utilities."""
 from __future__ import annotations
 
 import csv
@@ -16,7 +10,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from app.models.base_model import MAX_SEQUENCE_LENGTH
+from app.models.base_model import FACE_INPUT_DIM, MAX_SEQUENCE_LENGTH, POSE_INPUT_DIM
 
 
 @dataclass(frozen=True)
@@ -28,13 +22,6 @@ class ISLTranslateExample:
 
 
 class SimpleCharTokenizer:
-    """Small deterministic character tokenizer for initial CTC training.
-
-    It is intentionally lightweight so the base model can be trained before a
-    production subword vocabulary is chosen. Token id 0 is reserved for the CTC
-    blank/pad symbol used by ``torch.nn.CTCLoss``.
-    """
-
     blank_token = "<blank>"
 
     def __init__(self, alphabet: str | None = None):
@@ -64,16 +51,6 @@ class SimpleCharTokenizer:
 
 
 class ISLTranslateKeypointDataset(Dataset):
-    """Loads aligned ISLTranslate metadata and pose/face feature arrays.
-
-    Directory convention after preprocessing::
-
-        data/processed/isltranslate/
-        ├── ISLTranslate.csv
-        ├── pose/<uid>.npy
-        └── face/<uid>.npy
-    """
-
     def __init__(self, root: str | Path, tokenizer: SimpleCharTokenizer | None = None):
         self.root = Path(root)
         self.tokenizer = tokenizer or SimpleCharTokenizer()
@@ -104,7 +81,7 @@ class ISLTranslateKeypointDataset(Dataset):
                 if uid in seen_uids:
                     raise ValueError(
                         f"Duplicate uid {uid!r} in {metadata_path} at CSV row {row_number}. "
-                        "Each training clip must have a globally unique UID so one clip cannot overwrite another's features."
+                        "Each training clip must have a globally unique UID."
                     )
                 seen_uids.add(uid)
                 pose_path = self.root / "pose" / f"{uid}.npy"
@@ -120,6 +97,25 @@ class ISLTranslateKeypointDataset(Dataset):
         example = self.examples[index]
         pose = torch.from_numpy(np.load(example.pose_path)).float()
         face = torch.from_numpy(np.load(example.face_path)).float()
+
+        if pose.ndim != 2 or pose.shape[1] != POSE_INPUT_DIM:
+            raise ValueError(
+                f"Example {example.uid!r} has invalid pose shape {tuple(pose.shape)}; "
+                f"expected (frames, {POSE_INPUT_DIM})"
+            )
+        if face.ndim != 2 or face.shape[1] != FACE_INPUT_DIM:
+            raise ValueError(
+                f"Example {example.uid!r} has invalid face shape {tuple(face.shape)}; "
+                f"expected (frames, {FACE_INPUT_DIM})"
+            )
+        if pose.shape[0] != face.shape[0] or pose.shape[0] == 0:
+            raise ValueError(
+                f"Example {example.uid!r} has misaligned/empty streams: "
+                f"pose_frames={pose.shape[0]}, face_frames={face.shape[0]}"
+            )
+        if not torch.isfinite(pose).all() or not torch.isfinite(face).all():
+            raise ValueError(f"Example {example.uid!r} contains non-finite keypoint values")
+
         labels = torch.tensor(self.tokenizer.encode(example.text), dtype=torch.long)
         if labels.numel() == 0:
             raise ValueError(f"Example {example.uid!r} has no encodable target text: {example.text!r}")
@@ -127,17 +123,11 @@ class ISLTranslateKeypointDataset(Dataset):
 
 
 def _downsample_to_max_length(pose: torch.Tensor, face: torch.Tensor, uid: str) -> tuple[torch.Tensor, torch.Tensor]:
-    """Uniformly downsamples pose+face to MAX_SEQUENCE_LENGTH frames if the
-    clip is longer than that (e.g. one ISL-CSLTR outlier clip runs 4500
-    frames vs the model's 1024-frame positional embedding). Clips at or
-    under the cap are returned unchanged. One shared index array is used for
-    both streams so pose and face stay frame-aligned after sampling."""
     pose_frames = int(pose.shape[0])
     face_frames = int(face.shape[0])
     if pose_frames != face_frames:
         raise ValueError(
-            f"pose/face frame count mismatch for uid={uid!r}: "
-            f"{pose_frames} vs {face_frames}"
+            f"pose/face frame count mismatch for uid={uid!r}: {pose_frames} vs {face_frames}"
         )
 
     if pose_frames <= MAX_SEQUENCE_LENGTH:
@@ -146,26 +136,34 @@ def _downsample_to_max_length(pose: torch.Tensor, face: torch.Tensor, uid: str) 
     indices = torch.linspace(0, pose_frames - 1, steps=MAX_SEQUENCE_LENGTH).long()
     pose = pose[indices]
     face = face[indices]
-    if pose.shape[0] != face.shape[0]:
-        raise ValueError(
-            f"pose/face frame count mismatch after downsampling for uid={uid!r}: "
-            f"{pose.shape[0]} vs {face.shape[0]}"
-        )
     return pose, face
 
 
 def collate_ctc_batch(batch: list[dict[str, torch.Tensor | str]]) -> dict[str, torch.Tensor | list[str]]:
-    pose_dim = int(batch[0]["pose"].shape[-1])  # type: ignore[index, union-attr]
-    face_dim = int(batch[0]["face"].shape[-1])  # type: ignore[index, union-attr]
+    if not batch:
+        raise ValueError("Cannot collate an empty CTC batch")
 
     sampled_items = []
     for item in batch:
         uid = str(item["uid"])
         pose, face = _downsample_to_max_length(item["pose"], item["face"], uid)  # type: ignore[arg-type]
+        labels = item["labels"]  # type: ignore[assignment]
+        if labels.numel() > pose.shape[0]:
+            raise ValueError(
+                f"CTC target is longer than input sequence for uid={uid!r}: "
+                f"target_length={labels.numel()}, input_frames={pose.shape[0]}"
+            )
         sampled_items.append({**item, "pose": pose, "face": face})
 
-    max_frames = max(int(item["pose"].shape[0]) for item in sampled_items)  # type: ignore[index, union-attr]
+    pose_dim = int(sampled_items[0]["pose"].shape[-1])  # type: ignore[index, union-attr]
+    face_dim = int(sampled_items[0]["face"].shape[-1])  # type: ignore[index, union-attr]
+    if pose_dim != POSE_INPUT_DIM or face_dim != FACE_INPUT_DIM:
+        raise ValueError(
+            f"Unexpected batch feature dimensions: pose={pose_dim}, face={face_dim}; "
+            f"expected pose={POSE_INPUT_DIM}, face={FACE_INPUT_DIM}"
+        )
 
+    max_frames = max(int(item["pose"].shape[0]) for item in sampled_items)  # type: ignore[index, union-attr]
     pose = torch.zeros(len(sampled_items), max_frames, pose_dim)
     face = torch.zeros(len(sampled_items), max_frames, face_dim)
     input_lengths = torch.zeros(len(sampled_items), dtype=torch.long)
