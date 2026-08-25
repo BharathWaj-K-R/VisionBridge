@@ -20,6 +20,7 @@ settings = get_settings()
 
 _base_model = None
 _id_to_token: dict[int, str] = {}
+_model_status_cache: tuple[tuple[int, int], dict[str, str | bool]] | None = None
 
 
 class ModelUnavailableError(RuntimeError):
@@ -74,29 +75,41 @@ def get_base_model():
 
 
 def model_status() -> dict[str, str | bool]:
-    """Validate checkpoint/vocabulary presence and output-head compatibility.
+    """Validate checkpoint/vocabulary compatibility without reloading on every probe.
 
-    This readiness probe intentionally loads the checkpoint state once because
-    PyTorch's state-dict format does not provide a cheap header-only shape API.
-    The live model is still cached separately by ``get_base_model``.
+    The cache is invalidated automatically when either file's mtime/size changes,
+    so a newly deployed checkpoint is revalidated without requiring a process restart.
     """
+    global _model_status_cache
     model_path = Path(settings.BASE_MODEL_PATH)
     vocab_path = model_path.with_suffix(".vocab.json")
     if not model_path.is_file() or not vocab_path.is_file():
+        _model_status_cache = None
         return {"available": False, "status": "unavailable"}
+
+    signature = (
+        (model_path.stat().st_mtime_ns, model_path.stat().st_size),
+        (vocab_path.stat().st_mtime_ns, vocab_path.stat().st_size),
+    )
+    cached = _model_status_cache
+    if cached is not None and cached[0] == signature:
+        return cached[1].copy()
 
     try:
         id_to_token = _load_vocab(str(model_path))
         state = torch.load(model_path, map_location="cpu", weights_only=True)
         output_head_weight = state.get("output_head.weight")
         if output_head_weight is None:
-            return {"available": False, "status": "invalid_checkpoint"}
-        if len(id_to_token) != int(output_head_weight.shape[0]):
-            return {"available": False, "status": "vocabulary_mismatch"}
+            result = {"available": False, "status": "invalid_checkpoint"}
+        elif len(id_to_token) != int(output_head_weight.shape[0]):
+            result = {"available": False, "status": "vocabulary_mismatch"}
+        else:
+            result = {"available": True, "status": "ready"}
     except Exception:
-        return {"available": False, "status": "invalid_checkpoint"}
+        result = {"available": False, "status": "invalid_checkpoint"}
 
-    return {"available": True, "status": "ready"}
+    _model_status_cache = (signature, result)
+    return result.copy()
 
 
 CTC_BLANK_ID = 0
