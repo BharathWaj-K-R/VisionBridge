@@ -122,6 +122,20 @@ class ISLTranslateKeypointDataset(Dataset):
         return {"uid": example.uid, "pose": pose, "face": face, "labels": labels, "text": example.text}
 
 
+def ctc_min_input_length(labels: torch.Tensor) -> int:
+    """Return the minimum CTC input length needed for a target sequence.
+
+    Adjacent repeated labels require an intervening CTC blank, so a target
+    such as ``ll`` needs at least three frames. CTCLoss can otherwise return
+    zero with ``zero_infinity=True``, silently turning an impossible sample
+    into a misleading training signal.
+    """
+    if labels.numel() == 0:
+        return 0
+    repeats = int((labels[1:] == labels[:-1]).sum().item())
+    return int(labels.numel()) + repeats
+
+
 def _downsample_to_max_length(pose: torch.Tensor, face: torch.Tensor, uid: str) -> tuple[torch.Tensor, torch.Tensor]:
     pose_frames = int(pose.shape[0])
     face_frames = int(face.shape[0])
@@ -148,10 +162,12 @@ def collate_ctc_batch(batch: list[dict[str, torch.Tensor | str]]) -> dict[str, t
         uid = str(item["uid"])
         pose, face = _downsample_to_max_length(item["pose"], item["face"], uid)  # type: ignore[arg-type]
         labels = item["labels"]  # type: ignore[assignment]
-        if labels.numel() > pose.shape[0]:
+        required_frames = ctc_min_input_length(labels)
+        if required_frames > pose.shape[0]:
             raise ValueError(
-                f"CTC target is longer than input sequence for uid={uid!r}: "
-                f"target_length={labels.numel()}, input_frames={pose.shape[0]}"
+                f"CTC target cannot align for uid={uid!r}: "
+                f"target_length={labels.numel()}, repeated_labels={required_frames - labels.numel()}, "
+                f"minimum_required_frames={required_frames}, input_frames={pose.shape[0]}"
             )
         sampled_items.append({**item, "pose": pose, "face": face})
 
