@@ -4,7 +4,6 @@
 (function () {
   "use strict";
 
-  // Shared nav markup so every page has a consistent header without duplication.
   const NAV_LINKS = [
     { href: "/index.html", label: "Home" },
     { href: "/pages/dashboard.html", label: "Dashboard" },
@@ -93,7 +92,6 @@
     `;
   }
 
-  // Button ripple micro-interaction
   function initRipples() {
     document.addEventListener("click", (e) => {
       const btn = e.target.closest(".btn-ripple");
@@ -102,14 +100,12 @@
       btn.style.setProperty("--x", `${((e.clientX - rect.left) / rect.width) * 100}%`);
       btn.style.setProperty("--y", `${((e.clientY - rect.top) / rect.height) * 100}%`);
       btn.classList.remove("is-rippling");
-      // Force reflow so the animation can restart
       void btn.offsetWidth;
       btn.classList.add("is-rippling");
       setTimeout(() => btn.classList.remove("is-rippling"), 500);
     });
   }
 
-  // Reveal on scroll for elements marked [data-sb-reveal]
   function initReveal() {
     const items = document.querySelectorAll("[data-sb-reveal]");
     if (!items.length || !("IntersectionObserver" in window)) return;
@@ -127,7 +123,6 @@
     items.forEach((el) => io.observe(el));
   }
 
-  // Circular progress helper — usage: <div class="sb-progress-ring" data-value="72">
   function initRings() {
     document.querySelectorAll(".sb-progress-ring[data-value]").forEach((el) => {
       const val = Math.max(0, Math.min(100, Number(el.dataset.value) || 0));
@@ -137,7 +132,6 @@
     });
   }
 
-  // Simple copy-to-clipboard
   function initCopy() {
     document.querySelectorAll("[data-sb-copy]").forEach((btn) => {
       btn.addEventListener("click", async () => {
@@ -187,56 +181,6 @@
     });
   }
 
-  // Fake live translation ticker used on the Translate page
-  function initFakeTranslation() {
-    const captionEl = document.querySelector("[data-sb-caption]");
-    const confBar = document.querySelector("[data-sb-confidence-bar]");
-    const confVal = document.querySelector("[data-sb-confidence-val]");
-    const latency = document.querySelector("[data-sb-latency]");
-    const fps = document.querySelector("[data-sb-fps]");
-    if (!captionEl) return;
-
-    const phrases = [
-      "Hello, how are you today?",
-      "My name is Aarav. Nice to meet you.",
-      "Could you please repeat that?",
-      "Thank you for your patience.",
-      "I would like some water, please.",
-      "Where is the nearest metro station?",
-    ];
-    let i = 0;
-
-    const startBtn = document.querySelector("[data-sb-start]");
-    const pauseBtn = document.querySelector("[data-sb-pause]");
-    const stopBtn = document.querySelector("[data-sb-stop]");
-    let timer = null;
-
-    function tick() {
-      captionEl.style.opacity = "0";
-      setTimeout(() => {
-        captionEl.textContent = phrases[i % phrases.length];
-        captionEl.style.opacity = "1";
-        const conf = Math.floor(88 + Math.random() * 10);
-        if (confBar) confBar.style.width = `${conf}%`;
-        if (confVal) confVal.textContent = `${conf}%`;
-        if (latency) latency.textContent = `${Math.floor(220 + Math.random() * 180)} ms`;
-        if (fps) fps.textContent = `${Math.floor(28 + Math.random() * 4)} fps`;
-        i += 1;
-      }, 200);
-    }
-
-    function start() { if (!timer) { tick(); timer = setInterval(tick, 2400); } }
-    function pause() { if (timer) { clearInterval(timer); timer = null; } }
-    function stop() { pause(); captionEl.textContent = "Translation stopped. Press Start to resume."; }
-
-    startBtn && startBtn.addEventListener("click", start);
-    pauseBtn && pauseBtn.addEventListener("click", pause);
-    stopBtn && stopBtn.addEventListener("click", stop);
-
-    // Auto-start after a short delay for demo polish
-    setTimeout(start, 600);
-  }
-
   document.addEventListener("DOMContentLoaded", () => {
     renderNav();
     renderFooter();
@@ -245,8 +189,5 @@
     initRings();
     initCopy();
     initApiEndpointSettings();
-    // initFakeTranslation() removed: translate.html now uses
-    // translate-live.js for real webcam + backend wiring, with its own
-    // internal fallback if camera/model/backend are unavailable.
   });
 })();
