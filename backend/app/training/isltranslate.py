@@ -35,7 +35,13 @@ class SimpleCharTokenizer:
         return len(self.id_to_token)
 
     def encode(self, text: str) -> list[int]:
-        return [self.token_to_id[ch] for ch in text.lower() if ch in self.token_to_id and ch != self.blank_token]
+        normalized = text.lower()
+        unknown = sorted({ch for ch in normalized if ch not in self.token_to_id})
+        if unknown:
+            raise ValueError(
+                f"Unsupported target characters {unknown!r}; extend the tokenizer alphabet before training."
+            )
+        return [self.token_to_id[ch] for ch in normalized if ch != self.blank_token]
 
     def save(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -46,6 +52,8 @@ class SimpleCharTokenizer:
         payload = json.loads(path.read_text(encoding="utf-8"))
         tokenizer = cls("")
         tokenizer.id_to_token = payload["id_to_token"]
+        if not tokenizer.id_to_token or tokenizer.id_to_token[0] != tokenizer.blank_token:
+            raise ValueError("Saved tokenizer must reserve token 0 for CTC blank")
         tokenizer.token_to_id = {token: idx for idx, token in enumerate(tokenizer.id_to_token)}
         return tokenizer
 
@@ -116,20 +124,16 @@ class ISLTranslateKeypointDataset(Dataset):
         if not torch.isfinite(pose).all() or not torch.isfinite(face).all():
             raise ValueError(f"Example {example.uid!r} contains non-finite keypoint values")
 
-        labels = torch.tensor(self.tokenizer.encode(example.text), dtype=torch.long)
+        try:
+            labels = torch.tensor(self.tokenizer.encode(example.text), dtype=torch.long)
+        except ValueError as exc:
+            raise ValueError(f"Example {example.uid!r} has invalid target text: {example.text!r}: {exc}") from exc
         if labels.numel() == 0:
             raise ValueError(f"Example {example.uid!r} has no encodable target text: {example.text!r}")
         return {"uid": example.uid, "pose": pose, "face": face, "labels": labels, "text": example.text}
 
 
 def ctc_min_input_length(labels: torch.Tensor) -> int:
-    """Return the minimum CTC input length needed for a target sequence.
-
-    Adjacent repeated labels require an intervening CTC blank, so a target
-    such as ``ll`` needs at least three frames. CTCLoss can otherwise return
-    zero with ``zero_infinity=True``, silently turning an impossible sample
-    into a misleading training signal.
-    """
     if labels.numel() == 0:
         return 0
     repeats = int((labels[1:] == labels[:-1]).sum().item())
@@ -148,9 +152,7 @@ def _downsample_to_max_length(pose: torch.Tensor, face: torch.Tensor, uid: str) 
         return pose, face
 
     indices = torch.linspace(0, pose_frames - 1, steps=MAX_SEQUENCE_LENGTH).long()
-    pose = pose[indices]
-    face = face[indices]
-    return pose, face
+    return pose[indices], face[indices]
 
 
 def collate_ctc_batch(batch: list[dict[str, torch.Tensor | str]]) -> dict[str, torch.Tensor | list[str]]:
