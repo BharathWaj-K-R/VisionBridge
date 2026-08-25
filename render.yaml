@@ -15,8 +15,6 @@ services:
         value: production
       - key: SECRET_KEY
         generateValue: true
-      - key: DATABASE_URL
-        value: sqlite:///./visionbridge.db
       - key: ALLOWED_ORIGINS
         value: https://visionbridge-frontend.onrender.com
       - key: ACCESS_TOKEN_EXPIRE_MINUTES

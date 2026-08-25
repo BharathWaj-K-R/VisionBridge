@@ -47,7 +47,7 @@
       if (mode === "register") {
         await request("/auth/register", payload);
       }
-      const token = mode === "login" ? (await request("/auth/login", payload)).access_token : (await request("/auth/login", payload)).access_token;
+      const { access_token: token } = await request("/auth/login", payload);
       localStorage.setItem("visionbridge.accessToken", token);
       if (status) status.textContent = "Authenticated. Redirecting…";
       window.location.href = "/pages/dashboard.html";

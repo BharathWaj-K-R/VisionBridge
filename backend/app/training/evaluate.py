@@ -97,9 +97,15 @@ def main() -> None:
             logits = model(pose, face)
             predicted_text, confidence = inference_service.decode_logits(logits)
             ground_truth = item["text"]
-            score = cer(predicted_text, ground_truth)
+            is_empty_prediction = predicted_text == "(no sign detected)"
+            # Score against the actual decoded text (empty string), not the
+            # human-readable placeholder — scoring the literal 19-character
+            # placeholder string against a short ground truth produces a
+            # misleadingly huge CER (e.g. 8.5) instead of the correct 1.0
+            # for "predicted nothing."
+            score = cer("" if is_empty_prediction else predicted_text, ground_truth)
 
-            if predicted_text == "(no sign detected)":
+            if is_empty_prediction:
                 empty_predictions += 1
 
             results.append({

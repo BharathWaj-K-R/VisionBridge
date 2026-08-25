@@ -19,8 +19,27 @@
     const data = await response.json();
     const items = data.items || [];
     const cards = items.length ? items.map((item) => `<div class="col-md-6 col-lg-4"><article class="sb-card h-100"><div class="card-body"><div class="d-flex justify-content-between"><span class="text-muted-2 small">${esc(new Date(item.created_at).toLocaleString())}</span><span class="sb-badge ${item.confidence >= .9 ? "success" : item.confidence >= .75 ? "" : "warning"}">${confidence(item.confidence)}</span></div><h3 class="h6 mt-3 mb-2">Translation #${item.id}</h3><p class="text-muted-2 small mb-3">${esc(item.predicted_text)}</p><div class="d-flex justify-content-between text-muted-2 small"><span>${item.used_adapter ? "Personalized" : "Base model"}</span><span>${item.latency_ms == null ? "—" : `${Math.round(item.latency_ms)} ms`}</span></div></div></article></div>`).join("") : '<div class="col-12"><div class="sb-card"><div class="card-body text-muted-2">No persisted translation events match these filters.</div></div></div>';
-    main.innerHTML = `<header class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4"><div><div class="text-muted-2 small">Archive</div><h1 class="h2 mb-0">Translation history</h1><p class="text-muted-2 mb-0">Persisted server-side transcript telemetry for your account.</p></div><a class="btn btn-ghost-sb" href="${window.VB_API_BASE_URL}/history/export.csv" target="_blank" rel="noopener">Export CSV</a></header>${controls()}<div class="row g-3">${cards}</div>`;
+    main.innerHTML = `<header class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4"><div><div class="text-muted-2 small">Archive</div><h1 class="h2 mb-0">Translation history</h1><p class="text-muted-2 mb-0">Persisted server-side transcript telemetry for your account.</p></div><button class="btn btn-ghost-sb" data-export-csv type="button">Export CSV</button></header>${controls()}<div class="row g-3">${cards}</div>`;
+    main.querySelector("[data-export-csv]")?.addEventListener("click", () => exportCsv().catch(showError));
     ["#sbSearch", "#sbDate", "#sbSort"].forEach((selector) => document.querySelector(selector)?.addEventListener(selector === "#sbSearch" ? "input" : "change", () => load().catch(showError)));
+  }
+
+  async function exportCsv() {
+    // /history/export.csv requires Bearer auth (read from localStorage, not
+    // a cookie) — a plain <a href> download never sends that header and
+    // would 401. Fetch it through VB_API_FETCH (which does attach it), then
+    // trigger the download client-side from the response body.
+    const response = await window.VB_API_FETCH("/history/export.csv");
+    if (!response.ok) throw new Error(await response.text());
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "visionbridge-history.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   }
   function showError(error) { main.insertAdjacentHTML("afterbegin", `<div class="alert alert-danger">History could not be loaded: ${esc(error.message || error)}</div>`); }
   load().catch(showError);

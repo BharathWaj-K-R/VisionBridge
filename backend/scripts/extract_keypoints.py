@@ -47,7 +47,6 @@ import sys
 import types
 
 import numpy as np
-import pandas as pd
 
 
 # Single source of truth for the MediaPipe Holistic feature contract —
@@ -228,6 +227,7 @@ def main():
     import csv
 
     import mediapipe as mp
+    import pandas as pd
 
     pose_dir = os.path.join(args.out_dir, "pose")
     face_dir = os.path.join(args.out_dir, "face")

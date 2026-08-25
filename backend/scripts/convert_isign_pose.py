@@ -13,10 +13,10 @@ extract_keypoints.py instead.
 
 IMPORTANT:
 This converter is intentionally strict. VisionBridge's current model uses
-468 face landmarks = 1404 values/frame. A .pose file exposing 478 face
-landmarks = 1434 values/frame is NOT compatible and must not be written into
-the training directory. The previous version only warned and still saved
-incompatible arrays, creating a delayed dimensional failure.
+468 face landmarks = 1404 values/frame (468 * 3). A .pose file exposing 478
+face landmarks (478 * 3 values/frame) is NOT compatible and must not be
+written into the training directory. The previous version only warned and
+still saved incompatible arrays, creating a delayed dimensional failure.
 
 Before converting a new iSign release:
   1. Run: python scripts/convert_isign_pose.py --inspect_only <one_file.pose>
@@ -84,7 +84,7 @@ def convert_file(pose_path: str, uid: str, pose_dir: str, face_dir: str):
         raise ValueError(
             f"{uid}: incompatible face shape {tuple(face_arr.shape)}; "
             f"expected (frames, {EXPECTED_FACE_DIM}). "
-            "Do not feed a 478-landmark/1434-value face stream into this model."
+            "Do not feed a 478-landmark (478 * 3 values/frame) face stream into this model."
         )
     if pose_arr.shape[0] != face_arr.shape[0] or pose_arr.shape[0] == 0:
         raise ValueError(
