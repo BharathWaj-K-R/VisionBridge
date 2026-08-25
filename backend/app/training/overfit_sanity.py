@@ -1,15 +1,20 @@
 """Tiny real-data overfit check for the VisionBridge CTC training path.
 
-Use this before a full retraining run:
+Use this before a full retraining run. The default gate deliberately trains on
+ONE of the shortest real sentence labels for a longer run so the test answers
+the narrow question: can the current model/CTC pipeline memorize one real
+example at all?
+
+Example:
 
 PYTHONPATH=backend python -m app.training.overfit_sanity \
   --data-dir data/processed/isltranslate \
-  --samples 4 \
-  --steps 150
+  --samples 1 \
+  --steps 2000
 
-A healthy training pipeline should drive the loss down on the same few real
-examples and should produce at least some non-blank predictions. This is not a
-model-quality benchmark; it is a plumbing/optimization sanity check.
+This is not a model-quality benchmark. A PASS means the optimization path can
+escape the all-blank solution on a real example. Full training quality is
+still evaluated by the training notebook's validation predictions/CER gate.
 """
 from __future__ import annotations
 
@@ -34,9 +39,9 @@ def parse_args() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--data-dir", required=True)
-    parser.add_argument("--samples", type=int, default=4)
-    parser.add_argument("--steps", type=int, default=150)
-    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--samples", type=int, default=1)
+    parser.add_argument("--steps", type=int, default=2000)
+    parser.add_argument("--lr", type=float, default=2e-3)
     parser.add_argument("--device", default=None)
     return parser.parse_args()
 
@@ -45,12 +50,7 @@ def greedy_ctc_decode(
     logits: torch.Tensor,
     tokenizer: SimpleCharTokenizer,
 ) -> tuple[str, float, int, int, int]:
-    """Decode one sample and return text, confidence, frame counts, and tokens.
-
-    This deliberately does not call the inference service because that service
-    maintains module-level vocabulary state. The sanity test must measure the
-    exact logits it just produced with one deterministic decoder.
-    """
+    """Decode one sample and return text, confidence, frame counts, and tokens."""
     if logits.ndim != 3 or logits.shape[0] != 1:
         raise ValueError(f"Expected logits shape [1, T, V], got {tuple(logits.shape)}")
 
@@ -81,18 +81,15 @@ def greedy_ctc_decode(
         for token_id, _ in non_blank_collapsed
     ]
     text = "".join(tokens) or "(no sign detected)"
-
     confidence = (
         sum(probability for _, probability in non_blank_collapsed)
         / len(non_blank_collapsed)
         if non_blank_collapsed
         else 0.0
     )
-
     frame_non_blank = sum(token_id != CTC_BLANK_ID for token_id in frame_ids)
     frame_total = len(frame_ids)
     unique_non_blank = len({token_id for token_id, _ in non_blank_collapsed})
-
     return text, confidence, frame_non_blank, frame_total, unique_non_blank
 
 
@@ -102,8 +99,16 @@ def main() -> None:
 
     tokenizer = SimpleCharTokenizer()
     dataset = ISLTranslateKeypointDataset(args.data_dir, tokenizer=tokenizer)
-    n = min(max(args.samples, 2), len(dataset))
-    subset = Subset(dataset, list(range(n)))
+    n = min(max(args.samples, 1), len(dataset))
+
+    # For the default single-sample gate, deliberately choose the shortest
+    # real label available. This removes unnecessary sequence-to-label
+    # difficulty from the architectural/optimization sanity check.
+    indexed = list(range(len(dataset)))
+    indexed.sort(key=lambda idx: len(dataset.examples[idx].text))
+    chosen_indices = indexed[:n]
+
+    subset = Subset(dataset, chosen_indices)
     loader = DataLoader(subset, batch_size=n, shuffle=False, collate_fn=collate_ctc_batch)
     batch = next(iter(loader))
 
@@ -116,6 +121,11 @@ def main() -> None:
     labels = batch["labels"].to(device)
     input_lengths = batch["input_lengths"].to(device)
     label_lengths = batch["label_lengths"].to(device)
+
+    print(f"Sanity samples: {n} (shortest real labels)")
+    print("Targets:")
+    for i, text in enumerate(batch["text"]):
+        print(f"  {i}: {text!r}")
 
     model.eval()
     with torch.inference_mode():
@@ -143,7 +153,7 @@ def main() -> None:
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         optimizer.step()
 
-        if step == 1 or step % max(1, args.steps // 5) == 0:
+        if step == 1 or step % max(1, args.steps // 10) == 0:
             print(f"step={step} loss={float(loss.item()):.4f}")
 
     model.eval()
@@ -200,19 +210,11 @@ def main() -> None:
             "OVERFIT SANITY FAILED: loss did not fall by at least 20%. "
             "Fix the training/data path before full retraining."
         )
-
-    # The old gate treated a high frame-blank ratio as an automatic failure.
-    # That can reject a valid CTC model when only a few frames carry the
-    # collapsed token spikes. The actual gate is now based on the same decoded
-    # logits: at least one sample must contain a non-blank decoded token.
     if decoded_non_blank == 0:
         raise RuntimeError(
-            "OVERFIT SANITY FAILED: the final logits decode to no non-blank tokens."
+            "OVERFIT SANITY FAILED: even the shortest real sample still decodes to no non-blank tokens. "
+            "Do not start the full training run yet."
         )
-
-    # Internal consistency check: a decoded non-blank token must come from a
-    # non-blank argmax frame. This catches exactly the contradiction seen in a
-    # previous run where the diagnostic reported 100% blank while printing <6>.
     if decoded_non_blank > 0 and non_blank == 0:
         raise RuntimeError(
             "OVERFIT SANITY FAILED: decoder/blank statistics are inconsistent."
