@@ -36,9 +36,11 @@ Immediate priority: make the frozen base model produce meaningful non-blank pred
 
 Branch: `main`.
 
-Latest model-debug fixes are in the current branch. Historical verified backend result: `30 passed, 0 failures`. That result predates the latest static-audit changes and is **not** a verification of the current branch.
+Historical verified backend result: `30 passed, 0 failures`. This predates the latest autonomous audit changes and is **not** current verification.
 
 Current checkpoint files exist in the repository, but the tested checkpoint is **NOT VERIFIED as usable**.
+
+GitHub connector has read/write access. Direct shell clone was attempted and failed because this execution environment cannot resolve `github.com`; therefore local pytest/build/runtime execution is **BLOCKED** in this agent environment.
 
 ## 4. Verified model contract
 
@@ -72,7 +74,7 @@ Status: **VERIFIED IN CODE; MODEL QUALITY NOT VERIFIED.**
 
 ## 6. Dataset and CTC contract status
 
-`backend/app/training/isltranslate.py` now enforces:
+`backend/app/training/isltranslate.py` enforces:
 - unique manifest UIDs
 - pose shape `(frames,132)`
 - face shape `(frames,1404)`
@@ -119,9 +121,9 @@ Status: **IMPLEMENTED, NOT VERIFIED BY A CLEAN TRAINING RUN.**
 
 ### Fix
 
-`backend/app/training/evaluate.py` now loads the checkpoint-adjacent vocabulary, validates output-head/vocabulary size equality, and initializes the shared decoder map.
+`backend/app/training/evaluate.py` loads the checkpoint-adjacent vocabulary, validates output-head/vocabulary size equality, and initializes the shared decoder map.
 
-The training notebook acceptance cell now does the same before decoding its train/validation acceptance examples.
+The training notebook acceptance cell does the same before decoding its train/validation acceptance examples.
 
 Status: **FIXED, NOT RUNTIME-VERIFIED.**
 
@@ -133,7 +135,7 @@ The training script previously used unseeded `random_split()`, while the noteboo
 
 ### Fix
 
-`train_base_model.py` now seeds Python/Torch and uses a seeded `random_split` with `--seed 42` by default. The training notebook passes `--seed 42` and reconstructs the exact same split for acceptance.
+`train_base_model.py` seeds Python/Torch and uses a seeded `random_split` with `--seed 42` by default. The training notebook passes `--seed 42` and reconstructs the exact same split for acceptance.
 
 Status: **FIXED, NOT RUNTIME-VERIFIED.**
 
@@ -149,7 +151,106 @@ i am suffering from fever -> pose (72,132), face (72,1404) -> empty prediction -
 
 The old checkpoint is not accepted as a working model.
 
-## 11. Remaining hypotheses after clean-data rebuild
+## 11. Newly discovered issue: standalone raw-video extension handling
+
+### Status
+FIXED-NOT-VERIFIED
+
+### Symptom
+
+Real Kaggle files use uppercase extensions such as `good (3).MP4` and `fever (2).MP4`, while the standalone extractor constructed only `<uid>.mp4` paths. This produced the previously observed false `missing video` errors.
+
+### Evidence
+
+Historical runtime output reported missing `.mp4` while the actual dataset contained `.MP4` files.
+
+### Root-cause analysis
+
+Filename extension comparison was case-sensitive and only considered the literal `.mp4` path.
+
+### Files involved
+
+- `backend/scripts/extract_keypoints.py`
+- `backend/tests/test_feature_contract_scripts.py`
+
+### Fix
+
+Added `resolve_video_path()` with case-insensitive extension matching for `.mp4`, `.avi`, `.mov`, and `.mkv`. The extractor now resolves by filename stem instead of assuming lowercase `.mp4`.
+
+Added regression tests for uppercase `.MP4` and unsupported extensions.
+
+### Verification
+
+Code inspection PASS. Runtime test execution BLOCKED because direct GitHub clone failed in this agent environment due DNS/network resolution failure.
+
+### Next action
+
+Run `python -m pytest backend/tests` in Colab/local CI and require PASS.
+
+## 12. Newly discovered issue: stale 1434-face converter contract
+
+### Status
+FIXED-NOT-VERIFIED
+
+### Symptom
+
+`backend/scripts/convert_isign_pose.py` documented and emitted `1434` face features while the VisionBridge model contract is `1404`.
+
+### Root-cause analysis
+
+The converter had retained a 478-landmark face assumption while the deployed/training model uses legacy MediaPipe Holistic's 468 face landmarks.
+
+### Impact
+
+A user could run the converter successfully, generate `.npy` files, and only discover the dimensional mismatch later inside dataset/model loading. This violates the fail-fast data contract.
+
+### Files involved
+
+- `backend/scripts/convert_isign_pose.py`
+- `backend/tests/test_feature_contract_scripts.py`
+
+### Fix
+
+Changed the converter contract to `EXPECTED_FACE_DIM = 1404`, made missing components fail immediately, made incompatible pose/face shapes raise instead of warn, added frame/finite-value checks, and prevented a zero-success conversion from being reported as success.
+
+### Verification
+
+Static inspection PASS. Runtime test execution BLOCKED in this agent environment.
+
+### Next action
+
+Run the new script tests plus existing backend tests in Colab/CI.
+
+## 13. Security/configuration audit status
+
+### Observed
+
+`backend/app/core/config.py` correctly rejects the development `SECRET_KEY` when `ENV=production`.
+
+`backend/app/main.py` invokes `settings.validate_for_runtime()` in application lifespan before creating tables.
+
+### Remaining warning
+
+CORS and database settings are environment-driven, but production deployment correctness depends on actual Render environment values, mounted storage, and runtime behavior. Those external settings were not directly verified here.
+
+Status: **WARNING / NOT TESTED**.
+
+## 14. Production API boundary
+
+The `/translate` API currently accepts pre-extracted pose/face keypoints and validates the 132/1404 contract. It does **not** decode raw video itself.
+
+Therefore:
+
+```text
+Colab raw-video validation -> supported
+Production raw-video HTTP upload -> NOT IMPLEMENTED IN THIS API
+```
+
+This is an architectural boundary, not a model-training bug. A complete raw-video production demo still requires a video -> MediaPipe extraction layer before `/translate` or a dedicated endpoint/service.
+
+Status: **PARTIAL / BLOCKED FOR FULL RAW-VIDEO PRODUCTION FLOW.**
+
+## 15. Remaining hypotheses after clean-data rebuild
 
 1. Verify blank-index consistency end-to-end.
 2. Verify targets are semantically correct and non-empty.
@@ -159,7 +260,7 @@ The old checkpoint is not accepted as a working model.
 6. Prove checkpoint/vocabulary compatibility.
 7. Only then consider architecture changes.
 
-## 12. Acceptance gates
+## 16. Acceptance gates
 
 ### Gate A — dataset integrity
 
@@ -185,7 +286,7 @@ Blocked until a new checkpoint is trained and must cover multiple clips.
 
 Blocked until the base model passes the real-video quality gate.
 
-## 13. Mandatory issue template
+## 17. Mandatory issue template
 
 ```text
 ### YYYY-MM-DD — <short issue name>
@@ -213,7 +314,7 @@ Next step:
 ...
 ```
 
-## 14. Mandatory step-state template
+## 18. Mandatory step-state template
 
 ```text
 ### STEP STATE — YYYY-MM-DD HH:MM
@@ -225,7 +326,7 @@ What failed / remains unknown:
 Next step:
 ```
 
-## 15. Multi-agent workflow
+## 19. Multi-agent workflow
 
 Before work:
 
@@ -243,7 +344,7 @@ python -m pytest backend/tests
 
 Inspect `git status`, `git diff --stat`, and `git diff` before commit. Update this file after every meaningful state transition.
 
-## 16. Agent roles
+## 20. Agent roles
 
 ChatGPT: architecture, root-cause analysis, experiment design, coordination.
 
@@ -253,7 +354,7 @@ Codex: focused repository implementation, tests, commits.
 
 Gemini/Antigravity: notebook/Colab execution, dataset acquisition, runtime debugging, external research.
 
-## 17. Roadmap
+## 21. Roadmap
 
 Phase 0 — Repository synchronization: COMPLETE.
 
@@ -273,7 +374,7 @@ Phase 7 — Render deployment: PARTIALLY IMPLEMENTED.
 
 Phase 8 — Demo: FUTURE.
 
-## 18. Current next steps
+## 22. Current next steps
 
 1. Start a fresh Colab runtime.
 2. Run `notebooks/train_base_model_colab.ipynb` from cell 1.
@@ -284,8 +385,10 @@ Phase 8 — Demo: FUTURE.
 7. Run `python -m app.training.evaluate` against the new checkpoint and confirm decoded text uses the real vocabulary.
 8. Validate the new checkpoint on multiple real clips.
 9. Only after the base model passes the quality gate, resume BridgeAdapter work.
+10. Run `python -m pytest backend/tests` including `test_feature_contract_scripts.py`.
+11. Verify actual production environment variables, database persistence, and frontend -> API -> MediaPipe integration separately before claiming raw-video production readiness.
 
-## 19. Change log
+## 23. Change log
 
 ### 2026-08-25 — Duplicate-UID root cause discovered
 
@@ -304,7 +407,30 @@ Phase 8 — Demo: FUTURE.
 - Made training split deterministic with `--seed 42` and aligned notebook acceptance with the exact split.
 - Fixed evaluator vocabulary initialization and added checkpoint/vocabulary dimension validation.
 - Added runtime feature-dimension, frame-alignment, finite-value, non-empty-target, and CTC target-length guards to the dataset/collator.
-- No repository runtime tests were executed from this agent environment after these changes; changes are therefore **NOT VERIFIED** by execution yet.
+- Runtime verification was not available from the agent environment.
+
+### 2026-08-25 — Autonomous audit pass: extension + converter contract
+
+- Audited repository root, backend structure, ML training path, notebooks, model weights presence, configuration, API boundary, and recent Git history.
+- Direct shell `git clone` was attempted and failed with DNS resolution for `github.com`; repository inspection therefore used authenticated GitHub repository access instead of pretending local execution worked.
+- Found standalone extractor case-sensitive video-extension lookup. Fixed with `resolve_video_path()` and regression tests.
+- Found stale iSign converter `1434` face-dimension contract. Fixed to strict `1404` and fail-fast validation.
+- Added `backend/tests/test_feature_contract_scripts.py` covering uppercase video extensions and the current face contract.
+- Updated this ledger with evidence, status, blockers, and next actions.
+- No runtime tests were executed after these latest changes because local clone/runtime access is blocked in this agent environment. **NOT VERIFIED**.
+
+## 24. Final current-state verdict
+
+**NOT READY**.
+
+Reason:
+- the old checkpoint is not trusted;
+- the clean-data retrain has not been runtime-verified;
+- the one-sample CTC gate has not been re-passed after the latest fixes;
+- backend raw-video extraction is not implemented at the production API boundary;
+- repository runtime tests could not be executed from this agent environment.
+
+The repository is in a stronger state than before, but the acceptance evidence required for a working product still has to be produced by the Colab/CI runtime.
 
 ## Golden rule
 
