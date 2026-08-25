@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import random
 from pathlib import Path
 
 import torch
@@ -24,8 +25,6 @@ def run_epoch(model, loader, optimizer, loss_fn, device, max_grad_norm: float, t
         label_lengths = batch["label_lengths"].to(device)
 
         with torch.set_grad_enabled(train):
-            # Pass post-padding sequence lengths into the Transformer so padded
-            # frames cannot influence valid frames through self/cross attention.
             logits = model(pose, face, input_lengths)
             log_probs = torch.nn.functional.log_softmax(logits, dim=-1).transpose(0, 1)
             loss = loss_fn(log_probs, labels, input_lengths, label_lengths)
@@ -43,11 +42,21 @@ def run_epoch(model, loader, optimizer, loss_fn, device, max_grad_norm: float, t
 
 
 def train(args: argparse.Namespace) -> None:
+    random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
+
     tokenizer = SimpleCharTokenizer()
     dataset = ISLTranslateKeypointDataset(args.data_dir, tokenizer=tokenizer)
     val_size = max(1, int(len(dataset) * args.val_fraction)) if len(dataset) > 1 else 0
     train_size = len(dataset) - val_size
-    train_dataset, val_dataset = random_split(dataset, [train_size, val_size]) if val_size else (dataset, None)
+    split_generator = torch.Generator().manual_seed(args.seed)
+    train_dataset, val_dataset = (
+        random_split(dataset, [train_size, val_size], generator=split_generator)
+        if val_size
+        else (dataset, None)
+    )
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_ctc_batch)
     val_loader = (
@@ -100,6 +109,7 @@ def train(args: argparse.Namespace) -> None:
                     "optimizer_state": optimizer.state_dict(),
                     "epoch": epoch,
                     "best_val_loss": best_val_loss,
+                    "seed": args.seed,
                 },
                 checkpoint_path,
             )
@@ -119,6 +129,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-grad-norm", type=float, default=1.0)
     parser.add_argument("--val-fraction", type=float, default=0.1)
     parser.add_argument("--device", default=None)
+    parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--checkpoint-dir", default=None,
                          help="if set, saves a full resumable checkpoint (model+optimizer+epoch) "
                               "to <checkpoint-dir>/latest.pt after every epoch")
