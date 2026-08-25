@@ -7,172 +7,23 @@
     <meta name="description" content="VisionBridge is an Indian Sign Language translation prototype using browser-side keypoint extraction and server-backed model inference." />
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/assets/css/style.css" />
   </head>
   <body>
     <div data-sb-nav></div>
-
     <main id="main">
-      <section class="sb-hero">
-        <div class="sb-hero-glow" aria-hidden="true"></div>
-        <div class="container-sb">
-          <span class="sb-badge sb-fade-up">
-            <i class="bi bi-stars" aria-hidden="true"></i> Real pipeline prototype
-          </span>
-          <h1 class="mt-3 sb-fade-up delay-1">Breaking communication barriers with AI.</h1>
-          <p class="lead sb-fade-up delay-2">
-            VisionBridge extracts Indian Sign Language keypoints in the browser and
-            sends them to a server-backed translation model. Measurements shown in the
-            interface are runtime results, not prefilled benchmark claims.
-          </p>
-          <div class="d-flex justify-content-center gap-2 flex-wrap sb-fade-up delay-3">
-            <a href="/pages/translate.html" class="btn btn-primary-sb btn-icon btn-ripple">
-              <i class="bi bi-broadcast" aria-hidden="true"></i> Start Translation
-            </a>
-            <a href="#demo" class="btn btn-ghost-sb btn-icon">
-              <i class="bi bi-play-circle" aria-hidden="true"></i> View Demo Surface
-            </a>
-          </div>
-
-          <div class="hero-illustration sb-scale-in" id="demo" aria-hidden="true">
-            <div class="row g-4 align-items-center">
-              <div class="col-md-7">
-                <div class="sb-camera-frame" style="aspect-ratio: 16/10;">
-                  <div class="placeholder">
-                    <i class="bi bi-person-arms-up" style="font-size: 96px; opacity: .9;"></i>
-                  </div>
-                  <div class="sb-rec"><span class="dot"></span> LIVE</div>
-                  <div class="sb-hud">
-                    <span class="chip"><i class="bi bi-speedometer2"></i> Runtime</span>
-                    <span class="chip"><i class="bi bi-camera-video"></i> Keypoints</span>
-                    <span class="chip"><i class="bi bi-shield-check"></i> Browser extraction</span>
-                  </div>
-                </div>
-              </div>
-              <div class="col-md-5 text-start">
-                <div class="sb-translation-output">
-                  <span class="sb-badge success"><i class="bi bi-activity"></i> Live result</span>
-                  <p class="caption mt-3 mb-0">Translation output appears here only after the real inference pipeline responds.</p>
-                  <div class="sb-meter mt-3" aria-hidden="true"><span style="width:0%"></span></div>
-                  <div class="meta">
-                    <span><i class="bi bi-translate"></i> Runtime vocabulary</span>
-                    <span><i class="bi bi-clock"></i> Measured latency</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="sb-stats sb-fade-up delay-4">
-            <div class="sb-stat">
-              <div class="num">ISL</div>
-              <div class="label">Indian Sign Language target</div>
-            </div>
-            <div class="sb-stat">
-              <div class="num">132 + 1404</div>
-              <div class="label">Pose + face feature contract</div>
-            </div>
-            <div class="sb-stat">
-              <div class="num">Runtime</div>
-              <div class="label">Latency and confidence are measured per request</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="sb-section" id="how">
-        <div class="container-sb">
-          <div class="text-center mb-5" data-sb-reveal>
-            <div class="eyebrow">Why VisionBridge</div>
-            <h2 class="mt-2">Built around a real inference pipeline.</h2>
-            <p class="text-muted-2 mx-auto" style="max-width: 60ch;">
-              The prototype combines browser-side landmark extraction with a frozen
-              pose+face Transformer and optional signer-specific adapters.
-            </p>
-          </div>
-
-          <div class="sb-feature-grid">
-            <article class="sb-card sb-card-lift" data-sb-reveal>
-              <div class="card-body">
-                <div class="sb-icon-tile"><i class="bi bi-broadcast"></i></div>
-                <h3 class="h5 mt-3">Real pipeline</h3>
-                <p class="text-muted-2 mb-0">Camera frames are processed by MediaPipe Holistic before a backend inference request is made.</p>
-              </div>
-            </article>
-            <article class="sb-card sb-card-lift" data-sb-reveal>
-              <div class="card-body">
-                <div class="sb-icon-tile accent"><i class="bi bi-person-heart"></i></div>
-                <h3 class="h5 mt-3">Signer adapters</h3>
-                <p class="text-muted-2 mb-0">Optional BridgeAdapter weights are intended to personalize a frozen base model.</p>
-              </div>
-            </article>
-            <article class="sb-card sb-card-lift" data-sb-reveal>
-              <div class="card-body">
-                <div class="sb-icon-tile warn"><i class="bi bi-shield-lock"></i></div>
-                <h3 class="h5 mt-3">Controlled data flow</h3>
-                <p class="text-muted-2 mb-0">Raw camera frames remain in the browser; extracted keypoints are sent to the configured inference API.</p>
-              </div>
-            </article>
-            <article class="sb-card sb-card-lift" data-sb-reveal>
-              <div class="card-body">
-                <div class="sb-icon-tile"><i class="bi bi-clipboard-data"></i></div>
-                <h3 class="h5 mt-3">Evidence first</h3>
-                <p class="text-muted-2 mb-0">The interface avoids presenting benchmark numbers that have not been verified for the current checkpoint.</p>
-              </div>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section class="sb-section" id="tech" style="padding-top: 0;">
-        <div class="container-sb">
-          <div class="row g-4 align-items-center">
-            <div class="col-lg-6" data-sb-reveal>
-              <div class="eyebrow">Technology</div>
-              <h2 class="mt-2 mb-3">A measurable model pipeline.</h2>
-              <p class="text-muted-2">
-                VisionBridge uses 132 pose features and 1404 face features per frame,
-                followed by a pose+face fusion Transformer and greedy CTC decoding.
-              </p>
-            </div>
-            <div class="col-lg-6" data-sb-reveal>
-              <div class="sb-card">
-                <div class="card-body p-4">
-                  <div class="text-muted-2 small">Current contract</div>
-                  <h3 class="h5">VisionBridge base model</h3>
-                  <div class="d-grid gap-3 mt-4">
-                    <div class="d-flex justify-content-between"><span>Pose dimensions</span><strong>132</strong></div>
-                    <div class="d-flex justify-content-between"><span>Face dimensions</span><strong>1404</strong></div>
-                    <div class="d-flex justify-content-between"><span>Maximum sequence</span><strong>1024 frames</strong></div>
-                    <div class="d-flex justify-content-between"><span>CTC blank token</span><strong>0</strong></div>
-                    <div class="d-flex justify-content-between"><span>Production model status</span><strong>Validation required</strong></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="sb-section" id="contact" style="padding-top: 0;">
-        <div class="container-sb">
-          <div class="sb-card" data-sb-reveal>
-            <div class="card-body p-5 text-center">
-              <h2 class="mb-2">Ready to test the real pipeline?</h2>
-              <p class="text-muted-2 mb-4">Open live translation and inspect the actual runtime response.</p>
-              <div class="d-flex gap-2 justify-content-center flex-wrap">
-                <a href="/pages/translate.html" class="btn btn-primary-sb btn-ripple">Open Live Translation</a>
-                <a href="/pages/dashboard.html" class="btn btn-ghost-sb">Explore Dashboard</a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+      <section class="sb-hero"><div class="sb-hero-glow" aria-hidden="true"></div><div class="container-sb">
+        <span class="sb-badge sb-fade-up"><i class="bi bi-stars"></i> Real pipeline prototype</span>
+        <h1 class="mt-3 sb-fade-up delay-1">Breaking communication barriers with AI.</h1>
+        <p class="lead sb-fade-up delay-2">VisionBridge extracts Indian Sign Language keypoints in the browser and sends them to a server-backed translation model. Runtime measurements are displayed from actual requests rather than prefilled benchmark claims.</p>
+        <div class="d-flex justify-content-center gap-2 flex-wrap sb-fade-up delay-3"><a href="/pages/translate.html" class="btn btn-primary-sb btn-icon btn-ripple"><i class="bi bi-broadcast"></i> Start Translation</a><a href="#demo" class="btn btn-ghost-sb btn-icon"><i class="bi bi-play-circle"></i> View Demo Surface</a></div>
+        <div class="hero-illustration sb-scale-in" id="demo" aria-hidden="true"><div class="row g-4 align-items-center"><div class="col-md-7"><div class="sb-camera-frame" style="aspect-ratio:16/10"><div class="placeholder"><i class="bi bi-person-arms-up" style="font-size:96px;opacity:.9"></i></div><div class="sb-rec"><span class="dot"></span> LIVE</div><div class="sb-hud"><span class="chip"><i class="bi bi-speedometer2"></i> Runtime</span><span class="chip"><i class="bi bi-camera-video"></i> Keypoints</span><span class="chip"><i class="bi bi-shield-check"></i> Browser extraction</span></div></div></div><div class="col-md-5 text-start"><div class="sb-translation-output"><span class="sb-badge success"><i class="bi bi-activity"></i> Live result</span><p class="caption mt-3 mb-0">Translation output appears here only after the real inference pipeline responds.</p><div class="sb-meter mt-3"><span style="width:0%"></span></div><div class="meta"><span><i class="bi bi-translate"></i> Runtime vocabulary</span><span><i class="bi bi-clock"></i> Measured latency</span></div></div></div></div></div>
+        <div class="sb-stats sb-fade-up delay-4"><div class="sb-stat"><div class="num">ISL</div><div class="label">Indian Sign Language target</div></div><div class="sb-stat"><div class="num">132 + 1404</div><div class="label">Pose + face feature contract</div></div><div class="sb-stat"><div class="num">Runtime</div><div class="label">Latency and confidence are measured per request</div></div></div>
+      </div></section>
+      <section class="sb-section"><div class="container-sb"><div class="text-center mb-5"><div class="eyebrow">Why VisionBridge</div><h2 class="mt-2">Built around a real inference pipeline.</h2><p class="text-muted-2 mx-auto" style="max-width:60ch">The prototype combines browser-side landmark extraction with a frozen pose+face Transformer and optional signer-specific adapters.</p></div><div class="sb-feature-grid"><article class="sb-card"><div class="card-body"><div class="sb-icon-tile"><i class="bi bi-broadcast"></i></div><h3 class="h5 mt-3">Real pipeline</h3><p class="text-muted-2 mb-0">Camera frames are processed by MediaPipe Holistic before a backend inference request is made.</p></div></article><article class="sb-card"><div class="card-body"><div class="sb-icon-tile accent"><i class="bi bi-person-heart"></i></div><h3 class="h5 mt-3">Signer adapters</h3><p class="text-muted-2 mb-0">Optional BridgeAdapter weights personalize a frozen base model.</p></div></article><article class="sb-card"><div class="card-body"><div class="sb-icon-tile warn"><i class="bi bi-shield-lock"></i></div><h3 class="h5 mt-3">Controlled data flow</h3><p class="text-muted-2 mb-0">Raw camera frames remain in the browser; extracted keypoints are sent to the configured inference API.</p></div></article><article class="sb-card"><div class="card-body"><div class="sb-icon-tile"><i class="bi bi-clipboard-data"></i></div><h3 class="h5 mt-3">Evidence first</h3><p class="text-muted-2 mb-0">The interface avoids presenting benchmark numbers that have not been verified for the current checkpoint.</p></div></article></div></div></section>
+      <section class="sb-section" style="padding-top:0"><div class="container-sb"><div class="row g-4 align-items-center"><div class="col-lg-6"><div class="eyebrow">Technology</div><h2 class="mt-2 mb-3">A measurable model pipeline.</h2><p class="text-muted-2">VisionBridge uses 132 pose features and 1404 face features per frame, followed by pose+face fusion Transformer encoding and greedy CTC decoding.</p></div><div class="col-lg-6"><div class="sb-card"><div class="card-body p-4"><div class="text-muted-2 small">Current contract</div><h3 class="h5">VisionBridge base model</h3><div class="d-grid gap-3 mt-4"><div class="d-flex justify-content-between"><span>Pose dimensions</span><strong>132</strong></div><div class="d-flex justify-content-between"><span>Face dimensions</span><strong>1404</strong></div><div class="d-flex justify-content-between"><span>Maximum sequence</span><strong>1024 frames</strong></div><div class="d-flex justify-content-between"><span>CTC blank token</span><strong>0</strong></div><div class="d-flex justify-content-between"><span>Model quality</span><strong>Validation required</strong></div></div></div></div></div></div></div></section>
+      <section class="sb-section" style="padding-top:0"><div class="container-sb"><div class="sb-card"><div class="card-body p-5 text-center"><h2 class="mb-2">Ready to test the real pipeline?</h2><p class="text-muted-2 mb-4">Open live translation and inspect the actual runtime response.</p><a href="/pages/translate.html" class="btn btn-primary-sb btn-ripple">Open Live Translation</a></div></div></div></section>
     </main>
-
     <div data-sb-footer></div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/assets/js/config.js"></script>
