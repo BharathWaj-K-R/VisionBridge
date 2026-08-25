@@ -4,49 +4,16 @@ This file is the shared source of truth for ChatGPT, Claude, Codex, Gemini/Antig
 
 ## 0. State-update rule: MANDATORY
 
-**Every meaningful step must update this file.** A meaningful step includes:
-- a code/notebook change
-- a test run
-- a training run
-- a validation run
-- a new error/failure
-- a root-cause discovery
-- a workaround
-- a decision to change or preserve architecture
-- a blocked step
-- a completed milestone
+Every meaningful step must update this file, including code/notebook changes, tests, training, validation, errors, root-cause discoveries, workarounds, decisions, blocked steps, and completed milestones.
 
-When an issue occurs, update `Current State`, `Problem Analysis`, `Active Fix`, and `Next Step` in the same logical change/commit whenever possible.
-
-Never write only "fixed". Record evidence.
-
-Every state entry must use one of:
-- `VERIFIED` = directly demonstrated by code/test/run
-- `NOT VERIFIED` = intended or suspected but not demonstrated
-- `BLOCKED` = cannot proceed until another condition is satisfied
-- `FAILED` = attempted and failed
-
-Each issue entry must contain:
-1. Symptom / exact error
-2. Evidence
-3. Root-cause analysis
-4. Files affected or suspected
-5. Fix applied or proposed
-6. Verification result
-7. Next action
+Every issue entry must contain symptom, evidence, root-cause analysis, files, fix, verification, and next action. Use `VERIFIED`, `NOT VERIFIED`, `FAILED`, and `BLOCKED` explicitly.
 
 ## 1. Project Goal
 
 VisionBridge is a continuous Indian Sign Language (ISL) -> English translation system.
 
 ```text
-Real ISL video
-  -> MediaPipe Holistic
-  -> pose + face landmarks
-  -> VisionBridgeBaseModel
-  -> CTC decoding
-  -> English text
-  -> BridgeAdapter personalization
+Real ISL video -> MediaPipe Holistic -> pose + face landmarks -> VisionBridgeBaseModel -> CTC decoding -> English text -> BridgeAdapter personalization
 ```
 
 Immediate priority: make the frozen base model produce meaningful non-blank predictions on real ISL videos. BridgeAdapter work is blocked until the base model passes real-video quality checks.
@@ -55,33 +22,23 @@ Immediate priority: make the frozen base model produce meaningful non-blank pred
 
 1. Read this file before changing anything.
 2. Sync and inspect current `main` before relying on chat history.
-3. Verify proposed changes in code. Never assume they exist.
+3. Verify proposed changes in code; never assume they exist.
 4. Modify only files required for the current task.
 5. Do not rename notebooks.
 6. Do not fabricate datasets, checkpoints, predictions, metrics, or test results.
 7. Do not silently fall back to random weights.
 8. Preserve other agents' verified fixes.
 9. Before commit, inspect diff and run relevant tests.
-10. Record every meaningful state transition in this file.
-11. If another agent has changed the same area, inspect first and avoid overwriting it.
-12. Expensive training is not allowed until the current acceptance gate passes.
+10. Record every meaningful state transition here.
+11. Expensive training is blocked until the current acceptance gate passes.
 
 ## 3. Current repository state
 
-Branch: `main`
+Branch: `main`.
 
-Latest known model/debug work: dataset UID collision fix and training-notebook rebuild.
+Historical verified backend result: `30 passed, 0 failures`. This is historical, not a verification of the latest changes because this environment cannot execute the repository test suite.
 
-Latest verified historical backend test result: `30 passed, 0 failures`.
-
-Current model checkpoint exists at:
-
-```text
-backend/app/models/weights/base_model.pt
-backend/app/models/weights/base_model.vocab.json
-```
-
-The checkpoint previously tested is **NOT VERIFIED as usable**. It produced 100% blank CTC output on both an unseen real video and a known training video.
+Current checkpoint files exist in the repository, but the tested checkpoint is **NOT VERIFIED as usable**.
 
 ## 4. Verified model contract
 
@@ -105,233 +62,145 @@ CTC objective / greedy decode
 
 The base model is frozen at inference. Personalization belongs in `BridgeAdapter`.
 
-## 5. Verified padding-mask work
+## 5. Padding-mask status
 
-`backend/app/models/base_model.py` accepts `lengths` and constructs a padding mask. The mask is applied through pose self-attention, face self-attention, cross-modal attention, and shared Transformer attention.
+`backend/app/models/base_model.py` accepts `lengths` and applies padding masks through pose self-attention, face self-attention, cross-modal attention, and shared Transformer attention.
 
 `backend/app/training/train_base_model.py` passes `input_lengths` into the model and CTCLoss.
 
-Status: **VERIFIED IN CODE, NOT SUFFICIENT TO PROVE MODEL QUALITY**.
+Status: **VERIFIED IN CODE; MODEL QUALITY NOT VERIFIED.**
 
-Do not reimplement this unless inspection proves it was removed or broken.
+## 6. Dataset/training status
 
-## 6. Verified dataset/training code
+`backend/app/training/isltranslate.py` loads pose/face arrays, uses `SimpleCharTokenizer`, reserves token 0 for CTC blank, downsamples over-length clips, pads batches, and records true input lengths. It now rejects duplicate UIDs and empty encodable targets.
 
-`backend/app/training/isltranslate.py`:
-- loads pose and face `.npy`
-- uses `SimpleCharTokenizer`
-- reserves token `0` for CTC blank
-- downsamples clips over 1024 frames
-- pads batches and records true `input_lengths`
+`backend/app/training/train_base_model.py` uses AdamW, CTCLoss(blank=0, zero_infinity=True), gradient clipping, validation, checkpoint/resume, and now deterministic train/validation splitting with `--seed` defaulting to 42.
 
-`backend/app/training/train_base_model.py`:
-- AdamW
-- `CTCLoss(blank=0, zero_infinity=True)`
-- gradient clipping
-- validation split
-- resumable checkpoints
+`backend/app/training/overfit_sanity.py` runs a real-data one-sample CTC sanity test and rejects all-blank decoding.
 
-`backend/app/training/overfit_sanity.py`:
-- real-data single-sample extreme-overfit test
-- checks loss reduction and non-blank decoding
+## 7. Root cause discovered: duplicate dataset UIDs
 
-## 7. Root cause discovered on 2026-08-25
+### Symptom
 
-### Problem
+Real ISL-CSLTR contains repeated filename stems in different sentence folders, such as `fever (2).MP4`.
 
-The ISL-CSLTR Kaggle dataset contains repeated filenames in different sentence folders, for example:
+### Root cause
 
-```text
-.../i am suffering from fever/fever (2).MP4
-.../<other label>/fever (2).MP4
-```
-
-The old training notebook used `Path(video).stem` as the UID. That is **not globally unique**.
+The old training notebook used `Path(video).stem` as the UID. That is not globally unique.
 
 ### Consequence
 
-Different videos could write to the same:
+Different clips could overwrite the same pose/face `.npy` files and create wrong feature/label pairings, contaminating supervision and plausibly producing CTC collapse.
+
+### Fix
+
+`notebooks/train_base_model_colab.ipynb` now rebuilds the processed dataset from scratch and derives a UID from sentence label + filename stem + relative-path hash. It explicitly checks for collisions.
+
+Status: **IMPLEMENTED, NOT VERIFIED BY A CLEAN TRAINING RUN.**
+
+## 8. Real-video failure evidence
+
+Previously validated on real MediaPipe outputs:
 
 ```text
-pose/<uid>.npy
-face/<uid>.npy
+you are good -> pose (69,132), face (69,1404) -> prediction empty -> blank ratio 1.0
+
+i am suffering from fever -> pose (72,132), face (72,1404) -> prediction empty -> blank ratio 1.0
 ```
 
-later extractions could overwrite earlier features, and the manifest could pair the wrong features with the wrong English label.
+Both used the same prior checkpoint. Therefore the failure was not only an unseen-video generalization issue.
 
-This is a valid data-corruption path that can explain CTC collapse and garbage learning.
+## 9. Deep static audit findings: additional loose ends
 
-### Evidence
+### Issue A — evaluator decoder vocabulary was not initialized
 
-The real runtime showed the notebook selecting `fever (2).MP4`, extracting real `[72,132]` pose and `[72,1404]` face, yet the committed checkpoint still returned 100% blank on that known training example.
+**Status: FIXED, NOT VERIFIED.**
 
-The same checkpoint returned 100% blank on the automatically selected `good (3).MP4` validation video.
+`backend/app/training/evaluate.py` loaded the checkpoint and called the shared `decode_logits()` directly, but that decoder depends on module-level `_id_to_token`, which is initialized by `get_base_model()`. The evaluator bypassed `get_base_model()`, so decoded output could become raw `<id>` placeholders instead of characters.
 
-### Fix status
+Fix: evaluator now loads the checkpoint-adjacent vocabulary, verifies vocabulary size equals the model output head, assigns the decoder vocabulary, and refuses an empty evaluation dataset.
 
-`notebooks/train_base_model_colab.ipynb` has been rebuilt to derive globally unique clip IDs from sentence label + filename + relative-path hash, rebuild processed data from scratch, detect UID collisions, and validate dataset integrity.
+### Issue B — training notebook acceptance split did not necessarily match training split
 
-Status: **IMPLEMENTED, NOT YET VERIFIED BY A CLEAN FULL TRAINING RUN**.
+**Status: FIXED, NOT VERIFIED.**
 
-A focused dataset-integrity regression test was also added during this work.
+The training script previously used an unseeded `random_split()`. The notebook later reconstructed a seeded split, so the sample labeled `TRAIN` in the acceptance gate was not guaranteed to have been used for training.
 
-## 8. Validation notebook state
+Fix: `train_base_model.py` now accepts `--seed`, seeds Python/Torch, and uses a seeded `random_split`. The training notebook passes `--seed 42` and reconstructs the same split for acceptance.
 
-Primary validation notebook:
+### Issue C — notebook acceptance decoder bypassed vocabulary initialization
 
-```text
-notebooks/validate_base_model_colab.ipynb
-```
+**Status: FIXED, NOT VERIFIED.**
 
-It automatically:
-- downloads ISL-CSLTR via Kaggle
-- selects one real sentence-level video
-- derives ground truth from the sentence folder
-- extracts real MediaPipe 132/1404 features
-- loads the committed checkpoint
-- prints prediction, confidence, blank ratio, non-blank frames, unique tokens, CER
+The notebook directly loaded the model and then called `decode_logits()` without initializing the decoder vocabulary.
 
-Important environment behavior:
-- Colab runtime may be CPU even when a GPU was expected
-- MediaPipe is isolated in Python 3.12 with `mediapipe==0.10.21`
-- Kaggle filenames use `.MP4`; the repository extractor historically expected `.mp4`, so notebook/runtime code may need a case-normalized copy. This is a notebook/data-ingestion issue, not a model conclusion.
+Fix: notebook acceptance now initializes `inference_service._id_to_token` from the saved vocabulary and checks output-head/vocabulary size compatibility before decoding.
 
-## 9. Failed model evidence
-
-### Unseen real video
-
-```text
-GROUND TRUTH:     you are good
-PREDICTED:        (no sign detected)
-BLANK RATIO:      1.0000
-NON-BLANK FRAMES: 0
-CONFIDENCE:       0.836
-LOGITS FINITE:    True
-```
-
-### Known training video
-
-```text
-GROUND TRUTH:     i am suffering from fever
-PREDICTED:        (no sign detected)
-BLANK RATIO:      1.0000
-NON-BLANK FRAMES: 0
-CONFIDENCE:       0.836
-LOGITS FINITE:    True
-```
-
-Interpretation: this is **not merely a generalization failure**. The current checkpoint cannot demonstrate useful decoding on a known real training example.
-
-## 10. Current problem analysis
-
-### Primary hypothesis: supervised-data corruption
-Status: `SUPPORTED / FIXED IN NOTEBOOK, NOT YET VERIFIED`
-
-Duplicate UID handling was a genuine defect in dataset preparation and has now been addressed in the new training notebook.
-
-### Secondary hypotheses to verify after a clean rebuild
+## 10. Secondary hypotheses still to verify after a clean rebuild
 
 1. Blank-index consistency across tokenizer, target encoding, CTCLoss, and decoder.
-2. Target labels are non-empty and correctly tokenized.
-3. Training and inference preprocessing are identical.
-4. The new globally unique manifest maps each UID to the correct video and text.
-5. The model can escape the blank solution on one clean real example.
-6. The checkpoint vocabulary and output-head dimension match.
-7. Only after the above pass should architecture changes be considered.
+2. Correct target text/token encoding for every sample.
+3. Identical preprocessing during training and inference.
+4. Clean globally unique manifest with correct video/text pairing.
+5. One-sample CTC test escapes the blank solution.
+6. Checkpoint vocabulary and output-head dimension match.
+7. Architecture changes are considered only after these checks pass.
 
-### Architecture decision
-
-**KEEP the current Transformer for now.** No evidence currently justifies replacing it. Fix and verify data/CTC contracts first.
-
-## 11. Current acceptance gates
+## 11. Acceptance gates
 
 ### Gate A — dataset integrity
 
-Must show:
+Must show unique UIDs, non-empty labels, pose `[T,132]`, face `[T,1404]`, matching frame counts, and no collisions.
 
-```text
-unique UIDs
-non-empty labels
-pose [T,132]
-face [T,1404]
-matching frame counts
-```
-
-Status: `NOT VERIFIED ON CLEAN REBUILD`
+Status: **NOT VERIFIED ON CLEAN REBUILD.**
 
 ### Gate B — one-sample CTC sanity
 
-Must show:
-- finite final loss
-- substantial loss reduction
-- at least one decoded non-blank token
-- consistent blank statistics
+Must show finite loss, substantial loss reduction, at least one decoded non-blank token, and consistent blank statistics.
 
-Status: `NOT VERIFIED ON CLEAN REBUILD`
+Status: **NOT VERIFIED ON CLEAN REBUILD.**
 
 ### Gate C — full training
 
-Only after Gate B passes.
-
-Monitor:
-- train loss
-- validation loss
-- blank ratio
-- non-blank ratio
-- decoded validation samples
-- CER/WER
-
-Status: `BLOCKED`
+Blocked until Gate B passes. Monitor train/validation loss, blank ratio, non-blank ratio, decoded predictions, and CER/WER.
 
 ### Gate D — real-video evaluation
 
-Must test multiple real clips and report:
-- ground truth
-- prediction
-- CER
-- blank ratio
-- confidence
-- empty-prediction rate
-
-Status: `BLOCKED UNTIL NEW CHECKPOINT`
+Blocked until a new checkpoint passes Gate C and must cover multiple real clips.
 
 ### Gate E — BridgeAdapter
 
-Status: `BLOCKED UNTIL BASE MODEL PASSES REAL-VIDEO QUALITY GATE`.
+Blocked until the base model passes the real-video quality gate.
 
-## 12. Mandatory issue-tracking template
-
-Every new issue added to this file must use:
+## 12. Mandatory issue template
 
 ```text
 ### YYYY-MM-DD — <short issue name>
 Status: FAILED | BLOCKED | FIXED-NOT-VERIFIED | VERIFIED
 
 Symptom:
-<exact error/output>
+...
 
 Evidence:
-<commands, logs, file paths, test results>
+...
 
 Root-cause analysis:
-<what the evidence supports; distinguish hypothesis from fact>
+...
 
 Files involved:
 - ...
 
 Fix:
-<what was changed or why no code was changed>
+...
 
 Verification:
-<exact test/run and result>
+...
 
 Next step:
-<one concrete action>
+...
 ```
 
 ## 13. Mandatory step-state template
-
-At each workflow step, append a short entry:
 
 ```text
 ### STEP STATE — YYYY-MM-DD HH:MM
@@ -343,11 +212,9 @@ What failed / remains unknown:
 Next step:
 ```
 
-Do this even when the step succeeds. Success without state recording is how multi-agent teams rediscover the same bug.
-
 ## 14. Multi-agent workflow
 
-### Before work
+Before work:
 
 ```bash
 git checkout main
@@ -355,37 +222,13 @@ git pull --ff-only
 git log --oneline -10
 ```
 
-Read `AGENTS.md`.
-
-### Before edits
-
-Identify:
-- exact files to modify
-- why each is required
-- protected files
-- expected verification
-
-### After edits
-
-Run focused tests, then:
+After edits, run focused tests, then the full suite when execution is available:
 
 ```bash
 python -m pytest backend/tests
 ```
 
-For model work, run the smallest meaningful real-data experiment.
-
-Then inspect:
-
-```bash
-git status
-git diff --stat
-git diff
-```
-
-Commit narrowly.
-
-Immediately update `AGENTS.md` with the new verified state and next action.
+For model work, run the smallest meaningful real-data experiment. Inspect `git status`, `git diff --stat`, and `git diff` before committing. Update this file immediately after a meaningful state transition.
 
 ## 15. Agent handoff format
 
@@ -418,92 +261,68 @@ HANDOFF:
 <what the next agent must run/report>
 ```
 
-Use `VERIFIED`, `NOT VERIFIED`, `FAILED`, and `BLOCKED` explicitly.
-
 ## 16. Agent roles
 
-### ChatGPT
-Architecture, root-cause reasoning, experiment design, cross-agent coordination, deciding the next smallest test.
+ChatGPT: architecture, root-cause analysis, experiment design, coordination.
 
-### Claude
-Independent code review, alternative diagnosis, test design, edge-case review.
+Claude: independent code review, alternative diagnosis, test/edge-case review.
 
-### Codex
-Focused repository edits, tests, commits. Must respect scope.
+Codex: focused repository implementation, tests, commits.
 
-### Gemini/Antigravity
-Notebook/Colab execution, dataset acquisition, runtime debugging, external research.
+Gemini/Antigravity: notebook/Colab execution, dataset acquisition, runtime debugging, external research.
 
 ## 17. Roadmap
 
-### Phase 0 — Repository synchronization
-Status: COMPLETE
+Phase 0 — Repository synchronization: COMPLETE.
 
-### Phase 1 — Clean dataset rebuild and sanity
-Status: ACTIVE
+Phase 1 — Clean dataset rebuild and CTC sanity: ACTIVE.
 
-Rebuild processed data with globally unique UIDs and prove the single-sample CTC gate can escape blank collapse.
+Phase 2 — Full base-model training: BLOCKED BY PHASE 1.
 
-### Phase 2 — Full base-model training
-Status: BLOCKED BY PHASE 1
+Phase 3 — Multi-video real inference: BLOCKED.
 
-### Phase 3 — Multi-video real inference
-Status: BLOCKED BY PHASE 2
+Phase 4 — Base-model quality gate: BLOCKED.
 
-### Phase 4 — Base-model quality gate
-Status: BLOCKED
+Phase 5 — BridgeAdapter personalization: BLOCKED UNTIL BASE MODEL PASSES.
 
-### Phase 5 — BridgeAdapter personalization
-Status: BLOCKED UNTIL BASE MODEL PASSES
+Phase 6 — Backend integration: PARTIALLY IMPLEMENTED.
 
-### Phase 6 — Backend integration
-Status: PARTIALLY IMPLEMENTED
+Phase 7 — Render deployment: PARTIALLY IMPLEMENTED.
 
-### Phase 7 — Render deployment
-Status: PARTIALLY IMPLEMENTED
-
-### Phase 8 — Demo
-Status: FUTURE
+Phase 8 — Demo: FUTURE.
 
 ## 18. Current next steps
 
-1. Start a **fresh Colab runtime**.
+1. Start a fresh Colab runtime.
 2. Run `notebooks/train_base_model_colab.ipynb` from the first cell.
-3. Confirm the rebuilt manifest has globally unique UIDs and no collisions.
-4. Confirm `DATASET INTEGRITY: PASS`.
-5. Run the one-sample CTC gate.
-6. If Gate B fails, stop. Do not full-train. Record the exact output here and inspect tokenizer/targets/blank-index/preprocessing contracts.
-7. If Gate B passes, run controlled full training.
-8. Validate the new checkpoint on one known training clip and multiple held-out real clips.
-9. Only after real-video quality is demonstrated, resume BridgeAdapter work.
+3. Confirm unique UIDs and dataset integrity.
+4. Run the one-sample CTC gate.
+5. If Gate B fails, stop and record the exact result here.
+6. If Gate B passes, run controlled full training.
+7. Validate the new checkpoint with `backend/app/training/evaluate.py` and the real-video notebook.
+8. Only after the base model passes multiple real clips, resume BridgeAdapter work.
 
 ## 19. Change log
 
 ### 2026-08-25 — Duplicate-UID root cause discovered
 
-- Real Kaggle dataset contains duplicate filename stems across sentence folders.
-- Old training notebook used filename stem as UID.
-- This could overwrite pose/face `.npy` files and pair wrong features with text.
-- Rebuilt training notebook to generate globally unique UIDs from label + stem + relative-path hash.
-- Added dataset integrity protection.
-- Added `MODEL_DEBUG_LOG.md` with the diagnosis.
-- Existing checkpoint remains **NOT VERIFIED**.
+- Repeated filename stems across sentence folders were confirmed.
+- Old filename-stem UID logic could overwrite features and mispair labels.
+- Collision-safe training notebook implemented.
 
-### 2026-08-25 — Real-video validation failure confirmed
+### 2026-08-25 — Real-video model failure confirmed
 
-- Extracted `you are good` to pose `(69,132)` and face `(69,1404)`.
-- Model produced 100% blank output.
-- Extracted known `i am suffering from fever` training clip to pose `(72,132)` and face `(72,1404)`.
-- Same checkpoint again produced 100% blank output.
-- This ruled out simple unseen-video generalization as the only explanation.
+- `you are good`: real pose `(69,132)`, face `(69,1404)`, 100% blank output.
+- `i am suffering from fever`: real pose `(72,132)`, face `(72,1404)`, 100% blank output.
+- Current checkpoint remains unverified.
 
-### 2026-08-25 — Multi-agent state protocol strengthened
+### 2026-08-25 — Deep audit: evaluator and split-consistency defects found
 
-- Every meaningful step must update this file.
-- Every issue must record symptom, evidence, root cause, fix, verification, and next step.
-- Every successful step must also record what is now VERIFIED and what remains unknown.
-- Full training remains blocked until the clean-data single-sample CTC gate passes.
+- Evaluator could call `decode_logits()` before loading the saved vocabulary, producing raw token IDs.
+- Training notebook's post-training `TRAIN`/`VAL` split was not guaranteed to match the training split because the training script used unseeded `random_split()`.
+- Both were fixed: evaluator initializes and validates the vocabulary; training is deterministic via `--seed 42`, and the notebook uses the same split seed.
+- No repository test suite has been executed in this environment after these changes. These fixes are therefore **NOT VERIFIED** by runtime tests yet.
 
 ## Golden rule
 
-**A change is not VERIFIED because the code looks correct. It is VERIFIED only when the relevant test or real-data experiment passes. Every step and every issue must leave a written state in this file.**
+A change is not VERIFIED because the code looks reasonable. It is VERIFIED only when the relevant test or real-data experiment passes. Every step and every issue must leave a written state here.
