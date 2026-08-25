@@ -79,18 +79,23 @@ Status: FIXED, NOT RUNTIME-VERIFIED.
 `/api/v1/translate` accepts pre-extracted keypoints, not raw video.
 Browser flow is `camera -> browser MediaPipe -> keypoints -> backend -> model`.
 Raw-video upload API is not implemented.
-Status: PARTIAL.
+Status: PARTIAL by design.
 
 ## Deployment
-Render config uses Python 3.11.9, FastAPI/Uvicorn, SQLite, free tier, and explicitly notes ephemeral SQLite storage. Actual remote Render health/CORS/persistence was not live-tested.
+Render config uses Python 3.11.9, FastAPI/Uvicorn, SQLite, free tier.
+`/api/v1/health` is liveness; `/api/v1/ready` is readiness and returns 503 when the checkpoint/vocabulary are unavailable or incompatible.
+Render now uses `/api/v1/ready` as its health check.
+Actual remote Render health/CORS/persistence was not live-tested.
 Frontend non-local default API URL is `https://visionbridge-backend.onrender.com/api/v1`; remote availability was not live-tested.
 
-## Regression tests added/updated
+## Regression tests / CI
 - `backend/tests/test_feature_contract_scripts.py`
 - `backend/tests/test_ctc_contract.py`
-- `backend/tests/test_translate_live_pipeline.py` (adapter auth boundary + decoder contract)
+- `backend/tests/test_translate_live_pipeline.py`
 - `backend/tests/test_account_workflows.py`
-- `.github/workflows/backend-tests.yml`
+- `backend/tests/test_adapter_lifecycle.py`
+- `.github/workflows/backend-tests.yml` now checks Python compilation, backend tests, and every frontend JS file with `node --check`.
+A synthetic-feature inference test no longer incorrectly requires non-empty text; `(no sign detected)` is a valid model output for arbitrary synthetic inputs.
 Runtime status: NOT VERIFIED because local execution is blocked.
 
 ## New feature completion pass
@@ -110,6 +115,7 @@ Status: IMPLEMENTED, NOT RUNTIME-VERIFIED.
 
 ### Signer profiles
 Replaced hardcoded people/accuracy cards with authenticated adapter listing and owner-scoped adapter deletion.
+Adapter deletion now removes both the database row and its stored weight file, with path-boundary protection.
 Status: IMPLEMENTED, NOT RUNTIME-VERIFIED.
 
 ### Evaluation
@@ -117,19 +123,56 @@ Replaced fabricated accuracy/BLEU/WER/memory numbers with an evidence-backed sta
 Status: IMPLEMENTED, NOT RUNTIME-VERIFIED.
 
 ### Calibration
-Replaced the simulated calibration progress UI with a real browser MediaPipe capture flow. The browser samples synchronized 132/1404 keypoints at about 3 fps over the configured five-minute session and submits human-readable target text to the authenticated calibration API. Backend converts target text with the saved vocabulary and downsamples calibration inputs to `CALIBRATION_MAX_FRAMES` before fitting the adapter.
+Replaced the simulated calibration progress UI with a real browser MediaPipe capture flow. The browser samples synchronized 132/1404 keypoints at about 3 fps over the configured five-minute session and submits human-readable target text to the authenticated calibration API.
+The backend enforces `CALIBRATION_MAX_FRAMES=256` (bounded by `MAX_INFERENCE_FRAMES`) and deterministically downsamples long capture sessions before adapter fitting.
 Status: IMPLEMENTED, NOT RUNTIME-VERIFIED.
 
 ### Authentication UI
 Added `frontend/pages/auth.html` and `frontend/assets/js/auth.js` for real registration/login and bearer-token persistence. Private pages now require the token.
 Status: IMPLEMENTED, NOT RUNTIME-VERIFIED.
 
+## Second audit: newly found and fixed loose ends
+### 2026-08-25 readiness semantics
+Finding: `/health` previously loaded model state and returned HTTP 200 even when the model was unavailable, so deployment infrastructure could treat an unready ML service as healthy.
+Fix: split liveness `/api/v1/health` from readiness `/api/v1/ready`; Render now checks readiness.
+Status: FIXED, NOT RUNTIME-VERIFIED.
+
+### 2026-08-25 adapter weight orphaning
+Finding: deleting a `SignerAdapter` DB row left the referenced `.pt` file on disk indefinitely.
+Fix: owner-scoped delete now removes the DB record and the weight file, with a path-boundary guard preventing deletion outside `ADAPTER_WEIGHTS_DIR`.
+Status: FIXED, NOT RUNTIME-VERIFIED.
+
+### 2026-08-25 adapter budget enforcement
+Finding: calibration previously saved adapters even when the documented <2% parameter budget was exceeded, merely returning a flag.
+Fix: calibration now fails closed before saving any out-of-budget adapter.
+Status: FIXED, NOT RUNTIME-VERIFIED.
+
+### 2026-08-25 calibration compute guard
+Finding: a five-minute capture at ~3 fps can produce ~900 synchronized frames, which is valid for inference but unnecessarily expensive for adapter training on the CPU-oriented deployment target.
+Fix: added `CALIBRATION_MAX_FRAMES` default 256; long sessions are evenly downsampled while preserving synchronized pose/face frames. CTC minimum-length validation is performed against the post-cap limit.
+Status: FIXED, NOT RUNTIME-VERIFIED.
+
+### 2026-08-25 CI syntax coverage
+Finding: backend CI did not validate frontend JavaScript syntax, leaving client-side syntax errors outside automated regression coverage.
+Fix: CI now runs `node --check` on every frontend `.js` file and `python -m compileall` on Python modules/tests before pytest.
+Status: FIXED, NOT RUNTIME-VERIFIED.
+
+### 2026-08-25 invalid synthetic inference expectation
+Finding: a backend test expected non-empty translation text from arbitrary random keypoints. That expectation is not a valid contract and could fail on a legitimate blank/no-sign output.
+Fix: test now validates response shape, confidence, latency, and model head compatibility without demanding semantic output from synthetic data.
+Status: FIXED.
+
+### 2026-08-25 documentation drift
+Finding: deployment/readiness and adapter lifecycle behavior had drifted from implementation.
+Fix: README and AGENTS synchronized with the current readiness endpoints, adapter deletion lifecycle, and verification status.
+Status: FIXED.
+
 ## Performance hardening
-Added `CALIBRATION_MAX_FRAMES` with default 256 and runtime validation against `MAX_INFERENCE_FRAMES` to prevent the five-minute calibration capture from forcing a 900-frame Transformer training pass on the CPU deployment target.
+Added `CALIBRATION_MAX_FRAMES` with default 256 and runtime validation against `MAX_INFERENCE_FRAMES` to prevent the five-minute calibration capture from forcing a ~900-frame Transformer adapter-training pass.
 Status: IMPLEMENTED, NOT RUNTIME-VERIFIED.
 
 ## Documentation synchronization
-README now reflects the implemented browser keypoint extraction/calibration/account workflows and explicitly states that model quality and benchmark metrics remain unverified until real-data runtime evidence exists.
+README now reflects the implemented browser keypoint extraction/calibration/account workflows, readiness semantics, adapter lifecycle, and the fact that model quality and benchmark metrics remain unverified until real-data runtime evidence exists.
 Status: UPDATED.
 
 ## Acceptance gates
@@ -139,6 +182,7 @@ C: full training -> BLOCKED by B.
 D: multi-video real validation -> BLOCKED by C.
 E: BridgeAdapter -> BLOCKED by D.
 F: full application runtime/API/browser regression -> NOT VERIFIED.
+G: CI latest workflow run -> NOT VERIFIED.
 
 ## Issue diary
 ### 2026-08-25 duplicate UID corruption
@@ -181,7 +225,10 @@ FIXED-NOT-VERIFIED. Dashboard, history, signer profiles, and evaluation pages we
 FIXED-NOT-VERIFIED. Calibration page now captures real browser landmarks, submits a real target text, and persists an adapter through the existing backend service.
 
 ### 2026-08-25 CI gap discovered
-IMPLEMENTED. Added GitHub Actions backend regression workflow. No workflow run is available yet for the latest commit, so CI is NOT VERIFIED.
+IMPLEMENTED. Added GitHub Actions backend regression workflow, then expanded it to Python compile and frontend JavaScript syntax checks. No latest workflow run has been verified yet.
+
+### 2026-08-25 second audit: readiness/adapter lifecycle/calibration compute
+FIXED-NOT-VERIFIED. Liveness/readiness separated; adapter files cleaned up on deletion; adapter budget enforced; calibration frame cap enforced.
 
 ## Current next steps
 1. Fresh Colab runtime.
@@ -192,13 +239,14 @@ IMPLEMENTED. Added GitHub Actions backend regression workflow. No workflow run i
 6. Require train + held-out acceptance before checkpoint push.
 7. Run validation notebook on multiple real videos.
 8. Run `python -m pytest backend/tests` in Colab/CI.
-9. Run the new GitHub Actions workflow and fix any regression failures.
-10. Verify remote Render health/CORS/auth/calibration/browser flow.
-11. Only then resume and evaluate BridgeAdapter on held-out real signers.
+9. Run the latest GitHub Actions workflow and fix any regression failures.
+10. Verify `/api/v1/health` and `/api/v1/ready` in the deployed service.
+11. Verify remote Render CORS/auth/history/calibration/browser flow.
+12. Only then resume and evaluate BridgeAdapter on held-out real signers.
 
 ## Final verdict
 **NOT READY.**
-Reason: clean retraining not yet runtime-verified; current checkpoint quality not trusted; current full test suite not run after latest changes; browser/Render behavior not live-tested; raw-video production API boundary remains incomplete; the new CI workflow has not yet produced a successful run.
+Reason: clean retraining not yet runtime-verified; current checkpoint quality not trusted; current full test suite not run after latest changes; browser/Render behavior not live-tested; raw-video production API boundary remains intentionally separate; latest CI workflow has not yet produced a verified passing run.
 
 ## Golden rule
 Static correctness is not runtime proof. Only an actual test or real-data experiment earns VERIFIED.
