@@ -1,4 +1,4 @@
-name: VisionBridge backend tests
+name: VisionBridge regression checks
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  backend:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -22,8 +22,25 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pytest
+      - name: Compile Python modules
+        run: python -m compileall -q app tests
       - name: Run backend tests
         env:
           ENV: test
           SECRET_KEY: test-only-secret
         run: python -m pytest tests -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Check frontend JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r file; do
+            node --check "$file"
+          done < <(find frontend -type f -name '*.js' -print)
