@@ -24,48 +24,57 @@ def calibrate_new_adapter(
     target_lengths: torch.Tensor,
     calibration_seconds: float,
 ) -> dict:
-    """Trains a new adapter for one signer and saves its weights.
+    """Train a new adapter for one signer and save its weights.
 
-    target_labels: (batch, max_target_len) sentence-level token ids (no
-        blank token included — CTCLoss inserts blanks internally).
-    target_lengths: (batch,) true length of each target sequence.
-
-    Returns the info needed to create a SignerAdapter DB row (see
-    db/models.py) — caller is responsible for persisting that row.
+    ``target_labels`` contains sentence-level token ids with no CTC blank.
+    ``target_lengths`` contains the true unpadded target lengths.
     """
     base_model = get_base_model()
     n_layers = len(base_model.shared_encoder.layers)
-
     adapter = BridgeAdapterStack(d_model=base_model.d_model, n_layers=n_layers)
 
     base_param_count = sum(p.numel() for p in base_model.parameters())
-    stats = adapter.calibrate(base_model, pose, face, target_labels, target_lengths)
-
     if not adapter.param_budget_ok(base_param_count):
-        # Still save it — but flag it, so the ablation report can note the
-        # budget was missed rather than pretending it wasn't.
-        stats["param_budget_ok"] = False
-    else:
-        stats["param_budget_ok"] = True
+        raise RuntimeError(
+            "BridgeAdapter parameter budget exceeded before calibration: "
+            f"adapter_params={adapter.total_param_count()}, "
+            f"base_params={base_param_count}"
+        )
+
+    stats = adapter.calibrate(
+        base_model,
+        pose,
+        face,
+        target_labels,
+        target_lengths,
+    )
 
     os.makedirs(settings.ADAPTER_WEIGHTS_DIR, exist_ok=True)
-    weights_path = os.path.join(settings.ADAPTER_WEIGHTS_DIR, f"{uuid.uuid4().hex}.pt")
+    weights_path = os.path.join(
+        settings.ADAPTER_WEIGHTS_DIR,
+        f"{uuid.uuid4().hex}.pt",
+    )
     torch.save(adapter.state_dict(), weights_path)
 
     return {
         "weights_path": weights_path,
         "calibration_seconds": calibration_seconds,
         "param_count": stats["param_count"],
-        "param_budget_ok": stats["param_budget_ok"],
+        "param_budget_ok": True,
         "final_loss": stats["final_loss"],
     }
 
 
-def load_adapter_for_signer(weights_path: str, d_model: int, n_layers: int) -> BridgeAdapterStack:
+def load_adapter_for_signer(
+    weights_path: str,
+    d_model: int,
+    n_layers: int,
+) -> BridgeAdapterStack:
     adapter_root = Path(settings.ADAPTER_WEIGHTS_DIR).resolve()
     candidate = Path(weights_path).resolve()
     if adapter_root not in candidate.parents or not candidate.is_file():
         raise FileNotFoundError("Adapter weights are unavailable")
+
     adapter = BridgeAdapterStack(d_model=d_model, n_layers=n_layers)
     try:
         state = torch.load(candidate, map_location="cpu", weights_only=True)
@@ -74,3 +83,13 @@ def load_adapter_for_signer(weights_path: str, d_model: int, n_layers: int) -> B
         raise RuntimeError("Adapter weights could not be loaded") from exc
     adapter.eval()
     return adapter
+
+
+def delete_adapter_weights(weights_path: str) -> None:
+    """Delete adapter weights only when the path is inside the configured store."""
+    adapter_root = Path(settings.ADAPTER_WEIGHTS_DIR).resolve()
+    candidate = Path(weights_path).resolve()
+    if adapter_root not in candidate.parents:
+        raise ValueError("Refusing to delete a path outside the adapter weight directory")
+    if candidate.exists():
+        candidate.unlink()
