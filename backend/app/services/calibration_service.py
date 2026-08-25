@@ -24,11 +24,7 @@ def calibrate_new_adapter(
     target_lengths: torch.Tensor,
     calibration_seconds: float,
 ) -> dict:
-    """Train a new adapter for one signer and save its weights.
-
-    ``target_labels`` contains sentence-level token ids with no CTC blank.
-    ``target_lengths`` contains the true unpadded target lengths.
-    """
+    """Train a new adapter for one signer and save its weights."""
     base_model = get_base_model()
     n_layers = len(base_model.shared_encoder.layers)
     adapter = BridgeAdapterStack(d_model=base_model.d_model, n_layers=n_layers)
@@ -37,8 +33,7 @@ def calibrate_new_adapter(
     if not adapter.param_budget_ok(base_param_count):
         raise RuntimeError(
             "BridgeAdapter parameter budget exceeded before calibration: "
-            f"adapter_params={adapter.total_param_count()}, "
-            f"base_params={base_param_count}"
+            f"adapter_params={adapter.total_param_count()}, base_params={base_param_count}"
         )
 
     stats = adapter.calibrate(
@@ -85,11 +80,30 @@ def load_adapter_for_signer(
     return adapter
 
 
-def delete_adapter_weights(weights_path: str) -> None:
-    """Delete adapter weights only when the path is inside the configured store."""
+def stage_adapter_weight_delete(weights_path: str) -> Path | None:
+    """Move an adapter file aside so a DB transaction can be reversed safely."""
     adapter_root = Path(settings.ADAPTER_WEIGHTS_DIR).resolve()
     candidate = Path(weights_path).resolve()
     if adapter_root not in candidate.parents:
         raise ValueError("Refusing to delete a path outside the adapter weight directory")
-    if candidate.exists():
-        candidate.unlink()
+    if not candidate.exists():
+        return None
+
+    tombstone = candidate.with_name(f".{candidate.name}.{uuid.uuid4().hex}.deleting")
+    candidate.replace(tombstone)
+    return tombstone
+
+
+def restore_staged_adapter_weight(tombstone: Path, original_path: str) -> None:
+    adapter_root = Path(settings.ADAPTER_WEIGHTS_DIR).resolve()
+    candidate = Path(original_path).resolve()
+    tombstone = tombstone.resolve()
+    if adapter_root not in candidate.parents or adapter_root not in tombstone.parents:
+        raise ValueError("Refusing to restore adapter weights outside the configured directory")
+    if tombstone.exists():
+        tombstone.replace(candidate)
+
+
+def finalize_staged_adapter_weight_delete(tombstone: Path | None) -> None:
+    if tombstone is not None and tombstone.exists():
+        tombstone.unlink()
