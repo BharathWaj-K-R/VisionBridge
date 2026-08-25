@@ -19,16 +19,33 @@ def test_adapter_parameter_budget_matches_current_backbone():
     assert adapter.param_budget_ok(base_params)
 
 
-def test_delete_adapter_weights_removes_file(tmp_path, monkeypatch):
+def test_stage_and_finalize_adapter_weight_delete(tmp_path, monkeypatch):
     monkeypatch.setattr(calibration_service.settings, "ADAPTER_WEIGHTS_DIR", str(tmp_path))
     adapter_path = Path(tmp_path) / "adapter.pt"
     adapter_path.write_bytes(b"test")
 
-    calibration_service.delete_adapter_weights(str(adapter_path))
+    tombstone = calibration_service.stage_adapter_weight_delete(str(adapter_path))
     assert not adapter_path.exists()
+    assert tombstone is not None and tombstone.exists()
+
+    calibration_service.finalize_staged_adapter_weight_delete(tombstone)
+    assert not tombstone.exists()
 
 
-def test_delete_adapter_weights_rejects_path_outside_store(tmp_path, monkeypatch):
+def test_stage_adapter_weight_delete_can_be_restored(tmp_path, monkeypatch):
+    monkeypatch.setattr(calibration_service.settings, "ADAPTER_WEIGHTS_DIR", str(tmp_path))
+    adapter_path = Path(tmp_path) / "adapter.pt"
+    adapter_path.write_bytes(b"test")
+
+    tombstone = calibration_service.stage_adapter_weight_delete(str(adapter_path))
+    assert tombstone is not None
+    calibration_service.restore_staged_adapter_weight(tombstone, str(adapter_path))
+
+    assert adapter_path.read_bytes() == b"test"
+    assert not tombstone.exists()
+
+
+def test_stage_adapter_weight_delete_rejects_path_outside_store(tmp_path, monkeypatch):
     monkeypatch.setattr(
         calibration_service.settings,
         "ADAPTER_WEIGHTS_DIR",
@@ -38,6 +55,6 @@ def test_delete_adapter_weights_rejects_path_outside_store(tmp_path, monkeypatch
     outside.write_bytes(b"do-not-delete")
 
     with pytest.raises(ValueError, match="outside the adapter weight directory"):
-        calibration_service.delete_adapter_weights(str(outside))
+        calibration_service.stage_adapter_weight_delete(str(outside))
 
     assert outside.exists()
