@@ -25,6 +25,14 @@ def _ctc_min_input_length(target_labels: list[int]) -> int:
 
 
 def _validate_calibration_payload(payload: CalibrationRequest) -> None:
+    if payload.calibration_seconds < settings.CALIBRATION_MIN_SECONDS:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"calibration_seconds must be at least {settings.CALIBRATION_MIN_SECONDS}; "
+                f"received {payload.calibration_seconds}"
+            ),
+        )
     if len(payload.pose_keypoints) == 0 or len(payload.face_keypoints) == 0:
         raise HTTPException(status_code=422, detail="pose_keypoints and face_keypoints must not be empty")
     if len(payload.pose_keypoints) != len(payload.face_keypoints):
