@@ -58,8 +58,6 @@ def test_decode_logits_uses_real_vocab(monkeypatch):
 
 
 def test_decode_logits_rejects_vocab_mismatch():
-    monkeypatch = None
-    del monkeypatch
     inference_service._id_to_token = {0: "<blank>", 1: "a"}
     with pytest.raises(ValueError, match="Decoder vocabulary/logit mismatch"):
         inference_service.decode_logits(torch.zeros(1, 2, 3))
@@ -156,7 +154,7 @@ def test_translate_endpoint_end_to_end_with_real_model_and_realistic_keypoints()
 
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert isinstance(body["predicted_text"], str) and body["predicted_text"] != ""
+    assert isinstance(body["predicted_text"], str) and body["predicted_text"]
     assert 0.0 <= body["confidence"] <= 1.0
     assert body["latency_ms"] >= 0
     assert body["used_adapter"] is False
