@@ -1,12 +1,10 @@
 """
 Inference service: loads the frozen base model once (module-level singleton),
 optionally applies a signer's BridgeAdapter, and returns decoded text +
-confidence + latency — the numbers the ablation study and demo both need.
+confidence + latency.
 
-NOTE: keypoint extraction (e.g. MediaPipe Holistic on raw video/webcam
-frames) is NOT implemented here. This service expects pre-extracted pose
-and face keypoint tensors. Wire up the extraction step in a separate
-preprocessing module once you've picked a keypoint extractor.
+Keypoint extraction (e.g. MediaPipe Holistic on raw video/webcam frames) is
+not implemented here. This service expects pre-extracted pose and face tensors.
 """
 import pickle
 import time
@@ -20,7 +18,6 @@ from app.models.bridge_adapter import BridgeAdapterStack
 
 settings = get_settings()
 
-# Loaded once at process startup, reused across requests.
 _base_model = None
 _id_to_token: dict[int, str] = {}
 
@@ -30,93 +27,102 @@ class ModelUnavailableError(RuntimeError):
 
 
 def _load_vocab(base_model_path: str) -> dict[int, str]:
-    """Loads the id->token map saved alongside the base model weights
-    (train_base_model.py writes <weights>.vocab.json next to the .pt file).
-    Returns {} if no vocab file exists yet (e.g. still on placeholder/
-    randomly-initialized weights) — decode_logits() falls back to raw ids."""
+    """Load and validate the id->token map saved beside the base checkpoint."""
     import json
-    from pathlib import Path
 
     vocab_path = Path(base_model_path).with_suffix(".vocab.json")
     if not vocab_path.exists():
-        return {}
+        raise ModelUnavailableError(f"Missing model vocabulary: {vocab_path}")
+
     payload = json.loads(vocab_path.read_text(encoding="utf-8"))
-    return {idx: token for idx, token in enumerate(payload["id_to_token"])}
+    id_to_token = payload.get("id_to_token")
+    if not isinstance(id_to_token, list) or not id_to_token:
+        raise ModelUnavailableError(f"Invalid model vocabulary file: {vocab_path}")
+    if not id_to_token or id_to_token[0] != "<blank>":
+        raise ModelUnavailableError("Model vocabulary must reserve token 0 for CTC blank")
+    return {idx: token for idx, token in enumerate(id_to_token)}
 
 
 def get_base_model():
     global _base_model, _id_to_token
     if _base_model is None:
         model_path = Path(settings.BASE_MODEL_PATH)
-        if not model_path.is_file():
-            raise ModelUnavailableError("The VisionBridge base-model checkpoint is not installed.")
+        vocab_path = model_path.with_suffix(".vocab.json")
+        if not model_path.is_file() or not vocab_path.is_file():
+            raise ModelUnavailableError("The VisionBridge base-model checkpoint and vocabulary must both be installed.")
         try:
             _base_model = load_frozen_base_model(str(model_path))
             _id_to_token = _load_vocab(str(model_path))
-        except (OSError, RuntimeError, ValueError, KeyError, EOFError, pickle.UnpicklingError) as exc:
-            raise ModelUnavailableError("The VisionBridge base-model checkpoint could not be loaded.") from exc
+            if len(_id_to_token) != _base_model.output_head.out_features:
+                raise ModelUnavailableError(
+                    "Base-model output head size does not match the saved vocabulary size: "
+                    f"head={_base_model.output_head.out_features}, vocab={len(_id_to_token)}"
+                )
+        except ModelUnavailableError:
+            _base_model = None
+            _id_to_token = {}
+            raise
+        except (OSError, RuntimeError, ValueError, KeyError, EOFError, pickle.UnpicklingError, UnicodeError) as exc:
+            _base_model = None
+            _id_to_token = {}
+            raise ModelUnavailableError("The VisionBridge base-model checkpoint could not be loaded safely.") from exc
     return _base_model
 
 
 def model_status() -> dict[str, str | bool]:
-    """Return non-sensitive model readiness information for health checks."""
+    """Return model readiness based on checkpoint/vocabulary presence and compatibility."""
     model_path = Path(settings.BASE_MODEL_PATH)
     vocab_path = model_path.with_suffix(".vocab.json")
-    available = model_path.is_file() and vocab_path.is_file()
-    return {
-        "available": available,
-        "status": "ready" if available else "unavailable",
-    }
+    if not model_path.is_file() or not vocab_path.is_file():
+        return {"available": False, "status": "unavailable"}
+
+    try:
+        # Validate only the lightweight vocabulary file here. Full weight
+        # loading remains lazy so /health does not incur a 30 MB model load.
+        id_to_token = _load_vocab(str(model_path))
+        state = torch.load(model_path, map_location="cpu", weights_only=True)
+        output_head_weight = state.get("output_head.weight")
+        if output_head_weight is None:
+            return {"available": False, "status": "invalid_checkpoint"}
+        if len(id_to_token) != int(output_head_weight.shape[0]):
+            return {"available": False, "status": "vocabulary_mismatch"}
+    except Exception:
+        return {"available": False, "status": "invalid_checkpoint"}
+
+    return {"available": True, "status": "ready"}
 
 
 CTC_BLANK_ID = 0
 
 
 def decode_logits(logits: torch.Tensor) -> tuple[str, float]:
-    """Greedy CTC decode: collapse consecutive repeats, then drop blanks.
-    This matches the CTC training objective in bridge_adapter.py's
-    calibrate() and app/training/train_base_model.py — both use blank=0.
-    Returns decoded text + confidence in that specific text.
+    """Greedy CTC decode: collapse consecutive repeats, then drop blanks."""
+    if logits.ndim != 3 or logits.shape[0] != 1:
+        raise ValueError(f"Expected logits shape [1, T, V], got {tuple(logits.shape)}")
+    if logits.shape[-1] <= CTC_BLANK_ID:
+        raise ValueError("Logits do not contain the configured CTC blank class")
+    if _id_to_token and len(_id_to_token) != logits.shape[-1]:
+        raise ValueError(
+            f"Decoder vocabulary/logit mismatch: vocab={len(_id_to_token)}, logits={logits.shape[-1]}"
+        )
 
-    Uses the real trained vocabulary saved alongside base_model.pt
-    (base_model.vocab.json, loaded into _id_to_token by _load_vocab() when
-    get_base_model() first runs). Falls back to raw "<id>" placeholders only
-    if no vocab file was found (e.g. a randomly-initialized model with no
-    training run behind it yet)."""
     probs = torch.softmax(logits, dim=-1)
-    top_probs, top_ids = probs.max(dim=-1)  # (batch, frames)
+    top_probs, top_ids = probs.max(dim=-1)
 
     ids = top_ids[0].tolist()
     frame_probs = top_probs[0].tolist()
 
-    # CTC collapse: drop consecutive duplicates first, THEN drop blanks
-    # (this order matters — it's what distinguishes "aa a" -> "a a" from "aaa" -> "a").
-    # Track each surviving position's own top-probability alongside it, so
-    # confidence can be computed from exactly the frames that produced the
-    # final text — not diluted by (or entirely made of) blank frames.
-    collapsed: list[tuple[int, float]] = [
-        (i, p) for idx, (i, p) in enumerate(zip(ids, frame_probs))
-        if idx == 0 or i != ids[idx - 1]
-    ]
-    non_blank = [(i, p) for i, p in collapsed if i != CTC_BLANK_ID]
+    collapsed: list[tuple[int, float]] = []
+    previous_id = None
+    for token_id, probability in zip(ids, frame_probs):
+        if token_id != previous_id:
+            collapsed.append((int(token_id), float(probability)))
+            previous_id = token_id
 
+    non_blank = [(token_id, probability) for token_id, probability in collapsed if token_id != CTC_BLANK_ID]
     tokens = [_id_to_token.get(i, f"<{i}>") for i, _ in non_blank]
-    # SimpleCharTokenizer (app/training/isltranslate.py) is CHARACTER-level —
-    # its vocabulary already includes a literal " " (space) token. Joining
-    # with " ".join(tokens) would insert an EXTRA space between every single
-    # character (e.g. "hello" -> "h e l l o", and worse around real spaces),
-    # producing unreadable text even with a perfectly correct model and
-    # decode order. Concatenate the characters directly instead.
     text = "".join(tokens)
-
-    # Confidence in the returned text specifically. If every frame collapsed
-    # to blank (no prediction at all), there is nothing to be confident IN —
-    # report 0.0 rather than the old behavior of averaging in blank-frame
-    # certainty, which could show e.g. "86% confidence" next to empty text
-    # (the model being highly sure every frame was blank, misread as
-    # confidence in a prediction that doesn't exist).
     confidence = float(sum(p for _, p in non_blank) / len(non_blank)) if non_blank else 0.0
-
     return text or "(no sign detected)", confidence
 
 
@@ -125,9 +131,6 @@ def run_inference(
     face: torch.Tensor,
     adapter: BridgeAdapterStack | None = None,
 ) -> dict:
-    """Runs one translation pass, with or without a signer-specific adapter.
-    Returns predicted_text, confidence, latency_ms, used_adapter — matching
-    schemas.TranslationResult."""
     model = get_base_model()
     start = time.perf_counter()
 
@@ -139,11 +142,6 @@ def run_inference(
 
     latency_ms = (time.perf_counter() - start) * 1000
     text, confidence = decode_logits(logits)
-
-    if latency_ms > settings.MAX_INFERENCE_LATENCY_MS:
-        # Don't fail the request — just flag it so it shows up in logs/ablation
-        # results rather than silently missing the <500ms target.
-        pass
 
     return {
         "predicted_text": text,
