@@ -33,6 +33,13 @@ from app.services import inference_service
 from app.services.inference_service import ModelUnavailableError
 
 client = TestClient(app)
+# FastAPI's table-creation now runs inside main.py's lifespan handler (moved
+# there deliberately so importing app.main no longer has DB side effects —
+# see main.py's `lifespan()`). The TestClient only triggers lifespan
+# startup/shutdown when used as a context manager, so enter it once here;
+# the process exits at the end of the test run, so there's no matching
+# __exit__ to worry about.
+client.__enter__()
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]  # backend/
 REAL_WEIGHTS_PATH = BACKEND_DIR / "app" / "models" / "weights" / "base_model.pt"
