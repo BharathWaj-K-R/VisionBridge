@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, calibration, health, translate
+from app.api import auth, calibration, dashboard, health, history, translate, users
 from app.core.config import get_settings
 from app.db.session import Base, engine
 
@@ -13,11 +13,10 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     """Initialize persistence only while the application is running."""
-    # Creating tables at import time makes CLI tools and tests mutate a
-    # database merely by importing ``app.main``.
     settings.validate_for_runtime()
     Base.metadata.create_all(bind=engine)
     yield
+
 
 app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
 
@@ -33,6 +32,9 @@ app.include_router(health.router, prefix=settings.API_V1_PREFIX)
 app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
 app.include_router(translate.router, prefix=settings.API_V1_PREFIX)
 app.include_router(calibration.router, prefix=settings.API_V1_PREFIX)
+app.include_router(dashboard.router, prefix=settings.API_V1_PREFIX)
+app.include_router(history.router, prefix=settings.API_V1_PREFIX)
+app.include_router(users.router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/")
