@@ -21,7 +21,7 @@ visionbridge/
 ├── frontend/          Static HTML/CSS/JS UI with live API integration
 ├── data/              dataset preparation area
 ├── notebooks/         Colab/Lightning training and validation notebooks
-├── .github/workflows/ backend regression CI
+├── .github/workflows/ backend + frontend regression CI
 └── render.yaml        Render deployment config for backend + frontend
 ```
 
@@ -78,6 +78,12 @@ The browser performs MediaPipe Holistic keypoint extraction for the live transla
 - Dashboard, calibration, history, signer-adapter management, and evaluation require authentication.
 - Anonymous base-model translation remains supported by `/api/v1/translate` when a compatible base checkpoint is installed.
 
+## Health and readiness
+
+- `GET /api/v1/health` is a lightweight process-liveness endpoint and does not load the model.
+- `GET /api/v1/ready` validates the checkpoint/vocabulary contract and returns HTTP 503 until the model is ready.
+- Render uses `/api/v1/ready` as its health check so an alive-but-unready service is not reported as healthy.
+
 ## Deployment (Render)
 
 `render.yaml` defines:
@@ -90,6 +96,8 @@ Update `ALLOWED_ORIGINS` and the frontend API endpoint to the actual deployed se
 
 ## Verification status
 
-The repository contains automated backend tests and a GitHub Actions workflow, but the current model checkpoint and clean-data retraining are **not considered quality-verified until a real Colab/CI run demonstrates non-blank predictions on real ISL data**.
+The repository contains automated backend tests and GitHub Actions checks for Python compilation, backend tests, and frontend JavaScript syntax. The current model checkpoint and clean-data retraining are **not considered quality-verified until a real Colab/CI run demonstrates non-blank predictions on real ISL data**.
+
+Adapter deletion removes both the database record and its on-disk weights, and calibration now fails closed if the adapter would exceed the documented parameter budget.
 
 The evaluation UI intentionally reports benchmark metrics as **not measured** unless evidence is persisted. It does not display fabricated accuracy, BLEU, WER, or memory numbers.
