@@ -51,9 +51,9 @@ def _validate_calibration_payload(payload: CalibrationRequest, target_labels: li
     required_frames = _ctc_min_input_length(target_labels)
     if not target_labels:
         raise HTTPException(status_code=422, detail="Calibration target is empty or contains no supported vocabulary characters")
-    if required_frames > len(payload.pose_keypoints):
+    if required_frames > min(len(payload.pose_keypoints), settings.CALIBRATION_MAX_FRAMES):
         repeats = required_frames - len(target_labels)
-        raise HTTPException(status_code=422, detail=f"target cannot align under CTC: target_length={len(target_labels)}, repeated_labels={repeats}, minimum_required_frames={required_frames}, input_frames={len(payload.pose_keypoints)}")
+        raise HTTPException(status_code=422, detail=f"target cannot align under CTC after calibration downsampling: target_length={len(target_labels)}, repeated_labels={repeats}, minimum_required_frames={required_frames}, calibration_max_frames={settings.CALIBRATION_MAX_FRAMES}")
     if any(len(frame) != POSE_INPUT_DIM for frame in payload.pose_keypoints):
         raise HTTPException(status_code=422, detail=f"pose frames must have {POSE_INPUT_DIM} dimensions")
     if any(len(frame) != FACE_INPUT_DIM for frame in payload.face_keypoints):
@@ -62,6 +62,13 @@ def _validate_calibration_payload(payload: CalibrationRequest, target_labels: li
         raise HTTPException(status_code=422, detail="pose_keypoints contain a non-finite value")
     if any(not math.isfinite(value) for frame in payload.face_keypoints for value in frame):
         raise HTTPException(status_code=422, detail="face_keypoints contain a non-finite value")
+
+
+def _downsample(pose: list[list[float]], face: list[list[float]]) -> tuple[list[list[float]], list[list[float]]]:
+    if len(pose) <= settings.CALIBRATION_MAX_FRAMES:
+        return pose, face
+    indices = torch.linspace(0, len(pose) - 1, steps=settings.CALIBRATION_MAX_FRAMES).long().tolist()
+    return [pose[i] for i in indices], [face[i] for i in indices]
 
 
 @router.post("", response_model=CalibrationResult)
@@ -75,6 +82,7 @@ def calibrate(
 
     target_labels = _resolve_target_labels(payload)
     _validate_calibration_payload(payload, target_labels)
+    pose_keypoints, face_keypoints = _downsample(payload.pose_keypoints, payload.face_keypoints)
 
     try:
         base_model = get_base_model()
@@ -83,8 +91,8 @@ def calibrate(
     if any(label <= 0 or label >= base_model.output_head.out_features for label in target_labels):
         raise HTTPException(status_code=422, detail="target labels contain an invalid vocabulary id")
 
-    pose = torch.tensor(payload.pose_keypoints, dtype=torch.float32).unsqueeze(0)
-    face = torch.tensor(payload.face_keypoints, dtype=torch.float32).unsqueeze(0)
+    pose = torch.tensor(pose_keypoints, dtype=torch.float32).unsqueeze(0)
+    face = torch.tensor(face_keypoints, dtype=torch.float32).unsqueeze(0)
     target_tensor = torch.tensor(target_labels, dtype=torch.long).unsqueeze(0)
     target_lengths = torch.tensor([len(target_labels)], dtype=torch.long)
 
