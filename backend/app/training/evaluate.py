@@ -2,22 +2,7 @@
 Character Error Rate (CER) — the standard metric for character-level
 transcription tasks, since SimpleCharTokenizer is char-level (not word-level).
 
-CER = edit_distance(predicted, ground_truth) / len(ground_truth)
-  0.0  = perfect match
-  1.0  = as bad as predicting nothing (roughly — can exceed 1.0 for
-         predictions much longer than the ground truth)
-
-Uses the exact same decode_logits() as backend/app/services/inference_service.py
-(imported directly, not reimplemented) — so the numbers this script reports
-match what the live /translate endpoint would actually produce, not a
-separately-maintained approximation of it.
-
-Usage:
-    PYTHONPATH=backend python -m app.training.evaluate \\
-        --data-dir data/processed/isltranslate \\
-        --weights backend/app/models/weights/base_model.pt \\
-        --max-samples 200 \\
-        --worst-n 10
+Uses the exact live decoder and the vocabulary saved beside the checkpoint.
 """
 from __future__ import annotations
 
@@ -27,14 +12,15 @@ from pathlib import Path
 import torch
 
 from app.models.base_model import load_frozen_base_model
-from app.services.inference_service import decode_logits
-from app.training.isltranslate import ISLTranslateKeypointDataset, SimpleCharTokenizer, _downsample_to_max_length
+from app.services import inference_service
+from app.training.isltranslate import (
+    ISLTranslateKeypointDataset,
+    SimpleCharTokenizer,
+    _downsample_to_max_length,
+)
 
 
 def levenshtein(a: str, b: str) -> int:
-    """Standard edit distance (insertions + deletions + substitutions),
-    pure Python — fine for the short strings involved here (sentence-level
-    text, not documents)."""
     if a == b:
         return 0
     if not a:
@@ -48,9 +34,9 @@ def levenshtein(a: str, b: str) -> int:
         for j, cb in enumerate(b, start=1):
             cost = 0 if ca == cb else 1
             curr[j] = min(
-                prev[j] + 1,        # deletion
-                curr[j - 1] + 1,    # insertion
-                prev[j - 1] + cost,  # substitution
+                prev[j] + 1,
+                curr[j - 1] + 1,
+                prev[j - 1] + cost,
             )
         prev = curr
     return prev[-1]
@@ -63,11 +49,11 @@ def cer(predicted: str, ground_truth: str) -> float:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--data-dir", required=True, help="e.g. data/processed/isltranslate")
-    parser.add_argument("--weights", required=True, help="path to base_model.pt")
-    parser.add_argument("--max-samples", type=int, default=None, help="cap evaluation to N samples (default: all)")
-    parser.add_argument("--worst-n", type=int, default=10, help="how many worst predictions to print")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--data-dir", required=True)
+    parser.add_argument("--weights", required=True)
+    parser.add_argument("--max-samples", type=int, default=None)
+    parser.add_argument("--worst-n", type=int, default=10)
     parser.add_argument("--device", default=None)
     return parser.parse_args()
 
@@ -77,13 +63,26 @@ def main() -> None:
     device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
 
     vocab_path = Path(args.weights).with_suffix(".vocab.json")
-    tokenizer = SimpleCharTokenizer.load(vocab_path) if vocab_path.exists() else SimpleCharTokenizer()
+    if not vocab_path.exists():
+        raise FileNotFoundError(f"Vocabulary file not found: {vocab_path}")
 
+    tokenizer = SimpleCharTokenizer.load(vocab_path)
     dataset = ISLTranslateKeypointDataset(args.data_dir, tokenizer=tokenizer)
     n = len(dataset) if args.max_samples is None else min(args.max_samples, len(dataset))
+    if n <= 0:
+        raise ValueError("Evaluation dataset contains zero usable samples")
+
     print(f"Evaluating {n} / {len(dataset)} samples from {args.data_dir}")
 
     model = load_frozen_base_model(args.weights, vocab_size=tokenizer.vocab_size).to(device)
+    loaded_vocab = inference_service._load_vocab(str(args.weights))
+    if len(loaded_vocab) != model.output_head.out_features:
+        raise ValueError(
+            "Checkpoint/vocabulary mismatch: "
+            f"checkpoint output_head={model.output_head.out_features}, "
+            f"vocab_size={len(loaded_vocab)}"
+        )
+    inference_service._id_to_token = loaded_vocab
 
     results: list[dict] = []
     empty_predictions = 0
@@ -96,7 +95,7 @@ def main() -> None:
             face = face.unsqueeze(0).to(device)
 
             logits = model(pose, face)
-            predicted_text, confidence = decode_logits(logits)
+            predicted_text, confidence = inference_service.decode_logits(logits)
             ground_truth = item["text"]
             score = cer(predicted_text, ground_truth)
 
@@ -118,13 +117,13 @@ def main() -> None:
     mean_cer = sum(cers) / len(cers)
     exact_matches = sum(1 for r in results if r["predicted"].lower() == r["ground_truth"].lower())
 
-    print(f"\n{'=' * 60}")
+    print("\n" + "=" * 60)
     print(f"Samples evaluated:     {n}")
     print(f"Mean CER:              {mean_cer:.4f}  (0.0 = perfect, lower is better)")
     print(f"Median CER:            {sorted(cers)[len(cers) // 2]:.4f}")
     print(f"Exact matches:         {exact_matches} / {n} ({100 * exact_matches / n:.1f}%)")
-    print(f"Empty predictions:     {empty_predictions} / {n} ({100 * empty_predictions / n:.1f}%) — '(no sign detected)'")
-    print(f"{'=' * 60}")
+    print(f"Empty predictions:     {empty_predictions} / {n} ({100 * empty_predictions / n:.1f}%)")
+    print("=" * 60)
 
     worst = sorted(results, key=lambda r: r["cer"], reverse=True)[: args.worst_n]
     print(f"\nWorst {len(worst)} predictions:")
