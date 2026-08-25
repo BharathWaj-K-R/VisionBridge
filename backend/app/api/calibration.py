@@ -17,6 +17,13 @@ router = APIRouter(prefix="/calibration", tags=["calibration"])
 settings = get_settings()
 
 
+def _ctc_min_input_length(target_labels: list[int]) -> int:
+    if not target_labels:
+        return 0
+    repeats = sum(a == b for a, b in zip(target_labels, target_labels[1:]))
+    return len(target_labels) + repeats
+
+
 def _validate_calibration_payload(payload: CalibrationRequest) -> None:
     if len(payload.pose_keypoints) == 0 or len(payload.face_keypoints) == 0:
         raise HTTPException(status_code=422, detail="pose_keypoints and face_keypoints must not be empty")
@@ -24,8 +31,17 @@ def _validate_calibration_payload(payload: CalibrationRequest) -> None:
         raise HTTPException(status_code=422, detail="pose/face frame count mismatch")
     if len(payload.pose_keypoints) > settings.MAX_INFERENCE_FRAMES:
         raise HTTPException(status_code=422, detail=f"too many frames; maximum is {settings.MAX_INFERENCE_FRAMES}")
-    if len(payload.target_labels) > len(payload.pose_keypoints):
-        raise HTTPException(status_code=422, detail="target_labels cannot be longer than the input sequence")
+    required_frames = _ctc_min_input_length(payload.target_labels)
+    if required_frames > len(payload.pose_keypoints):
+        repeats = required_frames - len(payload.target_labels)
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "target_labels cannot align under CTC for this clip: "
+                f"target_length={len(payload.target_labels)}, repeated_labels={repeats}, "
+                f"minimum_required_frames={required_frames}, input_frames={len(payload.pose_keypoints)}"
+            ),
+        )
     if any(len(frame) != POSE_INPUT_DIM for frame in payload.pose_keypoints):
         raise HTTPException(status_code=422, detail=f"pose frames must have {POSE_INPUT_DIM} dimensions")
     if any(len(frame) != FACE_INPUT_DIM for frame in payload.face_keypoints):
