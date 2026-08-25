@@ -87,6 +87,7 @@ class ISLTranslateKeypointDataset(Dataset):
             raise FileNotFoundError(f"Missing metadata CSV: {metadata_path}")
 
         examples: list[ISLTranslateExample] = []
+        seen_uids: set[str] = set()
         with metadata_path.open(newline="", encoding="utf-8") as handle:
             reader = csv.DictReader(handle)
             fieldnames = {name.lower(): name for name in (reader.fieldnames or [])}
@@ -95,12 +96,20 @@ class ISLTranslateKeypointDataset(Dataset):
             if not uid_field or not text_field:
                 raise ValueError("ISLTranslate.csv must include uid and translation/text columns")
 
-            for row in reader:
+            for row_number, row in enumerate(reader, start=2):
                 uid = row[uid_field].strip()
                 text = row[text_field].strip()
+                if not uid or not text:
+                    continue
+                if uid in seen_uids:
+                    raise ValueError(
+                        f"Duplicate uid {uid!r} in {metadata_path} at CSV row {row_number}. "
+                        "Each training clip must have a globally unique UID so one clip cannot overwrite another's features."
+                    )
+                seen_uids.add(uid)
                 pose_path = self.root / "pose" / f"{uid}.npy"
                 face_path = self.root / "face" / f"{uid}.npy"
-                if uid and text and pose_path.exists() and face_path.exists():
+                if pose_path.exists() and face_path.exists():
                     examples.append(ISLTranslateExample(uid, text, pose_path, face_path))
         return examples
 
@@ -112,6 +121,8 @@ class ISLTranslateKeypointDataset(Dataset):
         pose = torch.from_numpy(np.load(example.pose_path)).float()
         face = torch.from_numpy(np.load(example.face_path)).float()
         labels = torch.tensor(self.tokenizer.encode(example.text), dtype=torch.long)
+        if labels.numel() == 0:
+            raise ValueError(f"Example {example.uid!r} has no encodable target text: {example.text!r}")
         return {"uid": example.uid, "pose": pose, "face": face, "labels": labels, "text": example.text}
 
 
@@ -147,9 +158,6 @@ def collate_ctc_batch(batch: list[dict[str, torch.Tensor | str]]) -> dict[str, t
     pose_dim = int(batch[0]["pose"].shape[-1])  # type: ignore[index, union-attr]
     face_dim = int(batch[0]["face"].shape[-1])  # type: ignore[index, union-attr]
 
-    # Downsample any over-length clips (> MAX_SEQUENCE_LENGTH frames) first,
-    # so max_frames below — and every input_length — reflects the actual
-    # post-downsampling sequence the model will see.
     sampled_items = []
     for item in batch:
         uid = str(item["uid"])
