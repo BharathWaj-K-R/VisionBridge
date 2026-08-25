@@ -23,8 +23,9 @@ Usage:
         --out_dir data/processed/isltranslate
 
 Expects labels_csv to have a uid column (or video_uid/id) matching video
-filenames as <uid>.mp4, plus a text/translation/english column — same
+filenames by stem, plus a text/translation/english column — same
 column-name flexibility as ISLTranslateKeypointDataset._read_examples().
+Filename extension matching is case-insensitive (.mp4/.MP4/etc.).
 
 Resumable: if pose/<uid>.npy and face/<uid>.npy already exist and pass
 dimension validation, that uid is skipped and counted under "already
@@ -55,6 +56,7 @@ import pandas as pd
 # (x,y,z,visibility) and 468 face landmarks (x,y,z).
 POSE_FEATURE_DIM = 33 * 4   # 132
 FACE_FEATURE_DIM = 468 * 3  # 1404
+SUPPORTED_VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv"}
 
 
 def _stub_tensorflow_for_mediapipe() -> None:
@@ -162,6 +164,27 @@ def extract_clip_keypoints(video_path: str, holistic) -> tuple[np.ndarray, np.nd
     return pose_arr, face_arr
 
 
+def resolve_video_path(videos_dir: str | os.PathLike[str], uid: str) -> str | None:
+    """Resolve a dataset video by filename stem with case-insensitive extension handling."""
+    directory = os.fspath(videos_dir)
+    try:
+        entries = os.listdir(directory)
+    except OSError:
+        return None
+
+    exact_name = f"{uid}.mp4"
+    if exact_name in entries:
+        return os.path.join(directory, exact_name)
+
+    uid_casefold = uid.casefold()
+    for filename in entries:
+        stem, suffix = os.path.splitext(filename)
+        if stem == uid or stem.casefold() == uid_casefold:
+            if suffix.casefold() in SUPPORTED_VIDEO_EXTENSIONS:
+                return os.path.join(directory, filename)
+    return None
+
+
 def _load_and_validate(path: str, expected_dim: int) -> np.ndarray | None:
     """Loads a previously-saved .npy and checks it's actually usable —
     2D, right feature dimension. Returns None (treat as not-yet-processed)
@@ -196,7 +219,7 @@ def resolve_text_column(columns: list[str]) -> str:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--videos_dir", required=True, help="Folder of <uid>.mp4 files")
+    parser.add_argument("--videos_dir", required=True, help="Folder of videos; filename stem must equal uid")
     parser.add_argument("--labels_csv", required=True)
     parser.add_argument("--out_dir", required=True,
                          help="e.g. data/processed/isltranslate — pose/ and face/ subfolders created here")
@@ -217,16 +240,6 @@ def main():
 
     already, newly, missing_video, failed = 0, 0, 0, 0
 
-    # Both the manifest and the failure log are written row-by-row and
-    # flushed to disk immediately, not accumulated in memory and written
-    # once at the end. If the process is killed (Studio stop, OOM, Ctrl-C)
-    # partway through, both files still reflect everything completed up to
-    # that point — the manifest doubles as a live completion record, not
-    # just a final artifact. Each run rewrites both from scratch (truncated
-    # here), which is safe: uids already valid on disk are re-validated
-    # near-instantly by _load_and_validate and re-appended within the same
-    # pass, so a resumed run quickly restores full manifest coverage before
-    # spending any time on genuinely new extraction work.
     manifest_path = os.path.join(args.out_dir, "ISLTranslate.csv")
     failures_path = os.path.join(args.out_dir, "extraction_failures.csv")
 
@@ -273,17 +286,15 @@ def main():
                 _mark_complete(uid, text)
                 continue
 
-            video_path = os.path.join(args.videos_dir, f"{uid}.mp4")
-            if not os.path.exists(video_path):
-                print(f"  Skipping {uid}: no video file at {video_path}")
+            video_path = resolve_video_path(args.videos_dir, uid)
+            if video_path is None:
+                expected = os.path.join(args.videos_dir, f"{uid}.mp4")
+                print(f"  Skipping {uid}: no supported video file matching stem; expected e.g. {expected}")
                 missing_video += 1
                 continue
 
             try:
                 pose, face = extract_clip_keypoints(video_path, holistic)
-                # Save immediately on success, before moving to the next
-                # video — so a completed clip is never lost to an
-                # interruption that happens later in the loop.
                 np.save(pose_path, pose)
                 np.save(face_path, face)
                 newly += 1
