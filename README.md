@@ -2,118 +2,94 @@
 
 **Few-Shot Signer-Adaptive Continuous Indian Sign Language Translation**
 
-Real-time ISL-to-text translation using a pose + facial-expression fusion
-transformer as a frozen base model, plus a lightweight few-shot adapter
-(**BridgeAdapter**) that personalizes to a new signer's style/dialect from
-~5 minutes of calibration video — without retraining the base model.
+Real-time ISL-to-text translation using a pose + facial-expression fusion transformer as a frozen base model, plus a lightweight few-shot adapter (**BridgeAdapter**) intended to personalize to a new signer's style from calibration data.
 
 ## Repo layout
 
-```
+```text
 visionbridge/
 ├── backend/          FastAPI + SQLite backend, model code, adapters
 │   ├── app/
-│   │   ├── api/       route handlers (auth, translate, calibration, health)
+│   │   ├── api/       route handlers (auth, translate, calibration, dashboard, history, users, evaluation, health)
 │   │   ├── core/      config + security
 │   │   ├── db/        SQLAlchemy session + ORM models
-│   │   ├── models/    base_model.py (frozen backbone), bridge_adapter.py (core novelty)
-│   │   ├── schemas/   Pydantic request/response models
+│   │   ├── models/    frozen base model + BridgeAdapter
+│   │   ├── schemas/   Pydantic request/response contracts
 │   │   └── services/  inference + calibration orchestration
 │   ├── tests/
-│   ├── requirements.txt
-│   └── .env.example
-├── frontend/          Static HTML/CSS/JS UI (built separately) + API integration layer
-│   └── js/            config.js, api.js — connect existing UI to the backend
-├── data/              (empty) place dataset download/prep scripts here
-├── render.yaml         Render deployment config for BOTH services
-└── .gitignore
+│   └── requirements.txt
+├── frontend/          Static HTML/CSS/JS UI with live API integration
+├── data/              dataset preparation area
+├── notebooks/         Colab/Lightning training and validation notebooks
+├── .github/workflows/ backend regression CI
+└── render.yaml        Render deployment config for backend + frontend
 ```
 
-## Targets this project is designed around
+## Model contract
 
-| Metric | Target |
-|---|---|
-| Calibration time | < 5 minutes |
-| Adapter params vs base model | < 2% |
-| Inference latency | < 500ms |
-| Adapter memory overhead | < 10MB |
-| Accuracy gain on unseen signers | 10–20% (base vs base+adapter) |
+| Contract | Current value |
+|---|---:|
+| Pose features / frame | 132 |
+| Face features / frame | 1404 |
+| Maximum inference sequence | 1024 frames |
+| CTC blank token | 0 |
+| Calibration minimum | 300 seconds |
+| Calibration fitting cap | 256 frames |
+
+These are implementation contracts, not benchmark claims.
 
 ## Datasets
 
-ISLTranslate, ISL-CSLTR, iSign, INCLUDE — all public ISL datasets.
-ISLTranslate training is wired for the Exploration Lab release; see
-`data/README.md` for the expected local layout and trainer command.
+The training pipeline is wired for real ISL keypoint datasets. See the Colab notebook and `backend/app/training/isltranslate.py` for the expected processed layout.
 
-## Training Notebooks
+## Training notebooks
 
-### Google Colab
-
-`notebooks/train_base_model_colab.ipynb`
-
-Google Colab training workflow.
-
-### Lightning AI
-
-`notebooks/train_base_model_lightning.ipynb`
-
-Persistent Lightning AI Studio training workflow with resumable extraction and training checkpoints.
+- `notebooks/train_base_model_colab.ipynb` — real-video extraction, clean UID rebuilding, CTC sanity gate, deterministic training, and acceptance checks.
+- `notebooks/train_base_model_lightning.ipynb` — persistent training workflow.
+- `notebooks/validate_base_model_colab.ipynb` — real-video checkpoint validation.
 
 ## Local development
 
 ### Backend
+
 ```bash
 cd backend
-python -m venv .venv && source .venv/bin/activate
+python -m venv .venv
+# activate the environment using your platform's standard command
 pip install -r requirements.txt
-cp .env.example .env   # edit as needed
 uvicorn app.main:app --reload
-# API docs at http://localhost:8000/docs
+# API docs: http://localhost:8000/docs
 ```
 
 ### Frontend
-Drop your built HTML/CSS/JS into `frontend/` (see `frontend/README.md`),
-then serve it locally:
+
+Serve `frontend/` with any static HTTP server, for example:
+
 ```bash
 npx serve frontend
 ```
 
+The browser performs MediaPipe Holistic keypoint extraction for the live translation and calibration flows, then sends pose/face keypoints to the configured backend API.
+
+## Authentication and account workflows
+
+- `/api/v1/auth/register` creates an account.
+- `/api/v1/auth/login` returns a bearer token.
+- Dashboard, calibration, history, signer-adapter management, and evaluation require authentication.
+- Anonymous base-model translation remains supported by `/api/v1/translate` when a compatible base checkpoint is installed.
+
 ## Deployment (Render)
 
-`render.yaml` defines two separate services:
-- `visionbridge-backend` — FastAPI web service using ephemeral SQLite
-  storage on Render's free plan.
-- `visionbridge-frontend` — static site serving the `frontend/` folder.
+`render.yaml` defines:
+- `visionbridge-backend` — FastAPI service.
+- `visionbridge-frontend` — static site.
 
-Push this repo to GitHub, then in the Render dashboard: **New > Blueprint**,
-point it at the repo, and Render will read `render.yaml` and provision both
-services. Update `ALLOWED_ORIGINS` (backend) and `VB_API_BASE_URL` in
-`frontend/assets/js/config.js` once you know the actual `.onrender.com` URLs.
+The current Render configuration uses SQLite on service-local storage. That is suitable only for a disposable demo because the storage is ephemeral on the free service plan. Use persistent storage or an external database before treating the deployment as durable production infrastructure.
 
-## Scope (team of 2)
+Update `ALLOWED_ORIGINS` and the frontend API endpoint to the actual deployed service URLs.
 
-Trimmed deliberately to fit a two-person team:
+## Verification status
 
-- Base model stays the small custom pose+face transformer already in
-  `base_model.py` (no public pretrained ISL checkpoint exists to fine-tune
-  instead) — kept lightweight on purpose so it trains on a small data subset
-  in reasonable time on Colab, not a full-scale corpus run.
-- Training uses a small subset of ISLTranslate/iSign (a few hundred clips),
-  not the full ~228GB release — enough to demonstrate the adapter effect,
-  not to chase SOTA translation accuracy.
-- Evaluation is a 2-way comparison only: base-only vs base+adapter. No
-  broader ablation matrix.
-- Confidence-aware calibration is cut from scope entirely, not just
-  deferred — the hook has been removed from `bridge_adapter.py`.
+The repository contains automated backend tests and a GitHub Actions workflow, but the current model checkpoint and clean-data retraining are **not considered quality-verified until a real Colab/CI run demonstrates non-blank predictions on real ISL data**.
 
-## Status / what's NOT built yet
-
-- Base model training is now wired for preprocessed ISLTranslate keypoints via
-  `backend/app/training/train_base_model.py`; you still need to download the
-  upstream dataset/features and run the trainer to produce
-  `backend/app/models/weights/base_model.pt`.
-- Keypoint extraction (video/webcam → pose+face landmarks, e.g. via
-  MediaPipe Holistic) is **not implemented** — API endpoints expect
-  pre-extracted keypoint arrays.
-- No RBAC, model versioning/rollback, or rate limiting — deferred by design
-  to keep scope realistic for the hackathon timeline.
+The evaluation UI intentionally reports benchmark metrics as **not measured** unless evidence is persisted. It does not display fabricated accuracy, BLEU, WER, or memory numbers.
