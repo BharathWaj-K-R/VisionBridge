@@ -4,6 +4,7 @@ import torch
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_current_user
 from app.core.config import get_settings
 from app.db.models import SignerAdapter, User
 from app.db.session import get_db
@@ -39,22 +40,17 @@ def _validate_calibration_payload(payload: CalibrationRequest) -> None:
 def calibrate(
     payload: CalibrationRequest,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    """Train a new BridgeAdapter for this signer from a calibration clip
-    (target: ~300 seconds / 5 minutes) and persist it.
+    """Train a new BridgeAdapter for the authenticated signer.
 
-    Expects a flat JSON body:
-    { "user_id": ..., "calibration_seconds": ..., "pose_keypoints": [[...]],
-      "face_keypoints": [[...]], "target_labels": [...] }
-
-    pose_keypoints / face_keypoints: (frames, feature_dim) — one clip.
-    target_labels: sentence-level token ids for this clip (NOT per-frame —
-    CTC loss handles the frame-to-token alignment internally; see
-    BridgeAdapterStack.calibrate() for why).
+    The caller's token is authoritative for ownership. `payload.user_id` is
+    retained for backwards-compatible request shape, but it must match the
+    authenticated user and can never be used to impersonate another signer.
     """
     _validate_calibration_payload(payload)
-    if not db.get(User, payload.user_id):
-        raise HTTPException(status_code=404, detail="User not found")
+    if payload.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="user_id does not match the authenticated user")
 
     try:
         base_model = get_base_model()
@@ -74,7 +70,7 @@ def calibrate(
         raise HTTPException(status_code=503, detail="Calibration model is unavailable") from exc
 
     adapter_row = SignerAdapter(
-        owner_id=payload.user_id,
+        owner_id=current_user.id,
         weights_path=result["weights_path"],
         calibration_seconds=result["calibration_seconds"],
         param_count=result["param_count"],
