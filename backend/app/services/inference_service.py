@@ -7,8 +7,8 @@ Keypoint extraction (e.g. MediaPipe Holistic on raw video/webcam frames) is
 not implemented here. This service expects pre-extracted pose and face tensors.
 """
 import pickle
-import time
 from pathlib import Path
+import time
 
 import torch
 
@@ -38,7 +38,7 @@ def _load_vocab(base_model_path: str) -> dict[int, str]:
     id_to_token = payload.get("id_to_token")
     if not isinstance(id_to_token, list) or not id_to_token:
         raise ModelUnavailableError(f"Invalid model vocabulary file: {vocab_path}")
-    if not id_to_token or id_to_token[0] != "<blank>":
+    if id_to_token[0] != "<blank>":
         raise ModelUnavailableError("Model vocabulary must reserve token 0 for CTC blank")
     return {idx: token for idx, token in enumerate(id_to_token)}
 
@@ -49,7 +49,9 @@ def get_base_model():
         model_path = Path(settings.BASE_MODEL_PATH)
         vocab_path = model_path.with_suffix(".vocab.json")
         if not model_path.is_file() or not vocab_path.is_file():
-            raise ModelUnavailableError("The VisionBridge base-model checkpoint and vocabulary must both be installed.")
+            raise ModelUnavailableError(
+                "The VisionBridge base-model checkpoint and vocabulary must both be installed."
+            )
         try:
             _base_model = load_frozen_base_model(str(model_path))
             _id_to_token = _load_vocab(str(model_path))
@@ -65,20 +67,25 @@ def get_base_model():
         except (OSError, RuntimeError, ValueError, KeyError, EOFError, pickle.UnpicklingError, UnicodeError) as exc:
             _base_model = None
             _id_to_token = {}
-            raise ModelUnavailableError("The VisionBridge base-model checkpoint could not be loaded safely.") from exc
+            raise ModelUnavailableError(
+                "The VisionBridge base-model checkpoint could not be loaded safely."
+            ) from exc
     return _base_model
 
 
 def model_status() -> dict[str, str | bool]:
-    """Return model readiness based on checkpoint/vocabulary presence and compatibility."""
+    """Validate checkpoint/vocabulary presence and output-head compatibility.
+
+    This readiness probe intentionally loads the checkpoint state once because
+    PyTorch's state-dict format does not provide a cheap header-only shape API.
+    The live model is still cached separately by ``get_base_model``.
+    """
     model_path = Path(settings.BASE_MODEL_PATH)
     vocab_path = model_path.with_suffix(".vocab.json")
     if not model_path.is_file() or not vocab_path.is_file():
         return {"available": False, "status": "unavailable"}
 
     try:
-        # Validate only the lightweight vocabulary file here. Full weight
-        # loading remains lazy so /health does not incur a 30 MB model load.
         id_to_token = _load_vocab(str(model_path))
         state = torch.load(model_path, map_location="cpu", weights_only=True)
         output_head_weight = state.get("output_head.weight")
@@ -108,7 +115,6 @@ def decode_logits(logits: torch.Tensor) -> tuple[str, float]:
 
     probs = torch.softmax(logits, dim=-1)
     top_probs, top_ids = probs.max(dim=-1)
-
     ids = top_ids[0].tolist()
     frame_probs = top_probs[0].tolist()
 
@@ -119,7 +125,11 @@ def decode_logits(logits: torch.Tensor) -> tuple[str, float]:
             collapsed.append((int(token_id), float(probability)))
             previous_id = token_id
 
-    non_blank = [(token_id, probability) for token_id, probability in collapsed if token_id != CTC_BLANK_ID]
+    non_blank = [
+        (token_id, probability)
+        for token_id, probability in collapsed
+        if token_id != CTC_BLANK_ID
+    ]
     tokens = [_id_to_token.get(i, f"<{i}>") for i, _ in non_blank]
     text = "".join(tokens)
     confidence = float(sum(p for _, p in non_blank) / len(non_blank)) if non_blank else 0.0
