@@ -1,11 +1,6 @@
-"""
-Inference service: loads the frozen base model once (module-level singleton),
-optionally applies a signer's BridgeAdapter, and returns decoded text +
-confidence + latency.
+"""Inference service for the frozen multimodal VisionBridge backbone."""
+from __future__ import annotations
 
-Keypoint extraction (e.g. MediaPipe Holistic on raw video/webcam frames) is
-not implemented here. This service expects pre-extracted pose and face tensors.
-"""
 import pickle
 from pathlib import Path
 import time
@@ -13,14 +8,14 @@ import time
 import torch
 
 from app.core.config import get_settings
-from app.models.base_model import load_frozen_base_model
+from app.models.base_model import HAND_INPUT_DIM, load_frozen_base_model
 from app.models.bridge_adapter import BridgeAdapterStack
 
 settings = get_settings()
 
 _base_model = None
 _id_to_token: dict[int, str] = {}
-_model_status_cache: tuple[tuple[int, int], dict[str, str | bool]] | None = None
+_model_status_cache: tuple[tuple[tuple[int, int], tuple[int, int]], dict[str, str | bool]] | None = None
 
 
 class ModelUnavailableError(RuntimeError):
@@ -28,7 +23,6 @@ class ModelUnavailableError(RuntimeError):
 
 
 def _load_vocab(base_model_path: str) -> dict[int, str]:
-    """Load and validate the id->token map saved beside the base checkpoint."""
     import json
 
     vocab_path = Path(base_model_path).with_suffix(".vocab.json")
@@ -75,17 +69,17 @@ def get_base_model():
 
 
 def model_status() -> dict[str, str | bool]:
-    """Validate checkpoint/vocabulary compatibility without reloading on every probe.
-
-    The cache is invalidated automatically when either file's mtime/size changes,
-    so a newly deployed checkpoint is revalidated without requiring a process restart.
-    """
+    """Validate checkpoint/vocabulary compatibility and report model modality contract."""
     global _model_status_cache
     model_path = Path(settings.BASE_MODEL_PATH)
     vocab_path = model_path.with_suffix(".vocab.json")
     if not model_path.is_file() or not vocab_path.is_file():
         _model_status_cache = None
-        return {"available": False, "status": "unavailable"}
+        return {
+            "available": False,
+            "status": "unavailable",
+            "modality": "pose+face+hands",
+        }
 
     signature = (
         (model_path.stat().st_mtime_ns, model_path.stat().st_size),
@@ -99,14 +93,31 @@ def model_status() -> dict[str, str | bool]:
         id_to_token = _load_vocab(str(model_path))
         state = torch.load(model_path, map_location="cpu", weights_only=True)
         output_head_weight = state.get("output_head.weight")
+        hand_aware = "left_hand_encoder.input_proj.0.weight" in state
         if output_head_weight is None:
-            result = {"available": False, "status": "invalid_checkpoint"}
+            result = {
+                "available": False,
+                "status": "invalid_checkpoint",
+                "modality": "unknown",
+            }
         elif len(id_to_token) != int(output_head_weight.shape[0]):
-            result = {"available": False, "status": "vocabulary_mismatch"}
+            result = {
+                "available": False,
+                "status": "vocabulary_mismatch",
+                "modality": "hand-aware" if hand_aware else "legacy",
+            }
         else:
-            result = {"available": True, "status": "ready"}
+            result = {
+                "available": True,
+                "status": "ready",
+                "modality": "hand-aware" if hand_aware else "legacy-pose-face",
+            }
     except Exception:
-        result = {"available": False, "status": "invalid_checkpoint"}
+        result = {
+            "available": False,
+            "status": "invalid_checkpoint",
+            "modality": "unknown",
+        }
 
     _model_status_cache = (signature, result)
     return result.copy()
@@ -116,7 +127,6 @@ CTC_BLANK_ID = 0
 
 
 def decode_logits(logits: torch.Tensor) -> tuple[str, float]:
-    """Greedy CTC decode: collapse consecutive repeats, then drop blanks."""
     if logits.ndim != 3 or logits.shape[0] != 1:
         raise ValueError(f"Expected logits shape [1, T, V], got {tuple(logits.shape)}")
     if logits.shape[-1] <= CTC_BLANK_ID:
@@ -144,7 +154,7 @@ def decode_logits(logits: torch.Tensor) -> tuple[str, float]:
         if token_id != CTC_BLANK_ID
     ]
     tokens = [_id_to_token.get(i, f"<{i}>") for i, _ in non_blank]
-    text = "".join(tokens)
+    text = "".join(tokens).strip()
     confidence = float(sum(p for _, p in non_blank) / len(non_blank)) if non_blank else 0.0
     return text or "(no sign detected)", confidence
 
@@ -152,16 +162,37 @@ def decode_logits(logits: torch.Tensor) -> tuple[str, float]:
 def run_inference(
     pose: torch.Tensor,
     face: torch.Tensor,
+    left_hand: torch.Tensor,
+    right_hand: torch.Tensor,
     adapter: BridgeAdapterStack | None = None,
 ) -> dict:
+    """Run the frozen multimodal model with synchronized hand streams."""
+    if pose.ndim != 3 or face.ndim != 3 or left_hand.ndim != 3 or right_hand.ndim != 3:
+        raise ValueError("pose, face, left_hand, and right_hand must be [batch, frames, features]")
+    if pose.shape[:2] != face.shape[:2] or pose.shape[:2] != left_hand.shape[:2] or pose.shape[:2] != right_hand.shape[:2]:
+        raise ValueError("all modalities must have matching batch/frame dimensions")
+    if left_hand.shape[-1] != HAND_INPUT_DIM or right_hand.shape[-1] != HAND_INPUT_DIM:
+        raise ValueError(f"hand feature dimension must be {HAND_INPUT_DIM}")
+
     model = get_base_model()
     start = time.perf_counter()
 
     with torch.no_grad():
         if adapter is not None:
-            logits = adapter.forward_with_base(model, pose, face)
+            logits = adapter.forward_with_base(
+                model,
+                pose,
+                face,
+                left_hand,
+                right_hand,
+            )
         else:
-            logits = model(pose, face)
+            logits = model(
+                pose,
+                face,
+                left_hand,
+                right_hand,
+            )
 
     latency_ms = (time.perf_counter() - start) * 1000
     text, confidence = decode_logits(logits)
