@@ -8,7 +8,7 @@ from app.api.deps import get_optional_current_user
 from app.core.config import get_settings
 from app.db.models import SignerAdapter, TranslationLog, User
 from app.db.session import get_db
-from app.models.base_model import FACE_INPUT_DIM, POSE_INPUT_DIM
+from app.models.base_model import FACE_INPUT_DIM, HAND_INPUT_DIM, POSE_INPUT_DIM
 from app.schemas.schemas import TranslationRequest, TranslationResult
 from app.services.calibration_service import load_adapter_for_signer
 from app.services.inference_service import ModelUnavailableError, get_base_model, run_inference
@@ -17,12 +17,13 @@ router = APIRouter(prefix="/translate", tags=["translate"])
 settings = get_settings()
 
 
-def _validate_keypoints(pose_keypoints: list[list[float]], face_keypoints: list[list[float]]) -> None:
-    """Fails fast with a clear 422 on a malformed payload, instead of either
-    crashing torch.tensor() on ragged input or letting a wrong-shaped tensor
-    reach the model and fail deep inside a matmul with a confusing error.
-    Mirrors the same contract enforced client-side in translate-live.js and
-    at training time in isltranslate.py's collate_ctc_batch."""
+def _validate_keypoints(
+    pose_keypoints: list[list[float]],
+    face_keypoints: list[list[float]],
+    left_hand_keypoints: list[list[float]] | None,
+    right_hand_keypoints: list[list[float]] | None,
+) -> None:
+    """Validate synchronized multimodal landmark payloads before tensor conversion."""
     if not pose_keypoints or not face_keypoints:
         raise HTTPException(status_code=422, detail="pose_keypoints and face_keypoints must not be empty")
     if len(pose_keypoints) != len(face_keypoints):
@@ -30,30 +31,42 @@ def _validate_keypoints(pose_keypoints: list[list[float]], face_keypoints: list[
             status_code=422,
             detail=f"pose/face frame count mismatch: {len(pose_keypoints)} vs {len(face_keypoints)}",
         )
+    if left_hand_keypoints is None or right_hand_keypoints is None:
+        raise HTTPException(
+            status_code=422,
+            detail="left_hand_keypoints and right_hand_keypoints are required by the hand-aware model",
+        )
+    for name, frames in (
+        ("left_hand_keypoints", left_hand_keypoints),
+        ("right_hand_keypoints", right_hand_keypoints),
+    ):
+        if len(frames) != len(pose_keypoints):
+            raise HTTPException(
+                status_code=422,
+                detail=f"{name} frame count mismatch: {len(frames)} vs {len(pose_keypoints)}",
+            )
     if len(pose_keypoints) > settings.MAX_INFERENCE_FRAMES:
         raise HTTPException(
             status_code=422,
-            detail=(
-                f"too many frames: {len(pose_keypoints)}, "
-                f"maximum is {settings.MAX_INFERENCE_FRAMES}"
-            ),
+            detail=f"too many frames: {len(pose_keypoints)}, maximum is {settings.MAX_INFERENCE_FRAMES}",
         )
+
     for idx, frame in enumerate(pose_keypoints):
         if len(frame) != POSE_INPUT_DIM:
-            raise HTTPException(
-                status_code=422,
-                detail=f"pose frame {idx} has {len(frame)} dims, expected {POSE_INPUT_DIM}",
-            )
+            raise HTTPException(status_code=422, detail=f"pose frame {idx} has {len(frame)} dims, expected {POSE_INPUT_DIM}")
         if not all(math.isfinite(value) for value in frame):
             raise HTTPException(status_code=422, detail=f"pose frame {idx} contains a non-finite value")
     for idx, frame in enumerate(face_keypoints):
         if len(frame) != FACE_INPUT_DIM:
-            raise HTTPException(
-                status_code=422,
-                detail=f"face frame {idx} has {len(frame)} dims, expected {FACE_INPUT_DIM}",
-            )
+            raise HTTPException(status_code=422, detail=f"face frame {idx} has {len(frame)} dims, expected {FACE_INPUT_DIM}")
         if not all(math.isfinite(value) for value in frame):
             raise HTTPException(status_code=422, detail=f"face frame {idx} contains a non-finite value")
+    for name, frames in (("left_hand_keypoints", left_hand_keypoints), ("right_hand_keypoints", right_hand_keypoints)):
+        for idx, frame in enumerate(frames):
+            if len(frame) != HAND_INPUT_DIM:
+                raise HTTPException(status_code=422, detail=f"{name} frame {idx} has {len(frame)} dims, expected {HAND_INPUT_DIM}")
+            if not all(math.isfinite(value) for value in frame):
+                raise HTTPException(status_code=422, detail=f"{name} frame {idx} contains a non-finite value")
 
 
 @router.post("", response_model=TranslationResult)
@@ -62,18 +75,13 @@ def translate(
     db: Session = Depends(get_db),
     current_user: User | None = Depends(get_optional_current_user),
 ):
-    """Translate one clip's worth of pre-extracted pose + face keypoints.
-
-    Anonymous base-model inference remains supported for the public demo.
-    Any request that names a user or signer adapter must carry a valid bearer
-    token for that same user so one signer cannot access another signer's
-    adapter by guessing an adapter ID.
-
-    pose_keypoints / face_keypoints are already extracted client- or
-    server-side (e.g. via MediaPipe Holistic). This endpoint does NOT do video
-    decoding or keypoint extraction itself.
-    """
-    _validate_keypoints(payload.pose_keypoints, payload.face_keypoints)
+    """Translate synchronized pose, face, left-hand, and right-hand keypoints."""
+    _validate_keypoints(
+        payload.pose_keypoints,
+        payload.face_keypoints,
+        payload.left_hand_keypoints,
+        payload.right_hand_keypoints,
+    )
 
     if payload.user_id is not None:
         if current_user is None:
@@ -83,6 +91,8 @@ def translate(
 
     pose = torch.tensor(payload.pose_keypoints, dtype=torch.float32).unsqueeze(0)
     face = torch.tensor(payload.face_keypoints, dtype=torch.float32).unsqueeze(0)
+    left_hand = torch.tensor(payload.left_hand_keypoints, dtype=torch.float32).unsqueeze(0)
+    right_hand = torch.tensor(payload.right_hand_keypoints, dtype=torch.float32).unsqueeze(0)
 
     adapter = None
     if payload.adapter_id is not None:
@@ -96,14 +106,21 @@ def translate(
         try:
             base_model = get_base_model()
             adapter = load_adapter_for_signer(
-                row.weights_path, d_model=base_model.d_model,
+                row.weights_path,
+                d_model=base_model.d_model,
                 n_layers=len(base_model.shared_encoder.layers),
             )
         except (ModelUnavailableError, OSError, RuntimeError) as exc:
             raise HTTPException(status_code=503, detail="Translation model is unavailable") from exc
 
     try:
-        result = run_inference(pose, face, adapter=adapter)
+        result = run_inference(
+            pose,
+            face,
+            left_hand,
+            right_hand,
+            adapter=adapter,
+        )
     except ModelUnavailableError as exc:
         raise HTTPException(status_code=503, detail="Translation model is unavailable") from exc
 
