@@ -30,3 +30,11 @@ def test_ready_reports_model_state():
 def test_root():
     response = client.get("/")
     assert response.status_code == 200
+
+
+def test_security_headers_are_present():
+    response = client.get("/")
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["X-Frame-Options"] == "DENY"
+    assert response.headers["Referrer-Policy"] == "no-referrer"
+    assert response.headers["Permissions-Policy"] == "camera=(), microphone=(), geolocation=()"
