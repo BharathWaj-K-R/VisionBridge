@@ -1,8 +1,6 @@
-"""
-Calibration service: given ~5 minutes of a new signer's keypoint data +
-ground-truth labels, trains a fresh BridgeAdapterStack and saves it to disk,
-keyed to that user, so it can be loaded again for inference later.
-"""
+"""Calibration orchestration for signer-specific BridgeAdapters."""
+from __future__ import annotations
+
 import os
 import pickle
 import uuid
@@ -20,11 +18,13 @@ settings = get_settings()
 def calibrate_new_adapter(
     pose: torch.Tensor,
     face: torch.Tensor,
+    left_hand: torch.Tensor,
+    right_hand: torch.Tensor,
     target_labels: torch.Tensor,
     target_lengths: torch.Tensor,
     calibration_seconds: float,
 ) -> dict:
-    """Train a new adapter for one signer and save its weights."""
+    """Train a fresh signer adapter against the multimodal base model."""
     base_model = get_base_model()
     n_layers = len(base_model.shared_encoder.layers)
     adapter = BridgeAdapterStack(d_model=base_model.d_model, n_layers=n_layers)
@@ -32,7 +32,7 @@ def calibrate_new_adapter(
     base_param_count = sum(p.numel() for p in base_model.parameters())
     if not adapter.param_budget_ok(base_param_count):
         raise RuntimeError(
-            "BridgeAdapter parameter budget exceeded before calibration: "
+            "BridgeAdapter parameter budget exceeded: "
             f"adapter_params={adapter.total_param_count()}, base_params={base_param_count}"
         )
 
@@ -40,6 +40,8 @@ def calibrate_new_adapter(
         base_model,
         pose,
         face,
+        left_hand,
+        right_hand,
         target_labels,
         target_lengths,
     )
@@ -60,11 +62,7 @@ def calibrate_new_adapter(
     }
 
 
-def load_adapter_for_signer(
-    weights_path: str,
-    d_model: int,
-    n_layers: int,
-) -> BridgeAdapterStack:
+def load_adapter_for_signer(weights_path: str, d_model: int, n_layers: int) -> BridgeAdapterStack:
     adapter_root = Path(settings.ADAPTER_WEIGHTS_DIR).resolve()
     candidate = Path(weights_path).resolve()
     if adapter_root not in candidate.parents or not candidate.is_file():
@@ -81,14 +79,12 @@ def load_adapter_for_signer(
 
 
 def stage_adapter_weight_delete(weights_path: str) -> Path | None:
-    """Move an adapter file aside so a DB transaction can be reversed safely."""
     adapter_root = Path(settings.ADAPTER_WEIGHTS_DIR).resolve()
     candidate = Path(weights_path).resolve()
     if adapter_root not in candidate.parents:
         raise ValueError("Refusing to delete a path outside the adapter weight directory")
     if not candidate.exists():
         return None
-
     tombstone = candidate.with_name(f".{candidate.name}.{uuid.uuid4().hex}.deleting")
     candidate.replace(tombstone)
     return tombstone
