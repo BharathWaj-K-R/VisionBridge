@@ -106,7 +106,8 @@ Fake/demo translation fallback removed. Browser MediaPipe produces 132/1404 keyp
 - Calibration page explicitly describes browser extraction and backend adapter fitting.
 - Frontend JS syntax is covered by CI using `node --check` on every `.js` file.
 - API endpoint remains configurable through browser settings/local storage.
-- API calls now have a 20-second default timeout while preserving caller-provided abort signals.
+- Shared API client now has a 20-second default timeout and correctly combines timeout cancellation with caller-provided AbortSignals.
+- Live translation now routes through the shared authenticated API client instead of raw `fetch`, so bearer auth and timeout/failure behavior are consistent.
 
 ## Database/deployment diary
 Current persistence is SQLAlchemy + SQLite.
@@ -123,17 +124,20 @@ No production external DB has been wired yet.
 Claude reports full backend suite `52/52` plus Python/JS/YAML checks and end-to-end evaluation/overfit reruns for commit `dcc132834a68bc607d47eb14c500466da516cbe6`.
 Independent verification: Claude commit exists and diff matches the six claimed fixes. Runtime result remains CLAUDE-REPORTED.
 
-Latest workflow execution for current main is still NOT independently verified.
+Latest workflow execution for current main is NOT independently verified; connector reports no workflow run for recent commits.
 
-## Security audit diary
-Current frontend stores bearer access tokens in `localStorage`. This remains a known risk because JavaScript executing in the same origin can read the token; OWASP recommends avoiding browser storage for authentication credentials and preferring secure HttpOnly cookies/BFF patterns. This is a production hardening item, not changed yet because migrating auth to cookies requires coordinated CSRF/session changes and would be a wider contract change.
+## Configuration/training notebook diary
+- Removed unused `MAX_INFERENCE_LATENCY_MS` setting from backend config and Render config because it had no runtime consumer.
+- Fixed `train_base_model_colab.ipynb` so the tokenizer vocabulary is saved immediately after successful training, before the acceptance gate calls the inference decoder. This prevents the acceptance cell from failing solely because the companion `.vocab.json` did not yet exist.
+- Kept the notebook source of truth to three project notebooks: base-model Colab training, Lightning training, and base-model Colab validation.
+- Training notebook still requires a GPU and a fresh dataset rebuild; no full clean runtime has been verified by this agent.
+- `backend/requirements-training.txt` is aligned to MediaPipe `0.10.21`, matching the canonical isolated Colab runtime.
 
-API CORS was tightened from wildcard methods/headers to the actual methods and headers currently used. Conservative API security response headers were added: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, and `Permissions-Policy`.
-Status: IMPLEMENTED IN CODE, NOT RUNTIME-VERIFIED.
-
-## Configuration cleanup diary
-`MAX_INFERENCE_LATENCY_MS` existed in configuration and Render environment settings but had no runtime consumer. Removed it from `Settings` and `render.yaml` to eliminate a dead configuration contract.
-Status: FIXED IN CODE, NOT RUNTIME-VERIFIED.
+## Security red-team diary
+- API CORS narrowed to explicitly required methods/headers.
+- Added conservative API response security headers.
+- Browser bearer token remains in localStorage. This is a known production hardening issue because same-origin JavaScript can read it. Migration to HttpOnly cookies/BFF requires coordinated CSRF/session changes and is deliberately deferred.
+- No production rate limiter is currently implemented.
 
 ## Known architectural boundary
 `/api/v1/translate` accepts pre-extracted pose/face keypoints. It does not decode arbitrary uploaded video server-side.
@@ -180,7 +184,11 @@ K. Production rate limiting -> NOT IMPLEMENTED.
 - This agent independently verified Claude's commit exists and inspected the six-file diff; runtime claims remain CLAUDE-REPORTED.
 - Dead `MAX_INFERENCE_LATENCY_MS` config found -> removed from config/deployment.
 - API security hardening found worthwhile -> explicit CORS methods/headers and conservative response headers added.
-- Frontend API timeout gap found -> 20-second default timeout added to shared API helper.
+- Frontend API timeout gap found -> 20-second default timeout added.
+- Frontend timeout/caller-signal composition reviewed -> corrected to combine abort sources instead of accidentally disabling the timeout when a caller supplied a signal.
+- Live translation raw fetch path reviewed -> moved to shared authenticated API client for consistent auth/timeout/error behavior.
+- Training notebook acceptance ordering reviewed -> vocabulary save moved to immediately after successful training and before model acceptance decode.
+- Training dependency drift reviewed -> MediaPipe training pin aligned to the isolated Colab release.
 
 ## Current next steps
 1. Fresh Colab runtime.
@@ -200,9 +208,9 @@ K. Production rate limiting -> NOT IMPLEMENTED.
 15. Decide whether to migrate browser auth tokens from localStorage to secure HttpOnly cookies with a deliberate CSRF strategy.
 16. Only then resume/evaluate BridgeAdapter on held-out signers.
 
-## Final verdict
+## Current quality verdict
 **NOT READY.**
-Reason: the engineering codebase is substantially hardened and Claude reports a 52/52 verification pass, but this agent has not independently rerun that suite; clean retraining/model quality, browser/Render runtime behavior, production persistence, rate limiting, and production-grade auth storage remain unresolved.
+Engineering code is substantially hardened. The remaining release blockers are runtime proof of clean retraining/model quality, current full regression execution, browser/Render E2E, durable production persistence, rate limiting, and production-grade browser credential storage.
 
 ## Golden rule
-Static correctness, a commit diff, or another agent's report is not runtime proof. Only an actual test or real-data experiment earns VERIFIED.
+Static correctness, another agent's report, or a commit diff is not runtime proof. Only an actual test or real-data experiment earns VERIFIED.
