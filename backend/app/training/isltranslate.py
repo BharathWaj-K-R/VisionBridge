@@ -1,4 +1,4 @@
-"""ISLTranslate dataset loading utilities."""
+"""Dataset, tokenizer, and CTC collation for the multimodal sign model."""
 from __future__ import annotations
 
 import csv
@@ -10,7 +10,12 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from app.models.base_model import FACE_INPUT_DIM, MAX_SEQUENCE_LENGTH, POSE_INPUT_DIM
+from app.models.base_model import (
+    FACE_INPUT_DIM,
+    HAND_INPUT_DIM,
+    MAX_SEQUENCE_LENGTH,
+    POSE_INPUT_DIM,
+)
 
 
 @dataclass(frozen=True)
@@ -19,6 +24,8 @@ class ISLTranslateExample:
     text: str
     pose_path: Path
     face_path: Path
+    left_hand_path: Path | None = None
+    right_hand_path: Path | None = None
 
 
 class SimpleCharTokenizer:
@@ -45,7 +52,10 @@ class SimpleCharTokenizer:
 
     def save(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps({"id_to_token": self.id_to_token}, indent=2), encoding="utf-8")
+        path.write_text(
+            json.dumps({"id_to_token": self.id_to_token}, indent=2),
+            encoding="utf-8",
+        )
 
     @classmethod
     def load(cls, path: Path) -> "SimpleCharTokenizer":
@@ -94,12 +104,42 @@ class ISLTranslateKeypointDataset(Dataset):
                 seen_uids.add(uid)
                 pose_path = self.root / "pose" / f"{uid}.npy"
                 face_path = self.root / "face" / f"{uid}.npy"
+                left_hand_path = self.root / "left_hand" / f"{uid}.npy"
+                right_hand_path = self.root / "right_hand" / f"{uid}.npy"
                 if pose_path.exists() and face_path.exists():
-                    examples.append(ISLTranslateExample(uid, text, pose_path, face_path))
+                    examples.append(
+                        ISLTranslateExample(
+                            uid,
+                            text,
+                            pose_path,
+                            face_path,
+                            left_hand_path if left_hand_path.exists() else None,
+                            right_hand_path if right_hand_path.exists() else None,
+                        )
+                    )
         return examples
 
     def __len__(self) -> int:
         return len(self.examples)
+
+    @staticmethod
+    def _load_hand(path: Path | None, frames: int, uid: str, side: str) -> torch.Tensor:
+        if path is None:
+            return torch.zeros(frames, HAND_INPUT_DIM, dtype=torch.float32)
+        hand = torch.from_numpy(np.load(path)).float()
+        if hand.ndim != 2 or hand.shape[1] != HAND_INPUT_DIM:
+            raise ValueError(
+                f"Example {uid!r} has invalid {side} hand shape {tuple(hand.shape)}; "
+                f"expected (frames, {HAND_INPUT_DIM})"
+            )
+        if hand.shape[0] != frames:
+            raise ValueError(
+                f"Example {uid!r} has misaligned {side} hand frames: "
+                f"{hand.shape[0]} vs {frames}"
+            )
+        if not torch.isfinite(hand).all():
+            raise ValueError(f"Example {uid!r} contains non-finite {side} hand keypoints")
+        return hand
 
     def __getitem__(self, index: int) -> dict[str, torch.Tensor | str]:
         example = self.examples[index]
@@ -124,13 +164,29 @@ class ISLTranslateKeypointDataset(Dataset):
         if not torch.isfinite(pose).all() or not torch.isfinite(face).all():
             raise ValueError(f"Example {example.uid!r} contains non-finite keypoint values")
 
+        frames = int(pose.shape[0])
+        left_hand = self._load_hand(example.left_hand_path, frames, example.uid, "left")
+        right_hand = self._load_hand(example.right_hand_path, frames, example.uid, "right")
+
         try:
             labels = torch.tensor(self.tokenizer.encode(example.text), dtype=torch.long)
         except ValueError as exc:
-            raise ValueError(f"Example {example.uid!r} has invalid target text: {example.text!r}: {exc}") from exc
+            raise ValueError(
+                f"Example {example.uid!r} has invalid target text: {example.text!r}: {exc}"
+            ) from exc
         if labels.numel() == 0:
-            raise ValueError(f"Example {example.uid!r} has no encodable target text: {example.text!r}")
-        return {"uid": example.uid, "pose": pose, "face": face, "labels": labels, "text": example.text}
+            raise ValueError(
+                f"Example {example.uid!r} has no encodable target text: {example.text!r}"
+            )
+        return {
+            "uid": example.uid,
+            "pose": pose,
+            "face": face,
+            "left_hand": left_hand,
+            "right_hand": right_hand,
+            "labels": labels,
+            "text": example.text,
+        }
 
 
 def ctc_min_input_length(labels: torch.Tensor) -> int:
@@ -140,29 +196,51 @@ def ctc_min_input_length(labels: torch.Tensor) -> int:
     return int(labels.numel()) + repeats
 
 
-def _downsample_to_max_length(pose: torch.Tensor, face: torch.Tensor, uid: str) -> tuple[torch.Tensor, torch.Tensor]:
-    pose_frames = int(pose.shape[0])
-    face_frames = int(face.shape[0])
-    if pose_frames != face_frames:
-        raise ValueError(
-            f"pose/face frame count mismatch for uid={uid!r}: {pose_frames} vs {face_frames}"
-        )
+def _downsample_to_max_length(
+    pose: torch.Tensor,
+    face: torch.Tensor,
+    uid: str,
+    left_hand: torch.Tensor | None = None,
+    right_hand: torch.Tensor | None = None,
+) -> tuple[torch.Tensor, ...]:
+    streams = [pose, face]
+    if left_hand is not None:
+        streams.append(left_hand)
+    if right_hand is not None:
+        streams.append(right_hand)
 
-    if pose_frames <= MAX_SEQUENCE_LENGTH:
-        return pose, face
+    frames = {int(stream.shape[0]) for stream in streams}
+    if len(frames) != 1:
+        raise ValueError(f"modality frame count mismatch for uid={uid!r}: {sorted(frames)}")
 
-    indices = torch.linspace(0, pose_frames - 1, steps=MAX_SEQUENCE_LENGTH).long()
-    return pose[indices], face[indices]
+    frame_count = next(iter(frames))
+    if frame_count <= MAX_SEQUENCE_LENGTH:
+        return tuple(streams)
+
+    indices = torch.linspace(
+        0,
+        frame_count - 1,
+        steps=MAX_SEQUENCE_LENGTH,
+    ).long()
+    return tuple(stream[indices] for stream in streams)
 
 
-def collate_ctc_batch(batch: list[dict[str, torch.Tensor | str]]) -> dict[str, torch.Tensor | list[str]]:
+def collate_ctc_batch(
+    batch: list[dict[str, torch.Tensor | str]],
+) -> dict[str, torch.Tensor | list[str]]:
     if not batch:
         raise ValueError("Cannot collate an empty CTC batch")
 
     sampled_items = []
     for item in batch:
         uid = str(item["uid"])
-        pose, face = _downsample_to_max_length(item["pose"], item["face"], uid)  # type: ignore[arg-type]
+        pose, face, left_hand, right_hand = _downsample_to_max_length(
+            item["pose"],
+            item["face"],
+            uid,
+            item["left_hand"],
+            item["right_hand"],
+        )  # type: ignore[arg-type]
         labels = item["labels"]  # type: ignore[assignment]
         required_frames = ctc_min_input_length(labels)
         if required_frames > pose.shape[0]:
@@ -171,32 +249,55 @@ def collate_ctc_batch(batch: list[dict[str, torch.Tensor | str]]) -> dict[str, t
                 f"target_length={labels.numel()}, repeated_labels={required_frames - labels.numel()}, "
                 f"minimum_required_frames={required_frames}, input_frames={pose.shape[0]}"
             )
-        sampled_items.append({**item, "pose": pose, "face": face})
-
-    pose_dim = int(sampled_items[0]["pose"].shape[-1])  # type: ignore[index, union-attr]
-    face_dim = int(sampled_items[0]["face"].shape[-1])  # type: ignore[index, union-attr]
-    if pose_dim != POSE_INPUT_DIM or face_dim != FACE_INPUT_DIM:
-        raise ValueError(
-            f"Unexpected batch feature dimensions: pose={pose_dim}, face={face_dim}; "
-            f"expected pose={POSE_INPUT_DIM}, face={FACE_INPUT_DIM}"
+        sampled_items.append(
+            {
+                **item,
+                "pose": pose,
+                "face": face,
+                "left_hand": left_hand,
+                "right_hand": right_hand,
+            }
         )
 
+    dims = {
+        "pose": int(sampled_items[0]["pose"].shape[-1]),  # type: ignore[index, union-attr]
+        "face": int(sampled_items[0]["face"].shape[-1]),  # type: ignore[index, union-attr]
+        "left_hand": int(sampled_items[0]["left_hand"].shape[-1]),  # type: ignore[index, union-attr]
+        "right_hand": int(sampled_items[0]["right_hand"].shape[-1]),  # type: ignore[index, union-attr]
+    }
+    expected = {
+        "pose": POSE_INPUT_DIM,
+        "face": FACE_INPUT_DIM,
+        "left_hand": HAND_INPUT_DIM,
+        "right_hand": HAND_INPUT_DIM,
+    }
+    if dims != expected:
+        raise ValueError(f"Unexpected feature dimensions: {dims}; expected {expected}")
+
     max_frames = max(int(item["pose"].shape[0]) for item in sampled_items)  # type: ignore[index, union-attr]
-    pose = torch.zeros(len(sampled_items), max_frames, pose_dim)
-    face = torch.zeros(len(sampled_items), max_frames, face_dim)
-    input_lengths = torch.zeros(len(sampled_items), dtype=torch.long)
-    label_chunks = []
-    label_lengths = torch.zeros(len(sampled_items), dtype=torch.long)
+    batch_size = len(sampled_items)
+
+    pose = torch.zeros(batch_size, max_frames, POSE_INPUT_DIM)
+    face = torch.zeros(batch_size, max_frames, FACE_INPUT_DIM)
+    left_hand = torch.zeros(batch_size, max_frames, HAND_INPUT_DIM)
+    right_hand = torch.zeros(batch_size, max_frames, HAND_INPUT_DIM)
+    input_lengths = torch.zeros(batch_size, dtype=torch.long)
+    label_chunks: list[torch.Tensor] = []
+    label_lengths = torch.zeros(batch_size, dtype=torch.long)
     uids: list[str] = []
     texts: list[str] = []
 
     for idx, item in enumerate(sampled_items):
         item_pose = item["pose"]  # type: ignore[assignment]
         item_face = item["face"]  # type: ignore[assignment]
+        item_left = item["left_hand"]  # type: ignore[assignment]
+        item_right = item["right_hand"]  # type: ignore[assignment]
         item_labels = item["labels"]  # type: ignore[assignment]
         frames = int(item_pose.shape[0])
         pose[idx, :frames] = item_pose
         face[idx, :frames] = item_face
+        left_hand[idx, :frames] = item_left
+        right_hand[idx, :frames] = item_right
         input_lengths[idx] = frames
         label_chunks.append(item_labels)
         label_lengths[idx] = int(item_labels.numel())
@@ -208,6 +309,8 @@ def collate_ctc_batch(batch: list[dict[str, torch.Tensor | str]]) -> dict[str, t
         "text": texts,
         "pose": pose,
         "face": face,
+        "left_hand": left_hand,
+        "right_hand": right_hand,
         "labels": torch.cat(label_chunks),
         "input_lengths": input_lengths,
         "label_lengths": label_lengths,
