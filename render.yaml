@@ -21,8 +21,6 @@ services:
         value: "60"
       - key: CALIBRATION_MIN_SECONDS
         value: "300"
-      - key: MAX_INFERENCE_LATENCY_MS
-        value: "500"
     # NOTE: SQLite on Render free tier is ephemeral. For durable production
     # persistence, use an external managed database or durable disk.
 
