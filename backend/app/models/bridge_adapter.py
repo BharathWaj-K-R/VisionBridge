@@ -1,27 +1,6 @@
-"""
-BridgeAdapter — the core novel contribution of VisionBridge.
+"""Few-shot signer personalization adapters for VisionBridge."""
+from __future__ import annotations
 
-Goal: personalize the frozen VisionBridgeBaseModel to a NEW signer's style
-(hand shape variation, signing speed, regional dialect) using only ~5
-minutes of calibration video, updating < 2% of the base model's parameter
-count, while keeping inference latency < 500ms and memory overhead < 10MB.
-
-Design: bottleneck adapter layers (Houlsby-style) inserted after each
-TransformerEncoderLayer in the base model's shared_encoder. Only these small
-bottleneck layers are trained during calibration; everything else stays
-frozen. This is the same family of idea as adapters in NLP transfer
-learning, applied here to a pose+face fusion transformer for sign language.
-
-    frozen_layer_output --> down_proj(d_model -> bottleneck) --> ReLU
-                         --> up_proj(bottleneck -> d_model) --> + residual
-
-Target sizing to hit the <2% param budget (example, tune against your
-actual base model size once trained):
-    d_model = 256, bottleneck = 16, n_layers_to_adapt = 4
-    params_per_adapter_layer = 2 * (256*16 + 16) ≈ 8,320
-    total_adapter_params ≈ 4 * 8,320 ≈ 33,280
-    -> compare against total base model param count to confirm <2%.
-"""
 import time
 
 import torch
@@ -29,68 +8,78 @@ import torch.nn as nn
 
 
 class BottleneckAdapter(nn.Module):
-    """A single Houlsby-style bottleneck adapter, inserted after one frozen
-    transformer layer's output."""
+    """Small residual adapter trained while the base model remains frozen."""
 
     def __init__(self, d_model: int = 256, bottleneck_dim: int = 16):
         super().__init__()
         self.down_proj = nn.Linear(d_model, bottleneck_dim)
-        self.activation = nn.ReLU()
+        self.activation = nn.GELU()
         self.up_proj = nn.Linear(bottleneck_dim, d_model)
-        # Zero-init the up-projection so the adapter starts as a no-op
-        # (identity function) and calibration nudges it gently from there.
         nn.init.zeros_(self.up_proj.weight)
         nn.init.zeros_(self.up_proj.bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        residual = x
-        h = self.down_proj(x)
-        h = self.activation(h)
-        h = self.up_proj(h)
-        return residual + h
+        return x + self.up_proj(self.activation(self.down_proj(x)))
 
     def param_count(self) -> int:
         return sum(p.numel() for p in self.parameters())
 
 
 class BridgeAdapterStack(nn.Module):
-    """Holds one BottleneckAdapter per adapted layer of the base model's
-    shared_encoder, plus the calibration/inference logic around them.
-
-    Usage:
-        base_model = load_frozen_base_model(...)
-        adapter = BridgeAdapterStack(d_model=base_model.d_model,
-                                      n_layers=len(base_model.shared_encoder.layers))
-        adapter.calibrate(base_model, calibration_pose, calibration_face, labels)
-        logits = adapter.forward_with_base(base_model, pose, face)
-    """
+    """One lightweight adapter after each shared temporal Transformer layer."""
 
     def __init__(self, d_model: int = 256, n_layers: int = 4, bottleneck_dim: int = 16):
         super().__init__()
-        self.adapters = nn.ModuleList([
-            BottleneckAdapter(d_model, bottleneck_dim) for _ in range(n_layers)
-        ])
+        self.adapters = nn.ModuleList(
+            [BottleneckAdapter(d_model, bottleneck_dim) for _ in range(n_layers)]
+        )
 
     def total_param_count(self) -> int:
-        return sum(a.param_count() for a in self.adapters)
+        return sum(adapter.param_count() for adapter in self.adapters)
 
     def param_budget_ok(self, base_model_param_count: int, budget_pct: float = 2.0) -> bool:
-        pct = 100.0 * self.total_param_count() / max(base_model_param_count, 1)
-        return pct <= budget_pct
+        return 100.0 * self.total_param_count() / max(base_model_param_count, 1) <= budget_pct
 
-    def forward_with_base(self, base_model, pose: torch.Tensor, face: torch.Tensor) -> torch.Tensor:
-        """Runs the frozen base model's forward pass but inserts each
-        BottleneckAdapter after the corresponding shared_encoder layer.
-        Mirrors VisionBridgeBaseModel.forward but layer-by-layer so adapters
-        can be spliced in."""
-        pose_emb = base_model.pose_encoder(pose)
-        face_emb = base_model.face_encoder(face)
-        hidden = base_model.fusion(pose_emb, face_emb)
+    def forward_with_base(
+        self,
+        base_model,
+        pose: torch.Tensor,
+        face: torch.Tensor,
+        left_hand: torch.Tensor | None = None,
+        right_hand: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        """Reuse the base model's modality encoders and splice adapters into its temporal stack."""
+        padding_mask = None
+        if pose.shape[1] != face.shape[1]:
+            raise ValueError("pose/face frame counts must match for adapter inference")
+        if left_hand is None:
+            left_hand = torch.zeros(
+                pose.shape[0], pose.shape[1], 63, dtype=pose.dtype, device=pose.device
+            )
+        if right_hand is None:
+            right_hand = torch.zeros_like(left_hand)
 
+        # The base model performs all shape and modality validation here.
+        pose_emb = base_model.pose_encoder(
+            pose,
+            padding_mask,
+        )
+        face_emb = base_model.face_encoder(
+            face,
+            padding_mask,
+        )
+        if not getattr(base_model, "use_hands", False):
+            streams = (pose_emb, face_emb)
+        else:
+            left_emb = base_model.left_hand_encoder(left_hand, padding_mask)
+            right_emb = base_model.right_hand_encoder(right_hand, padding_mask)
+            streams = (pose_emb, face_emb, left_emb, right_emb)
+
+        hidden = base_model.fusion(streams, padding_mask)
+        hidden = base_model.temporal_conv(hidden)
         for layer, adapter in zip(base_model.shared_encoder.layers, self.adapters):
             hidden = layer(hidden)
             hidden = adapter(hidden)
-
         return base_model.output_head(hidden)
 
     def calibrate(
@@ -98,59 +87,47 @@ class BridgeAdapterStack(nn.Module):
         base_model,
         calibration_pose: torch.Tensor,
         calibration_face: torch.Tensor,
+        calibration_left_hand: torch.Tensor,
+        calibration_right_hand: torch.Tensor,
         target_labels: torch.Tensor,
         target_lengths: torch.Tensor,
         epochs: int = 20,
         lr: float = 1e-3,
         blank_id: int = 0,
     ) -> dict:
-        """Trains ONLY the adapter parameters on the signer's calibration
-        clip, using CTC loss.
-
-        WHY CTC, NOT PER-FRAME CROSS-ENTROPY: a calibration/training clip has
-        ONE sentence-level label (a sequence of tokens), not a label for
-        every individual frame — there's no frame-to-token alignment given
-        by the dataset. CTC loss is built exactly for this: it marginalizes
-        over all possible frame-to-token alignments internally, which is
-        the standard approach for speech/handwriting/sign recognition.
-        (Same approach as app/training/train_base_model.py uses for the
-        base model itself — this keeps adapter calibration consistent
-        with how the base model was trained.)
-
-        calibration_pose / calibration_face: (batch, frames, feature_dim)
-        target_labels: (batch, max_target_len) — token ids, no blank inside,
-            padded with any value beyond target_lengths[i] (ignored).
-        target_lengths: (batch,) — true (unpadded) length of each target.
-        blank_id: vocab index reserved for the CTC blank token. Must match
-            what decode_logits() in inference_service.py treats as blank.
-
-        Base model stays frozen (its params already have requires_grad=False
-        from load_frozen_base_model). Returns timing/param stats for the
-        base-vs-adapter comparison and for storing in
-        SignerAdapter.accuracy_gain_pct upstream."""
         start = time.time()
-        optimizer = torch.optim.Adam(self.parameters(), lr=lr)
+        for parameter in base_model.parameters():
+            parameter.requires_grad = False
+        optimizer = torch.optim.AdamW(self.parameters(), lr=lr)
         ctc_loss = nn.CTCLoss(blank=blank_id, zero_infinity=True)
-
-        batch_size, n_frames = calibration_pose.shape[0], calibration_pose.shape[1]
-        input_lengths = torch.full((batch_size,), n_frames, dtype=torch.long)
+        input_lengths = torch.full(
+            (calibration_pose.shape[0],),
+            calibration_pose.shape[1],
+            dtype=torch.long,
+            device=calibration_pose.device,
+        )
 
         self.train()
-        loss = torch.tensor(0.0)
+        loss = torch.tensor(0.0, device=calibration_pose.device)
         for _ in range(epochs):
-            optimizer.zero_grad()
-            logits = self.forward_with_base(base_model, calibration_pose, calibration_face)
-            log_probs = torch.log_softmax(logits, dim=-1)  # (batch, frames, vocab)
-            log_probs = log_probs.permute(1, 0, 2)  # CTCLoss wants (frames, batch, vocab)
+            optimizer.zero_grad(set_to_none=True)
+            logits = self.forward_with_base(
+                base_model,
+                calibration_pose,
+                calibration_face,
+                calibration_left_hand,
+                calibration_right_hand,
+            )
+            log_probs = torch.log_softmax(logits, dim=-1).permute(1, 0, 2)
             loss = ctc_loss(log_probs, target_labels, input_lengths, target_lengths)
+            if not torch.isfinite(loss):
+                raise RuntimeError("Adapter calibration produced a non-finite CTC loss")
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.parameters(), 1.0)
             optimizer.step()
         self.eval()
-
-        elapsed = time.time() - start
         return {
-            "calibration_wall_seconds": elapsed,
+            "calibration_wall_seconds": time.time() - start,
             "final_loss": float(loss.item()),
             "param_count": self.total_param_count(),
         }
-
