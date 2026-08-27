@@ -15,7 +15,8 @@ Real video -> MediaPipe Holistic -> pose(132) + face(1404) -> VisionBridgeBaseMo
 - GitHub read/write: available.
 - Direct shell clone/runtime in this agent: blocked because `github.com` DNS cannot be resolved. Latest backend tests, browser E2E, and live Render checks are therefore NOT VERIFIED here.
 - Historical backend result: `30 passed, 0 failures`, but that predates the latest audit passes.
-- `base_model.pt` and its vocabulary are present in the repository, but the checkpoint is NOT quality-verified.
+- Claude polish commit `dcc132834a68bc607d47eb14c500466da516cbe6` is present and its six changes were independently inspected through Git history; Claude-reported runtime verification remains CLAUDE-REPORTED, not independently rerun here.
+- Current checkpoint and vocabulary are present in the repository, but checkpoint quality remains NOT VERIFIED.
 
 ## Core model contract
 - Pose: 132 values/frame.
@@ -52,7 +53,7 @@ Tokenizer no longer silently drops unsupported target characters.
 
 `backend/scripts/extract_keypoints.py` resolves video files case-insensitively across `.mp4/.MP4/.avi/.AVI/.mov/.MOV/.mkv/.MKV` style extensions.
 
-`backend/scripts/convert_isign_pose.py` strictly enforces pose 132 / face 1404, aligned non-empty finite arrays, and rejects stale 1434-face data.
+`backend/scripts/convert_isign_pose.py` strictly enforces pose 132 / face 1404, aligned non-empty finite arrays, and rejects stale incompatible face streams.
 
 Evaluator/inference load the saved vocabulary, reserve token 0 for CTC blank, and fail closed on checkpoint/vocabulary mismatch.
 
@@ -69,13 +70,12 @@ Evaluator/inference load the saved vocabulary, reserve token 0 for CTC blank, an
 - Adapter deletion is owner-scoped and removes the stored file as well as the DB row using a reversible tombstone step around the DB transaction.
 
 ## Health/readiness diary
-Problem: old `/health` returned HTTP 200 even when model readiness was degraded, so deployment infrastructure could consider a model-unavailable service healthy.
+Problem: old `/health` returned HTTP 200 even when model readiness was degraded.
 Fix:
 - `/api/v1/health` = lightweight process liveness.
 - `/api/v1/ready` = model/vocabulary readiness, returns HTTP 503 when not ready.
-- Render `healthCheckPath` now points to `/api/v1/ready`.
-
-Readiness metadata is cached by model/vocab file mtime+size so repeated deployment probes do not reload the 30 MB checkpoint every time.
+- Render `healthCheckPath` points to `/api/v1/ready`.
+Readiness metadata is cached by model/vocab mtime+size.
 Status: FIXED IN CODE, NOT RUNTIME-VERIFIED.
 
 ## Feature completion diary
@@ -104,8 +104,9 @@ Fake/demo translation fallback removed. Browser MediaPipe produces 132/1404 keyp
 - Removed fake translation ticker and hardcoded model benchmark claims.
 - Dashboard/history/users/evaluation now render server-backed state.
 - Calibration page explicitly describes browser extraction and backend adapter fitting.
-- Frontend JS syntax is now covered by CI using `node --check` on every `.js` file.
+- Frontend JS syntax is covered by CI using `node --check` on every `.js` file.
 - API endpoint remains configurable through browser settings/local storage.
+- API calls now have a 20-second default timeout while preserving caller-provided abort signals.
 
 ## Database/deployment diary
 Current persistence is SQLAlchemy + SQLite.
@@ -113,15 +114,26 @@ Render free-tier storage is ephemeral, so the deployment is suitable for a dispo
 No production external DB has been wired yet.
 
 ## CI/testing diary
-`.github/workflows/backend-tests.yml` now runs:
+`.github/workflows/backend-tests.yml` runs:
 1. Python dependency installation.
 2. Python `compileall` for `app` and `tests`.
 3. `pytest tests -q`.
 4. Node `--check` on every frontend JS file.
 
-Regression tests cover CTC contracts, dataset UID integrity, feature contracts, model availability/padding, translation validation/auth, account workflows, evaluation helpers, calibration contracts, and adapter file lifecycle.
+Claude reports full backend suite `52/52` plus Python/JS/YAML checks and end-to-end evaluation/overfit reruns for commit `dcc132834a68bc607d47eb14c500466da516cbe6`.
+Independent verification: Claude commit exists and diff matches the six claimed fixes. Runtime result remains CLAUDE-REPORTED.
 
-Latest workflow execution is NOT VERIFIED because no workflow run is available from the GitHub connector for the latest commit.
+Latest workflow execution for current main is still NOT independently verified.
+
+## Security audit diary
+Current frontend stores bearer access tokens in `localStorage`. This remains a known risk because JavaScript executing in the same origin can read the token; OWASP recommends avoiding browser storage for authentication credentials and preferring secure HttpOnly cookies/BFF patterns. This is a production hardening item, not changed yet because migrating auth to cookies requires coordinated CSRF/session changes and would be a wider contract change.
+
+API CORS was tightened from wildcard methods/headers to the actual methods and headers currently used. Conservative API security response headers were added: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, and `Permissions-Policy`.
+Status: IMPLEMENTED IN CODE, NOT RUNTIME-VERIFIED.
+
+## Configuration cleanup diary
+`MAX_INFERENCE_LATENCY_MS` existed in configuration and Render environment settings but had no runtime consumer. Removed it from `Settings` and `render.yaml` to eliminate a dead configuration contract.
+Status: FIXED IN CODE, NOT RUNTIME-VERIFIED.
 
 ## Known architectural boundary
 `/api/v1/translate` accepts pre-extracted pose/face keypoints. It does not decode arbitrary uploaded video server-side.
@@ -135,10 +147,12 @@ B. Real-data CTC sanity with non-blank useful target overlap -> NOT VERIFIED.
 C. Full clean model retraining -> BLOCKED by B.
 D. Multi-video unseen real validation -> BLOCKED by C.
 E. BridgeAdapter quality validation on held-out real signers -> BLOCKED by D.
-F. Latest full backend test run -> NOT VERIFIED.
+F. Latest full backend test run -> NOT VERIFIED by this agent.
 G. Frontend browser/E2E runtime -> NOT VERIFIED.
 H. Live Render health/CORS/auth/calibration/persistence -> NOT VERIFIED.
 I. Durable production database -> NOT IMPLEMENTED.
+J. Production auth token hardening (HttpOnly cookie/BFF + CSRF strategy) -> NOT IMPLEMENTED.
+K. Production rate limiting -> NOT IMPLEMENTED.
 
 ## Issue diary timeline
 ### 2026-08-25
@@ -148,7 +162,7 @@ I. Durable production database -> NOT IMPLEMENTED.
 - Decoder vocabulary state bug found -> saved vocabulary validated before decode.
 - 132/1404 dimension mismatches found -> dataset/API/converter guards added.
 - Uppercase `.MP4` extractor failure found -> case-insensitive extension resolution fixed.
-- Stale 1434-face converter contract found -> strict 1404 validation added.
+- Stale face-dimension converter contract found -> strict 1404 validation added.
 - Adapter authorization gap found -> bearer auth + ownership checks added.
 - Calibration CTC minimum-length and minimum-duration gaps found -> validation added.
 - Silent tokenizer target-character dropping found -> strict target validation added.
@@ -162,6 +176,11 @@ I. Durable production database -> NOT IMPLEMENTED.
 - Adapter budget was only reported, not enforced -> calibration now fails closed before save.
 - Readiness repeatedly reloaded checkpoint metadata -> readiness signature cache added.
 - Synthetic inference test incorrectly demanded non-empty semantics from random features -> assertion corrected.
+- Claude polish pass found six additional issues and reports `52/52` tests plus Python/JS/YAML/evaluation/overfit verification.
+- This agent independently verified Claude's commit exists and inspected the six-file diff; runtime claims remain CLAUDE-REPORTED.
+- Dead `MAX_INFERENCE_LATENCY_MS` config found -> removed from config/deployment.
+- API security hardening found worthwhile -> explicit CORS methods/headers and conservative response headers added.
+- Frontend API timeout gap found -> 20-second default timeout added to shared API helper.
 
 ## Current next steps
 1. Fresh Colab runtime.
@@ -172,13 +191,18 @@ I. Durable production database -> NOT IMPLEMENTED.
 6. Run full training only after the gate passes.
 7. Require train + held-out acceptance before pushing a new checkpoint.
 8. Run the validation notebook on multiple real unseen videos.
-9. Run `python -m pytest backend/tests` in a clean runtime.
+9. Run `python -m pytest backend/tests` in a clean runtime and compare with Claude's reported 52/52.
 10. Verify the latest GitHub Actions workflow is green.
-11. Verify `/api/v1/health` and `/api/v1/ready` on the deployed backend.
+11. Verify `/api/v1/health` and `/api/v1/ready` on deployed backend.
 12. Verify live frontend CORS/auth/history/calibration/translation journeys.
 13. Move durable deployment persistence to a managed database before production.
-14. Only then resume BridgeAdapter quality evaluation on held-out signers.
+14. Add production rate limiting and structured request IDs/observability.
+15. Decide whether to migrate browser auth tokens from localStorage to secure HttpOnly cookies with a deliberate CSRF strategy.
+16. Only then resume/evaluate BridgeAdapter on held-out signers.
 
 ## Final verdict
 **NOT READY.**
-Reason: the engineering codebase has been substantially hardened, but the latest clean retraining, real-video model quality, full regression runtime, browser E2E, and live deployment are still unverified. Static correctness is not runtime proof.
+Reason: the engineering codebase is substantially hardened and Claude reports a 52/52 verification pass, but this agent has not independently rerun that suite; clean retraining/model quality, browser/Render runtime behavior, production persistence, rate limiting, and production-grade auth storage remain unresolved.
+
+## Golden rule
+Static correctness, a commit diff, or another agent's report is not runtime proof. Only an actual test or real-data experiment earns VERIFIED.
