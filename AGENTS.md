@@ -1,773 +1,498 @@
-# VisionBridge Multi-Agent Engineering Contract + Complete Project Diary
+# VisionBridge Multi-Agent Engineering Contract + Project Diary
 
-## 0. PURPOSE / OPERATING PROTOCOL
+## Operating rules
 
-This file is the persistent hand-off memory for all agents working on VisionBridge (ChatGPT/Codex, Claude, or future agents).
+This is the persistent hand-off record for ChatGPT/Codex, Claude, and future agents. Read it before editing. Every meaningful change, failure, test result, design decision, runtime blocker, and deployment finding must be recorded here. Distinguish `CODE FIXED`, `STATIC VERIFIED`, `RUNTIME VERIFIED`, `CLAUDE-REPORTED`, and `NOT VERIFIED`.
 
-### State-update rule
-Every meaningful code/notebook change, error, test result, training result, validation result, root-cause discovery, workaround, decision, blocked state, and milestone must be recorded here.
+Change only files required by the current task. Never use destructive Git cleanup in Colab. Never push a model because loss decreased, logits are finite, or a trivial token is emitted. A model checkpoint is acceptable only after real-data semantic validation.
 
-Never mark anything `VERIFIED` unless an actual runtime check produced the evidence.
-
-### Scope rule
-Change only the files required for the current task. Do not use destructive Git operations in Colab workflows when user work may exist.
-
-### Training safety rule
-Never push a model checkpoint merely because loss decreased, logits are finite, a non-blank frame exists, a trivial token is emitted, or an acceptance cell prints PASS without semantic evidence.
-
-### Handoff rule
-If an agent is interrupted, the next agent must read this file first and continue from the last recorded state rather than repeating old experiments blindly.
-
----
-
-# 1. MISSION
-
-Continuous Indian Sign Language (ISL) -> English translation.
-
+Engineering loop:
 ```text
-Real video
-  -> MediaPipe Holistic
-  -> pose(132) + face(1404)
-  -> VisionBridgeBaseModel
-  -> CTC decode
-  -> English text
-  -> optional BridgeAdapter signer personalization
+DISCOVER -> UNDERSTAND -> TRACE -> REPRODUCE -> ROOT CAUSE
+-> DESIGN -> IMPLEMENT -> INTEGRATE -> TEST -> REGRESSION
+-> REVIEW -> IMPROVE -> RE-AUDIT -> ZERO-LOOSE-ENDS
 ```
 
-Product intent:
-- real browser camera capture;
-- browser-side landmark extraction;
-- server-backed translation;
-- few-shot signer adaptation;
-- authenticated history/calibration/profile workflows.
+The project follows the uploaded autonomous engineering protocol. The protocol requires whole-repository reconnaissance, end-to-end feature completion, creative improvement, security/performance/UX reviews, regression testing, and a final evidence-based release verdict. fileciteturn771file0L94-L127 fileciteturn771file0L133-L175
 
 ---
 
-# 2. CORE REPOSITORY CONTRACT
+# Mission
 
-## Model/data contract
+Continuous Indian Sign Language -> English translation with few-shot signer adaptation.
 
-| Item | Contract |
+Current intended pipeline:
+```text
+Camera / real video
+ -> MediaPipe Holistic
+ -> pose + face + left-hand + right-hand skeletons
+ -> hand-aware temporal PyTorch model
+ -> character CTC decoder
+ -> English text
+ -> optional BridgeAdapter signer personalization
+```
+
+Frontend is being standardized on React + Vite + TypeScript. Backend remains FastAPI + SQLAlchemy. Training remains PyTorch with Colab and persistent Lightning Studio orchestration. Visual language: monochrome, neat, stylish, minimalistic.
+
+---
+
+# Current multimodal contract
+
+| Stream | Features/frame |
 |---|---:|
-| Pose features / frame | 132 |
-| Face features / frame | 1404 |
-| Maximum inference sequence | 1024 frames |
-| CTC blank token | 0 |
-| Vocabulary size | 49 in current checkpoint/vocab |
-| Calibration minimum | 300 seconds |
-| Calibration fitting cap | 256 frames |
+| Pose | 132 = 33 * (x,y,z,visibility) |
+| Face | 1404 = 468 * (x,y,z) |
+| Left hand | 63 = 21 * (x,y,z) |
+| Right hand | 63 = 21 * (x,y,z) |
+| CTC blank | 0 |
+| Vocabulary | 49 |
+| Maximum sequence | 1024 frames |
 
-Backbone:
-```text
-Pose encoder + Face encoder + Cross-modal fusion + Shared Transformer + CTC character head
-```
-
-## Repository layout
-
-```text
-backend/    FastAPI + SQLAlchemy/SQLite + model/training code
-frontend/   static HTML/CSS/vanilla JS UI
-notebooks/  Colab + Lightning + validation notebooks
-data/       dataset preparation/output area
-.github/    regression CI
-render.yaml Render deployment configuration
-```
-
-## Canonical project notebooks
-
-Keep exactly these as project training/validation notebooks:
-1. `notebooks/train_base_model_colab.ipynb`
-2. `notebooks/train_base_model_lightning.ipynb`
-3. `notebooks/validate_base_model_colab.ipynb`
+Every trained hand-aware sample must carry four synchronized streams.
 
 ---
 
-# 3. COMPLETE ISSUE / FIX DIARY FROM THE BEGINNING
+# Chronological problem diary
 
-## Phase A — Initial project state and architecture work
+## A. Dataset/path failures
 
-The project evolved from a prototype toward a real authenticated application. Early work established FastAPI, static frontend, PyTorch Pose+Face model, CTC character decoding, signer-adaptive BridgeAdapter concept, Colab training and validation workflows, and Render deployment.
-
-Historical infrastructure constraints:
-- Render free tier has limited RAM/CPU and ephemeral local storage;
-- Colab is the practical training environment;
-- the related source datasets can be very large;
-- model weights are not expected to be trained on Render.
-
----
-
-## Phase B — Dataset / feature extraction failures
-
-### 1. Missing processed dataset
+### Missing processed dataset
 Observed:
 ```text
-/content/VisionBridge/data FOUND
 /content/VisionBridge/data/processed MISSING
 /content/VisionBridge/data/processed/isltranslate MISSING
 ```
+The notebooks were originally assuming processed training data already existed.
 
-Fix: training notebook rebuilds processed data from the real dataset in Colab instead of assuming local processed files exist.
+Fix: canonical Colab notebook downloads/reconstructs the real ISL-CSLTR data and creates a private runtime processed directory instead of assuming local processed files.
 
-### 2. Uppercase `.MP4` path bug
-Observed a missing `.mp4` while the actual source was `.MP4`.
-Root cause: case-sensitive extension lookup on Linux.
-Fix: extractor resolves common video extensions case-insensitively.
+### `.MP4` vs `.mp4`
+Linux extension matching skipped files such as `fever (2).MP4` while expecting `fever (2).mp4`.
 
-### 3. Real-video extraction output mismatch
-Observed feature output missing after selecting `good (3).MP4`.
-Fix: use exact source path and derive output from the resolved source path; never blindly load a feature file after a failed extraction.
+Fix: extraction resolves supported video extensions case-insensitively.
 
-### 4. Feature dimensions
-Contract established:
+### Feature output missing after extraction failure
+Validation cells tried `np.load()` even when extraction had skipped the video.
+
+Fix: extraction result is validated before feature loading; failure is surfaced with a useful report.
+
+### Duplicate filename / UID collision
+Sentence folders contain repeated filenames. Using only `path.stem` risks feature/label collisions.
+
+Fix: UID uses normalized label + source stem + relative-path hash.
+
+---
+
+## B. MediaPipe/Colab failures
+
+Observed:
+```text
+AttributeError: module 'mediapipe' has no attribute 'solutions'
+ModuleNotFoundError: No module named 'mediapipe.python'
+ValueError: Key backend: 'module://matplotlib_inline.backend_inline' is not a valid value
+```
+
+Fixes:
+- dedicated Python 3.12 environment for MediaPipe extraction;
+- `mediapipe==0.10.21`;
+- `numpy==1.26.4`;
+- isolated `MPLBACKEND=Agg` and `MPLCONFIGDIR`;
+- temporary extraction helpers live outside the repo.
+
+---
+
+## C. Notebook portability failures
+
+Observed:
+```text
+NotebookMissingRequiredFieldsError: nbformat_minor
+```
+
+Fix: canonical notebooks rebuilt as valid nbformat 4 notebooks with `nbformat_minor` present.
+
+The intended Colab UX is now: fresh GPU runtime -> run cell 1 -> run to the final cell without manual data preparation.
+
+---
+
+## D. Feature dimensions
+
+Original contract was verified as:
 ```text
 pose = (T,132)
 face = (T,1404)
 ```
-Successful real extraction examples included:
+
+Real examples previously produced:
 ```text
-you are good -> pose (69,132), face (69,1404)
-i am suffering from fever -> pose (72,132), face (72,1404)
+you are good -> (69,132), (69,1404)
+i am suffering from fever -> (72,132), (72,1404)
 ```
-Guards were added so wrong dimensions fail explicitly.
+
+New hand-aware contract is:
+```text
+pose       (T,132)
+face       (T,1404)
+left_hand  (T,63)
+right_hand (T,63)
+```
+
+All streams must have the same frame count and finite values.
 
 ---
 
-## Phase C — MediaPipe runtime failures
+## E. CTC failures
 
-### 5. `mediapipe.solutions` missing
-Observed:
+### Blank collapse
+Earlier checkpoints produced:
 ```text
-AttributeError: module 'mediapipe' has no attribute 'solutions'
+PREDICTED: (no sign detected)
+BLANK RATIO: 1.0
+NON-BLANK: 0
 ```
 
-### 6. Legacy import unavailable
-Observed:
+The checkpoint was rejected.
+
+### False acceptance gate
+An earlier gate only checked that at least one frame was non-blank. Therefore this passed:
 ```text
-ModuleNotFoundError: No module named 'mediapipe.python'
-```
-
-### 7. Isolated MediaPipe runtime
-Dedicated Python 3.12 environment introduced in Colab:
-```text
-/content/visionbridge_mp312
-```
-Pinned:
-```text
-mediapipe==0.10.21
-numpy==1.26.4
-```
-
-### 8. Matplotlib backend crash
-Observed:
-```text
-ValueError: Key backend: 'module://matplotlib_inline.backend_inline' is not a valid value
-```
-Root cause: isolated process inherited Colab's inline backend.
-Fix:
-```text
-MPLBACKEND=Agg
-MPLCONFIGDIR=<isolated config directory>
-```
-
----
-
-## Phase D — UID collision / dataset identity failure
-
-### 9. Duplicate filename collision
-Repeated filenames occur across sentence folders, e.g.:
-```text
-fever (2).MP4
-fever (5).MP4
-good (3).MP4
-```
-Using only `path.stem` could overwrite features or mismatch features/labels.
-Fix: normalized label + stem + relative-path hash for globally unique UIDs.
-
----
-
-## Phase E — Early CTC blank-collapse failure
-
-### 10. Real-video blank-collapse checkpoint
-Observed:
-```text
-GROUND TRUTH: He is going into the room
-PREDICTED:    (no sign detected)
-CONFIDENCE:   0.0
-BLANK RATIO:  1.0
-NON-BLANK:    0
-UNIQUE TOKENS: 0
-```
-Additional clips showed blank ratio 1.0.
-Conclusion: old checkpoint rejected as quality evidence.
-
----
-
-## Phase F — Deterministic split / reproducibility
-
-### 11. Split mismatch risk
-Training and notebook acceptance could select different train/validation samples.
-Fix: deterministic seed 42 shared across training/acceptance.
-
----
-
-## Phase G — Notebook portability / Colab problems
-
-### 12. Invalid notebook file
-Observed:
-```text
-NotebookMissingRequiredFieldsError: nbformat_minor
-```
-Fix: canonical notebook rebuilt as proper nbformat 4 notebook with required fields.
-
-### 13. Full one-pass Colab requirement
-Requirement established: fresh runtime, run cell 1 to last cell, automatic environment/data preparation, real extraction, training, semantic validation, and safe push only after acceptance.
-
----
-
-## Phase H — Validation workflow failures
-
-### 14. Missing canonical processed dataset in validation notebook
-Observed:
-```text
-Missing metadata CSV: /content/VisionBridge/data/processed/isltranslate/ISLTranslate.csv
-```
-Fix direction: validation notebook uses an isolated validation data area and automatically downloads/selects/extracts real videos.
-
-### 15. Automatic real-video validation
-Requirement: download ISL-CSLTR, select real sentence-level video, extract real features, infer using the checkpoint, report ground truth/prediction/confidence/blank ratio/CER.
-
----
-
-## Phase I — Acceptance gate failure
-
-### 16. False MODEL ACCEPTANCE PASS
-Observed:
-```text
-TRAIN: ('i am so sorry to hear that', ' ', 0.852..., 123)
-VAL:   ('i am hungry', ' ', 0.852..., 106)
+TRAIN -> ' '
+VAL   -> ' '
 MODEL ACCEPTANCE: PASS
 ```
-Old logic only checked for a non-blank frame, so `' '` passed.
-Fix: semantic gate rejects whitespace-only output, high space-token ratio, trivial diversity, and high CER.
 
----
+Fix: semantic gate rejects empty/whitespace-only, space-dominated, trivial-token, and high-CER outputs.
 
-## Phase J — Tokenizer/vocabulary investigation
-
-### 17. Vocabulary verified
+### Space collapse forensic result
+The bad checkpoint produced:
 ```text
-0  <blank>
-1-26 a-z
-27-36 0-9
-37 space
-38-48 punctuation
-```
-Thus:
-```text
-vocab size = 49
-blank id = 0
-space id = 37
-```
-
-### 18. Target encoding verified
-Example `i am suffering from fever` produced the expected 25 character IDs with spaces represented as 37. No blank labels were injected and target length matched character count.
-
----
-
-## Phase K — CTC space-token collapse
-
-### 19. Definitive forensic result
-Fresh checkpoint:
-```text
-TRAIN truth: 'i am so sorry to hear that'
 TRAIN prediction: ' '
-TRAIN blank ratio: 0.0000
-TRAIN space ratio: 1.0000
-TRAIN meaningful tokens: 0
-
-VAL truth: 'i am hungry'
-VAL prediction: ' '
-VAL blank ratio: 0.0000
-VAL space ratio: 1.0000
-VAL meaningful tokens: 0
+VAL prediction:   ' '
+Blank ratio: 0.0000
+Space ratio: 1.0000
+Meaningful tokens: 0
+Mean P(space) ~= 0.8521
 ```
-Mean P(space) approximately 0.8521 on both samples.
-Manual greedy CTC decode and repository decoder both returned `' '`, ruling out a decoder mismatch.
+Manual greedy decoding and repository decoding agreed, so it was not a decoder mismatch. Input features were finite and non-identical.
 
-### 20. Input feature sanity
-Features were finite and non-identical between samples.
-Therefore the collapse was not explained by identical/all-zero input data.
-
-Conclusion:
+### Latest old-architecture overfit attempt
+Fresh Colab run on one real target:
 ```text
-SPACE TOKEN COLLAPSE
+Target: 'help me'
+Trainable parameters: 7,512,369
+Loss: 38.2470 -> 1.99 (94.7% reduction)
+Prediction: ''
+CER: 1.0000
+Meaningful tokens: 0
 ```
+The strengthened semantic gate correctly blocked full training. Lesson: loss reduction is not semantic learning.
 
 ---
 
-## Phase L — Inference vs training distinction
+# F. Inference freezing clarification
 
-### 21. Frozen inference model forensic
-Loading via `load_frozen_base_model()` reports all parameters frozen by design. That is an inference property and is NOT evidence that the training script uses zero trainable parameters.
+Forensic inspection through `load_frozen_base_model()` showed zero trainable parameters. That is expected for inference because the loader intentionally freezes the production backbone.
 
-The actual training entry point constructs `VisionBridgeBaseModel` directly and uses AdamW. Therefore the correct debugging target is the training path, not removal of inference freezing.
+Actual training constructs `VisionBridgeBaseModel` directly and must contain trainable parameters.
 
----
-
-## Phase M — Training-path hardening
-
-### 22. Training script
-Hardened with:
-- trainable-parameter assertion;
-- optimizer restricted to trainable parameters;
-- first-batch gradient sanity check;
-- missing/non-finite gradient failure;
-- stale output cleanup on non-resume runs;
-- pinned-memory/multi-worker support;
-- configurable `--num-workers`;
-- resumable checkpoint support;
-- final artifact verification.
-
-Status: CODE FIXED; fresh Colab runtime required.
-
-### 23. CTC sanity script
-Hardened with:
-- real-data scratch optimization;
-- loss reduction measurement;
-- blank ratio;
-- space-token ratio;
-- meaningful-token diversity;
-- CER;
-- whitespace-only rejection;
-- space-collapse rejection;
-- trivial-token rejection;
-- high-CER rejection.
-
-Status: CODE FIXED; fresh Colab runtime required.
-
----
-
-## Phase N — Notebook training workflow hardening
-
-### 24. Canonical Colab notebook
-Hardened to:
-- sync `main` safely;
-- refuse dirty local work;
-- require GPU;
-- isolate MediaPipe 0.10.21;
-- download real ISL-CSLTR;
-- rebuild processed features from scratch;
-- use collision-safe UIDs;
-- validate data contracts;
-- run semantic overfit gate before full training;
-- train deterministically with seed 42;
-- semantically validate multiple train/held-out samples;
-- push only validated checkpoint + vocabulary;
-- avoid destructive Git cleanup;
-- keep temporary helpers outside the repository.
-
-### 25. Vocabulary ordering bug
-Fix: save tokenizer vocabulary immediately after successful training before acceptance decoder loads it.
-
----
-
-## Phase O — Git/push failures and safeguards
-
-### 26. Checkpoint push
-Earlier validated model commit:
+Rule:
 ```text
-241d8fcb664ac81612f3aa6e28360dd7c8dc9e5b
+0 trainable parameters in inference loader = expected
+0 trainable parameters in training model = bug
 ```
-Only `backend/app/models/weights/base_model.pt` was staged. `data/model_check/` remained local/untracked.
 
-### 27. Git identity failure
+Do not remove inference-time freezing to make diagnostics look healthy.
+
+---
+
+# G. Training-path hardening
+
+`train_base_model.py` was hardened to:
+- verify trainable parameter count;
+- restrict optimizer to trainable parameters;
+- verify gradients on the first training batch;
+- reject missing/non-finite gradients;
+- avoid stale checkpoint reuse on fresh runs;
+- support pinned memory and workers;
+- support resumable checkpoints;
+- verify final checkpoint artifact.
+
+`overfit_sanity.py` was hardened to:
+- train on real samples;
+- measure loss reduction;
+- reject blank collapse;
+- reject space collapse;
+- reject low meaningful-token diversity;
+- calculate CER;
+- block full training when semantic learning fails.
+
+---
+
+# H. Hand skeleton + model migration
+
+## User requirement
+Track hand positions/signs and show hands as skeleton frames.
+
+## Design decision
+This became a deliberate model-contract migration instead of a cosmetic overlay only.
+
+MediaPipe Holistic provides 21 landmarks per hand. The project now treats the hands as first-class temporal modalities:
+```text
+left hand  = 63 values/frame
+right hand = 63 values/frame
+```
+
+The new base model is:
+```text
+Pose encoder
+Face encoder
+Left-hand encoder
+Right-hand encoder
+        ↓
+Learned gated multimodal fusion
+        ↓
+Temporal convolution block
+        ↓
+Shared Transformer
+        ↓
+49-class CTC head
+```
+
+The hand-aware model uses local temporal convolution before global attention because sign motion contains short-range movement patterns as well as longer temporal dependencies.
+
+## Important checkpoint consequence
+The previous `base_model.pt` is a legacy pose+face checkpoint. It is NOT silently loaded into the new architecture.
+
+`load_frozen_base_model()` now rejects a legacy checkpoint with an explicit retraining message. `model_status()` reports:
+```text
+legacy_checkpoint_requires_retraining
+```
+for that artifact.
+
+The project must train a new hand-aware checkpoint before translation readiness can become `ready`.
+
+## Extraction
+`extract_keypoints.py` now writes:
+```text
+pose/<uid>.npy
+face/<uid>.npy
+left_hand/<uid>.npy
+right_hand/<uid>.npy
+```
+and retains a backward-compatible pose+face wrapper for old extraction callers.
+
+## Dataset/collation
+`isltranslate.py` now loads and validates all four streams and pads/downsamples them using one shared frame index sequence.
+
+## API
+Translation and calibration contracts now carry left/right hand arrays. The API validates frame synchronization, dimensions, finiteness, and maximum sequence length before tensor conversion.
+
+## Adapter
+BridgeAdapter calibration now consumes all four streams while keeping the trained base frozen.
+
+## Regression test
+`backend/tests/test_hand_contract.py` covers hand-aware output shape and required-hand validation.
+The long-clip collation regression now includes both hand streams and verifies a finite CTC loss through the hand-aware model.
+
+---
+
+# I. Frontend framework redesign
+
+The frontend is being standardized around:
+```text
+React + Vite + TypeScript
+```
+with a small reusable API client and a reusable MediaPipe landmark-session hook.
+
+The new UI direction is:
+```text
+monochrome
+minimal
+high whitespace
+subtle borders
+restrained typography
+no decorative fake metrics
+```
+
+Live translation now:
+- opens the real camera;
+- loads MediaPipe Holistic;
+- tracks pose/face/hands;
+- displays left/right 21-point skeleton overlays;
+- buffers synchronized frames;
+- sends all four streams to the API;
+- displays real prediction/confidence/latency/error states.
+
+Calibration now captures real synchronized multimodal frames for adapter fitting rather than pretending that a timer is calibration.
+
+Dashboard/history/evaluation/settings consume backend data instead of fake static values.
+
+Render frontend build now targets Vite `dist` with an SPA rewrite.
+
+Runtime browser verification is still `NOT VERIFIED` until a real browser session confirms camera permissions, MediaPipe loading, overlay drawing, and API translation.
+
+---
+
+# J. Git incidents and protections
+
 Observed:
 ```text
 Author identity unknown
 ```
-Fix: configure Git user.name/email explicitly in Colab before local commits.
+Fix: configure Git identity in Colab before local commits.
 
-### 28. Unwanted staged directory safeguard
 Observed:
 ```text
 Unexpected file staged/changed: data/model_check/
 ```
-Whitelist correctly refused unrelated artifacts.
+The push whitelist correctly refused unrelated diagnostic artifacts.
+
+Model-push rule:
+Only explicitly approved checkpoint/vocabulary files may be staged by the training notebook. Temporary validation directories stay outside source history.
 
 ---
 
-## Phase P — Claude/general application hardening
+# K. Application hardening history
 
-Claude's polish pass reported six additional fixes:
-1. test self-reference false failure;
-2. module-level pandas import moved to lazy import;
-3. dead auth ternary removed;
-4. authenticated CSV export rewritten using fetch + Blob download;
-5. redundant Render cwd override removed;
-6. evaluator CER placeholder bug corrected.
+Previously completed general hardening includes:
+- JWT registration/login;
+- server-side ownership authorization;
+- translation/calibration payload validation;
+- readiness endpoint separate from liveness;
+- safe adapter deletion staging;
+- persistent dashboard/history/evaluation data flows;
+- authenticated CSV export;
+- CORS/security headers;
+- timeout-aware frontend API client;
+- removal of fake translation and fabricated benchmark claims.
 
-Claude reported 52/52 tests and Python/JS/YAML checks; runtime remains CLAUDE-REPORTED unless independently reproduced.
-
----
-
-## Phase Q — Backend/API/security/frontend hardening
-
-Implemented:
-- JWT bearer authentication;
-- user/adapter ownership enforcement;
-- translation/calibration input validation;
-- liveness/readiness split;
-- calibration frame cap/downsampling;
-- adapter parameter budget enforcement;
-- safe adapter deletion;
-- real dashboard/history/profile/evaluation state;
-- real browser MediaPipe live translation;
-- fake translation/benchmark fallbacks removed;
-- API endpoint configuration + timeout handling;
-- CORS/security response headers;
-- frontend JS syntax CI.
-
-Known production gaps:
-- SQLite on Render is not durable;
-- browser token remains in localStorage;
-- no production rate limiter yet;
+Known production constraints:
+- SQLite on Render is ephemeral;
+- browser bearer token is still stored in localStorage;
+- production rate limiting is not implemented;
 - raw-video server-side inference is not implemented.
 
 ---
 
-# 6. HAND TRACKING / SKELETON FRAME IMPLEMENTATION
+# L. Claude polish history
 
-## 29. Requirement
-User requested the live application to track hand positions/signs and show the hands as a skeleton frame.
+Claude's prior polish pass reported six fixes:
+1. test self-reference false failure;
+2. lazy pandas import for clean CI;
+3. dead auth ternary removal;
+4. authenticated CSV export via fetch/Blob;
+5. removal of redundant Render cwd override;
+6. CER evaluator correction.
 
-## 30. Architectural decision
-Hands are already exposed by MediaPipe Holistic in the browser as:
-```text
-leftHandLandmarks
-rightHandLandmarks
-```
-Each detected hand has 21 landmarks.
-
-This implementation adds **visual/diagnostic hand skeleton tracking without changing the existing translation model contract**.
-
-Current translation contract remains:
-```text
-pose [T,132]
-face [T,1404]
-```
-
-This was deliberate. Adding hands as model input would change the learned input contract and invalidate the current checkpoint, forcing a new extraction pipeline, training run, and model acceptance cycle. That is a separate model-contract migration and is NOT silently mixed into the live UI change.
-
-## 31. Files changed
-```text
-frontend/pages/translate.html
-frontend/assets/js/translate-live.js
-AGENTS.md
-```
-
-## 32. Frontend implementation
-`translate.html` now contains:
-- a transparent canvas overlay above the live camera;
-- a hand-tracking status indicator;
-- a dedicated hand-tracking explanation panel.
-
-`translate-live.js` now:
-- reads `results.leftHandLandmarks` and `results.rightHandLandmarks`;
-- tracks both hands independently;
-- renders a 21-point hand skeleton for each detected hand;
-- draws hand bone connections using the MediaPipe hand topology;
-- resizes the overlay for device pixel ratio;
-- updates the UI with `Hands not detected`, `1 hand tracked`, or `2 hands tracked`;
-- clears the skeleton when translation stops;
-- leaves pose/face backend payload behavior unchanged.
-
-## 33. Model-training impact
-None for the existing checkpoint.
-The hand skeleton is a live browser visualization/diagnostic feature.
-
-Future model-level hand integration requires a deliberate contract such as:
-```text
-left hand:  21 * 3 = 63
-right hand: 21 * 3 = 63
-hands total: 126 values/frame
-```
-combined with the existing pose+face representation, followed by dataset extraction, model architecture changes, retraining, and real-video semantic acceptance.
-Do NOT change the model contract casually.
-
-## 34. Testing status
-Static implementation was inspected against the existing MediaPipe Holistic browser flow and DOM selectors. No destructive repository change was made.
-
-Runtime browser verification of actual camera + MediaPipe hand rendering is still:
-```text
-NOT VERIFIED
-```
-
-CI-level JavaScript syntax validation remains the next automated confirmation after the push.
+Claude reported 52/52 passing plus compile/YAML checks. Treat this as `CLAUDE-REPORTED` until independently rerun.
 
 ---
 
-# 7. CURRENT MODEL STATE / CRITICAL LESSON
+# M. Canonical notebooks
 
-Most recent observed failed checkpoint:
+Keep these three project notebooks:
 ```text
-TRAIN -> ' '
-VAL   -> ' '
-space ratio -> 1.0
-meaningful tokens -> 0
+notebooks/train_base_model_colab.ipynb
+notebooks/train_base_model_lightning.ipynb
+notebooks/validate_base_model_colab.ipynb
 ```
 
-The semantic acceptance gate has been strengthened to prevent this from passing again.
+Colab notebook responsibilities:
+1. safe repo sync;
+2. GPU check;
+3. isolated MediaPipe setup;
+4. automatic real dataset download;
+5. collision-safe data rebuild;
+6. four-stream extraction;
+7. dataset contract validation;
+8. semantic overfit gate;
+9. hand-aware full training;
+10. multi-sample semantic acceptance;
+11. optional safe model push.
+
+Lightning notebook responsibilities:
+- persistent-workspace orchestration;
+- same repository model/trainer rather than a divergent second implementation;
+- four-stream validation;
+- semantic gate;
+- resumable long training.
+
+Validation notebook responsibilities:
+- automatic real-video selection;
+- four-stream extraction;
+- reject legacy checkpoint;
+- report prediction/confidence/CER/blank/space ratios and shapes for several real videos.
 
 ---
 
-# 8. REQUIRED ACCEPTANCE GATES
-
-## Gate A — Dataset integrity
-Must prove metadata, files, unique UIDs, pose/face dimensions, frame alignment, finite features, valid targets, and valid CTC alignment.
-
-## Gate B — Semantic CTC overfit
-Must prove finite loss, meaningful reduction, no blank-only collapse, no space-only collapse, multiple meaningful tokens, and acceptable CER.
-
-## Gate C — Full clean training
-Only after Gate B passes.
-
-## Gate D — Train + held-out semantic acceptance
-Use multiple training and held-out samples and reject trivial collapse.
-
-## Gate E — Real-video validation
-Use real videos and report ground truth, prediction, confidence, blank ratio, CER, frame count, feature shapes, and readiness.
-
-## Gate F — Application regression
-Verify auth, dashboard, translation, hand skeleton overlay, calibration, adapter ownership, history, CSV export, evaluation, readiness.
-
----
-
-# 9. KNOWN ERROR CATALOG
+# N. Current blocker board
 
 ```text
-AttributeError: module 'mediapipe' has no attribute 'solutions'
-```
-MediaPipe runtime mismatch.
-
-```text
-ModuleNotFoundError: No module named 'mediapipe.python'
-```
-Incompatible MediaPipe package/API combination.
-
-```text
-ValueError: Key backend: 'module://matplotlib_inline.backend_inline' is not a valid value
-```
-Isolated MediaPipe process inherited Colab matplotlib backend.
-
-```text
-NotebookMissingRequiredFieldsError: nbformat_minor
-```
-Invalid notebook structure.
-
-```text
-Missing metadata CSV: /content/VisionBridge/data/processed/isltranslate/ISLTranslate.csv
-```
-Validation notebook assumed unavailable processed training data.
-
-```text
-no video file at .../fever (2).mp4
-```
-Case mismatch with actual `.MP4` file.
-
-```text
-Author identity unknown
-```
-Git identity was not configured in Colab.
-
-```text
-Unexpected file staged/changed: data/model_check/
-```
-Push whitelist correctly refused unrelated diagnostics.
-
-```text
-PREDICTED: (no sign detected)
-BLANK RATIO: 1.0
-```
-Historical blank collapse.
-
-```text
-PREDICTED: ' '
-SPACE RATIO: 1.0
-```
-Observed space-token collapse.
-
----
-
-# 10. MULTI-AGENT WORK PROTOCOL
-
-## Before editing
-1. Read `AGENTS.md`.
-2. Inspect relevant source files.
-3. Identify root cause.
-4. Explicitly state what is not the root cause where evidence exists.
-
-## During editing
-1. Change only required files.
-2. Preserve public contracts unless intentionally migrating them.
-3. Add/adjust tests.
-4. Update this diary after meaningful changes/errors.
-
-## After editing
-1. Compile/syntax-check.
-2. Run focused tests.
-3. Run broader tests when feasible.
-4. Re-read changed code.
-5. Record exact evidence.
-6. Commit intended files only.
-7. Do not claim runtime verification from static inspection.
-
-## Error record format
-```text
-SYMPTOM
-ROOT CAUSE
-FIX
-FILES CHANGED
-TEST PERFORMED
-RESULT
-NEXT BLOCKER
+A  Hand-aware extraction on clean Colab            NOT VERIFIED
+B  Hand-aware semantic overfit                      NOT VERIFIED
+C  Hand-aware full training                         BLOCKED until B
+D  New hand-aware checkpoint                        NOT AVAILABLE until C
+E  Multi-video real validation                      BLOCKED until D
+F  BridgeAdapter real calibration validation        BLOCKED until E
+G  Current CI after redesign                        NOT VERIFIED
+H  Browser runtime hand overlay                    NOT VERIFIED
+I  Render end-to-end after React migration          NOT VERIFIED
+J  Durable production DB                            NOT IMPLEMENTED
+K  HttpOnly auth strategy                           NOT IMPLEMENTED
+L  Production rate limiting                         NOT IMPLEMENTED
+M  40 GB training scale                             BLOCKED until correctness is proven
 ```
 
 ---
 
-# 11. CURRENT REPOSITORY / GIT STATE
+# O. Required next execution
 
-Branch:
-```text
-main
-```
-
-Latest known main before this hand-skeleton commit:
-```text
-b86f7febf942db7dc79e91c3dfb8b2f07d619bdf
-```
-
-This task adds a subsequent hand-skeleton UI commit and a diary update.
-
----
-
-# 12. CURRENT BLOCKER BOARD
-
-```text
-A  Fresh clean Colab dataset rebuild              NOT VERIFIED
-B  Semantic real-data CTC gate                    NOT VERIFIED after latest code changes
-C  Full clean base-model training                 BLOCKED until B
-D  Multi-video unseen real validation              BLOCKED until C
-E  BridgeAdapter held-out signer validation        BLOCKED until D
-F  Latest complete backend test suite               NOT VERIFIED
-G  Latest GitHub Actions result                     NOT VERIFIED
-H  Browser/E2E frontend runtime                      NOT VERIFIED
-I  Live Render auth/CORS/readiness/persistence      NOT VERIFIED
-J  Durable production database                       NOT IMPLEMENTED
-K  HttpOnly production auth strategy                 NOT IMPLEMENTED
-L  Production rate limiting                           NOT IMPLEMENTED
-M  Model-level hand-feature integration              NOT IMPLEMENTED
-N  Browser hand-skeleton runtime validation          NOT VERIFIED
-```
-
----
-
-# 13. CURRENT NEXT STEPS
-
-1. Start fresh Colab runtime.
+1. Start a fresh Colab GPU runtime.
 2. Pull latest `main`.
-3. Run `notebooks/train_base_model_colab.ipynb` from cell 1.
-4. Require dataset integrity PASS.
-5. Require semantic CTC overfit PASS without blank/space/trivial collapse.
-6. Run full training only after Gate B.
-7. Require multi-sample train + held-out semantic acceptance.
-8. Push only validated checkpoint + vocabulary.
-9. Run `notebooks/validate_base_model_colab.ipynb` on multiple real unseen videos.
-10. Verify backend CI and browser syntax.
-11. Verify live Render health/readiness.
-12. Test browser hand-skeleton rendering on a real camera session.
-13. Test full application journey: auth -> dashboard -> translation -> history -> calibration -> adapter -> evaluation.
-14. Only after base-model correctness is established, consider model-level hand feature integration.
-15. Only after correctness is established, scale training from ~8.5 GB toward 40 GB with streaming/sharding/resumable training.
+3. Run `train_base_model_colab.ipynb` from cell 1.
+4. Confirm extraction creates all four arrays with synchronized frame counts.
+5. Confirm `DATASET INTEGRITY: PASS`.
+6. Run the semantic overfit gate and stop immediately if it fails.
+7. Do not use the old pose+face checkpoint.
+8. Train the new hand-aware checkpoint only after Gate B passes.
+9. Run multi-sample train/held-out acceptance.
+10. Push checkpoint + vocabulary only after semantic acceptance.
+11. Run `validate_base_model_colab.ipynb` on several automatically selected real videos.
+12. Run backend tests and frontend TypeScript/build checks.
+13. Test the React browser flow with a real camera and verify both hand skeletons visibly track.
+14. Test auth -> dashboard -> translate -> history -> calibration -> adapter -> evaluation.
+15. Only after correctness is established, scale the data from ~8.5 GB toward 40 GB using incremental extraction, sharding, bounded memory, workers, and resumable checkpoints.
 
 ---
 
-# 14. SCALING NOTE: 8.5 GB -> 40 GB
+# P. Design priorities for future agents
 
-Do not equate more data with a fix for model collapse.
-
-Larger-scale design should use:
-```text
-incremental video extraction
- -> collision-safe persistent IDs
- -> sharded processed features
- -> bounded-memory DataLoader
- -> pinned memory
- -> workers
- -> resumable checkpoints
- -> deterministic split manifest
- -> metrics/early stopping
- -> real held-out evaluation
-```
+1. Correctness before scale.
+2. Real data before benchmark claims.
+3. Semantic evidence before checkpoint push.
+4. Hands are first-class model inputs in the new architecture.
+5. Reuse the canonical repository trainer instead of duplicating training logic in notebooks.
+6. Keep temporary data outside source history.
+7. Do not claim runtime verification without runtime evidence.
+8. Preserve the monochrome/minimal product language.
+9. Fix root causes, not symptoms.
+10. Update this file whenever a gate passes/fails or a new blocker appears.
 
 ---
 
-# 15. RELEASE VERDICT
+# Q. Release verdict
 
-# NOT READY
+## NOT READY
 
-The codebase is substantially hardened, but model quality remains unproven until a fresh real-data training run passes the semantic CTC gate and a separate real-video validation run demonstrates non-trivial useful English output.
+The software architecture is substantially more coherent and the hand-aware redesign is implemented in code, but the central product promise is still blocked by model runtime verification.
 
-Production also remains blocked on durable persistence, production auth hardening, rate limiting, and full browser/live deployment verification.
-
----
-
-# 16. MOST RECENT DIARY ENTRY — HAND SKELETON FEATURE
-
-## 2026-08-27 — Live hand position/skeleton tracking
-
-Request:
+The next valid milestone is:
 ```text
-Add the ability to track hand positions and signs using a skeleton hand frame.
+fresh real data
+ -> four-stream extraction
+ -> semantic overfit PASS
+ -> hand-aware training
+ -> multi-video real validation
+ -> application E2E verification
 ```
 
-Analysis:
-- MediaPipe Holistic already returns left and right hand landmarks in the existing browser pipeline.
-- Each hand contains 21 landmarks.
-- The current model was trained for pose 132 + face 1404 only.
-- Adding hand features into the model would be a breaking model-input change and would require new data extraction and retraining.
-
-Implementation:
-```text
-frontend/pages/translate.html
-  + transparent hand-skeleton canvas overlay
-  + hand tracking status chip
-  + hand-tracking explanation panel
-
-frontend/assets/js/translate-live.js
-  + hand landmark extraction from Holistic results
-  + 21-point skeleton topology
-  + live left/right hand drawing
-  + responsive canvas sizing
-  + detection status
-  + cleanup on stop
-
-AGENTS.md
-  + full hand-feature decision and state recorded
-```
-
-Status:
-```text
-CODE PUSHED
-STATIC CODE REVIEW: COMPLETED
-BROWSER RUNTIME: NOT VERIFIED
-MODEL HAND INPUT: NOT IMPLEMENTED
-EXISTING MODEL CONTRACT: PRESERVED
-```
-
-Important next-agent rule:
-```text
-Do not silently feed hand landmarks into the current model.
-The current checkpoint accepts pose(132) + face(1404).
-Model-level hand integration is a separate migration and must include extraction,
-training, semantic acceptance, validation, and checkpoint replacement.
-```
+Only after those gates pass should the project be treated as a functioning ISL translation product or scaled to 40 GB training.
