@@ -13,7 +13,7 @@ DISCOVER -> UNDERSTAND -> TRACE -> REPRODUCE -> ROOT CAUSE
 -> REVIEW -> IMPROVE -> RE-AUDIT -> ZERO-LOOSE-ENDS
 ```
 
-The project follows the uploaded autonomous engineering protocol. The protocol requires whole-repository reconnaissance, end-to-end feature completion, creative improvement, security/performance/UX reviews, regression testing, and a final evidence-based release verdict. fileciteturn771file0L94-L127 fileciteturn771file0L133-L175
+The project follows the uploaded autonomous engineering protocol. The protocol requires whole-repository reconnaissance, end-to-end feature completion, creative improvement, security/performance/UX reviews, regression testing, and a final evidence-based release verdict.
 
 ---
 
@@ -32,7 +32,7 @@ Camera / real video
  -> optional BridgeAdapter signer personalization
 ```
 
-Frontend is being standardized on React + Vite + TypeScript. Backend remains FastAPI + SQLAlchemy. Training remains PyTorch with Colab and persistent Lightning Studio orchestration. Visual language: monochrome, neat, stylish, minimalistic.
+Frontend is standardized on React + Vite + TypeScript. Backend remains FastAPI + SQLAlchemy. Training remains PyTorch with Colab and persistent Lightning Studio orchestration. Visual language: monochrome, neat, stylish, minimalistic.
 
 ---
 
@@ -227,272 +227,465 @@ Do not remove inference-time freezing to make diagnostics look healthy.
 
 ---
 
-# H. Hand skeleton + model migration
+# H. Hand-aware multimodal redesign
 
-## User requirement
-Track hand positions/signs and show hands as skeleton frames.
+## Requirement
+Track hand positions/signs and represent them as skeleton frames, then make that information available to the actual recognition model rather than keeping it as decorative UI only.
 
-## Design decision
-This became a deliberate model-contract migration instead of a cosmetic overlay only.
+## Decision
+The old pose+face checkpoint is insufficient for a hand-aware model. The project therefore performs a deliberate model-contract migration.
 
-MediaPipe Holistic provides 21 landmarks per hand. The project now treats the hands as first-class temporal modalities:
+MediaPipe Holistic hand landmarks:
 ```text
-left hand  = 63 values/frame
-right hand = 63 values/frame
+left hand  = 21 landmarks * 3 = 63 values/frame
+right hand = 21 landmarks * 3 = 63 values/frame
 ```
 
-The new base model is:
+New architecture:
 ```text
 Pose encoder
 Face encoder
 Left-hand encoder
 Right-hand encoder
-        ↓
+        |
+        v
 Learned gated multimodal fusion
-        ↓
-Temporal convolution block
-        ↓
+        |
+        v
+Temporal convolution
+        |
+        v
 Shared Transformer
-        ↓
-49-class CTC head
+        |
+        v
+49-class character CTC head
 ```
 
-The hand-aware model uses local temporal convolution before global attention because sign motion contains short-range movement patterns as well as longer temporal dependencies.
+The temporal convolution is intended to capture local signing motion before global Transformer attention.
 
-## Important checkpoint consequence
-The previous `base_model.pt` is a legacy pose+face checkpoint. It is NOT silently loaded into the new architecture.
+## Implementation
+`backend/app/models/base_model.py`
+- added `HAND_INPUT_DIM=63`;
+- added separate left/right hand encoders;
+- added four-stream gated fusion;
+- added temporal convolution;
+- accepts synchronized length masks;
+- still freezes only in the inference loader.
 
-`load_frozen_base_model()` now rejects a legacy checkpoint with an explicit retraining message. `model_status()` reports:
+`backend/scripts/extract_keypoints.py`
+- extracts left/right 21-point hand skeletons;
+- writes `left_hand/<uid>.npy` and `right_hand/<uid>.npy`;
+- validates dimensions, frame alignment, and finite values.
+
+`backend/app/training/isltranslate.py`
+- loads all four streams;
+- validates all four streams;
+- keeps frame alignment while downsampling;
+- pads all four streams in CTC collation.
+
+`backend/app/training/train_base_model.py`
+- trains the hand-aware model with four modalities;
+- preserves gradient/trainability/checkpoint protections.
+
+`backend/app/training/overfit_sanity.py`
+- tests the hand-aware model on real examples;
+- rejects trivial outputs.
+
+`backend/app/services/inference_service.py`
+- accepts four modalities;
+- rejects the legacy pose+face checkpoint;
+- reports legacy checkpoint readiness as unavailable until retraining.
+
+`backend/app/api/translate.py` and `backend/app/api/calibration.py`
+- validate and pass both hand streams through the API.
+
+`backend/app/models/bridge_adapter.py` and `backend/app/services/calibration_service.py`
+- adapt/calibrate using the hand-aware multimodal path;
+- retain support logic for legacy pose+face base modules inside the adapter implementation where applicable.
+
+## Checkpoint rule
+The previous `backend/app/models/weights/base_model.pt` is a legacy pose+face artifact. Do not use it with the new production path.
+
+`load_frozen_base_model()` now raises a clear retraining error for a legacy checkpoint instead of attempting an unsafe partial load.
+
+Status:
 ```text
-legacy_checkpoint_requires_retraining
+HAND-AWARE CODE: CODE FIXED
+LEGACY CHECKPOINT: INVALID FOR NEW MODEL
+NEW CHECKPOINT: NOT YET TRAINED
+MODEL QUALITY: NOT VERIFIED
 ```
-for that artifact.
-
-The project must train a new hand-aware checkpoint before translation readiness can become `ready`.
-
-## Extraction
-`extract_keypoints.py` now writes:
-```text
-pose/<uid>.npy
-face/<uid>.npy
-left_hand/<uid>.npy
-right_hand/<uid>.npy
-```
-and retains a backward-compatible pose+face wrapper for old extraction callers.
-
-## Dataset/collation
-`isltranslate.py` now loads and validates all four streams and pads/downsamples them using one shared frame index sequence.
-
-## API
-Translation and calibration contracts now carry left/right hand arrays. The API validates frame synchronization, dimensions, finiteness, and maximum sequence length before tensor conversion.
-
-## Adapter
-BridgeAdapter calibration now consumes all four streams while keeping the trained base frozen.
-
-## Regression test
-`backend/tests/test_hand_contract.py` covers hand-aware output shape and required-hand validation.
-The long-clip collation regression now includes both hand streams and verifies a finite CTC loss through the hand-aware model.
 
 ---
 
-# I. Frontend framework redesign
+# I. Frontend framework migration
 
-The frontend is being standardized around:
+## Framework
+The frontend is standardized on:
 ```text
 React + Vite + TypeScript
 ```
-with a small reusable API client and a reusable MediaPipe landmark-session hook.
 
-The new UI direction is:
+Reason: the application has multiple connected authenticated workflows and real-time camera state. React provides a single state/rendering model while Vite gives a straightforward production build. The backend remains FastAPI rather than forcing an unrelated server framework onto the ML/API layer.
+
+## Design language
+User preference:
 ```text
 monochrome
-minimal
-high whitespace
-subtle borders
-restrained typography
-no decorative fake metrics
+neat
+stylish
+minimalistic
 ```
 
-Live translation now:
-- opens the real camera;
-- loads MediaPipe Holistic;
-- tracks pose/face/hands;
-- displays left/right 21-point skeleton overlays;
-- buffers synchronized frames;
-- sends all four streams to the API;
-- displays real prediction/confidence/latency/error states.
+The new UI uses:
+- restrained black/white/gray palette;
+- high whitespace;
+- subtle borders;
+- compact status indicators;
+- minimal decorative UI;
+- real application state rather than fake metrics.
 
-Calibration now captures real synchronized multimodal frames for adapter fitting rather than pretending that a timer is calibration.
-
-Dashboard/history/evaluation/settings consume backend data instead of fake static values.
-
-Render frontend build now targets Vite `dist` with an SPA rewrite.
-
-Runtime browser verification is still `NOT VERIFIED` until a real browser session confirms camera permissions, MediaPipe loading, overlay drawing, and API translation.
-
----
-
-# J. Git incidents and protections
-
-Observed:
+## New frontend structure
 ```text
-Author identity unknown
+frontend/
+  index.html
+  package.json
+  vite.config.ts
+  tsconfig.json
+  src/
+    main.tsx
+    App.tsx
+    api.ts
+    landmarks.ts
+    useLandmarkSession.ts
+    styles.css
+    vite-env.d.ts
 ```
-Fix: configure Git identity in Colab before local commits.
 
-Observed:
+`landmarks.ts` centralizes MediaPipe loading, hand skeleton topology, and synchronized frame extraction.
+
+`useLandmarkSession.ts` owns camera, MediaPipe lifecycle, sampling, canvas overlay, and synchronized landmark capture.
+
+`App.tsx` contains the connected application routes:
 ```text
-Unexpected file staged/changed: data/model_check/
+/dashboard
+/translate
+/calibration
+/history
+/evaluation
+/settings
 ```
-The push whitelist correctly refused unrelated diagnostic artifacts.
 
-Model-push rule:
-Only explicitly approved checkpoint/vocabulary files may be staged by the training notebook. Temporary validation directories stay outside source history.
+The live translation screen:
+- uses the real camera;
+- tracks pose/face/left/right hands;
+- draws both 21-point hand skeletons;
+- sends four-stream windows to the API;
+- displays real prediction/confidence/latency/errors.
 
----
+Calibration captures synchronized multimodal frames rather than merely running a timer.
 
-# K. Application hardening history
+## Legacy frontend removal
+The previous static page system duplicated the application and created a second UI source of truth. The obsolete `frontend/pages/*` pages and legacy `frontend/assets/*` CSS/JS files were removed so the Vite React application is the canonical deployed frontend.
 
-Previously completed general hardening includes:
-- JWT registration/login;
-- server-side ownership authorization;
-- translation/calibration payload validation;
-- readiness endpoint separate from liveness;
-- safe adapter deletion staging;
-- persistent dashboard/history/evaluation data flows;
-- authenticated CSV export;
-- CORS/security headers;
-- timeout-aware frontend API client;
-- removal of fake translation and fabricated benchmark claims.
-
-Known production constraints:
-- SQLite on Render is ephemeral;
-- browser bearer token is still stored in localStorage;
-- production rate limiting is not implemented;
-- raw-video server-side inference is not implemented.
+Status:
+```text
+REACT/VITE STRUCTURE: CODE FIXED
+LEGACY DUPLICATE FRONTEND: REMOVED
+BROWSER RUNTIME: NOT VERIFIED
+```
 
 ---
 
-# L. Claude polish history
+# J. Notebook redesign
 
-Claude's prior polish pass reported six fixes:
-1. test self-reference false failure;
-2. lazy pandas import for clean CI;
-3. dead auth ternary removal;
-4. authenticated CSV export via fetch/Blob;
-5. removal of redundant Render cwd override;
-6. CER evaluator correction.
-
-Claude reported 52/52 passing plus compile/YAML checks. Treat this as `CLAUDE-REPORTED` until independently rerun.
-
----
-
-# M. Canonical notebooks
-
-Keep these three project notebooks:
+Canonical notebooks:
 ```text
 notebooks/train_base_model_colab.ipynb
 notebooks/train_base_model_lightning.ipynb
 notebooks/validate_base_model_colab.ipynb
 ```
 
-Colab notebook responsibilities:
-1. safe repo sync;
-2. GPU check;
-3. isolated MediaPipe setup;
-4. automatic real dataset download;
-5. collision-safe data rebuild;
-6. four-stream extraction;
-7. dataset contract validation;
-8. semantic overfit gate;
-9. hand-aware full training;
-10. multi-sample semantic acceptance;
-11. optional safe model push.
+The Colab notebook now follows:
+```text
+fresh runtime
+ -> safe git sync
+ -> GPU check
+ -> isolated MediaPipe
+ -> automatic ISL-CSLTR download
+ -> collision-safe manifest
+ -> four-stream extraction
+ -> data contract validation
+ -> semantic overfit gate
+ -> full hand-aware training
+ -> multi-sample semantic acceptance
+ -> optional safe model push
+```
 
-Lightning notebook responsibilities:
-- persistent-workspace orchestration;
-- same repository model/trainer rather than a divergent second implementation;
-- four-stream validation;
-- semantic gate;
-- resumable long training.
+The validation notebook:
+```text
+automatic dataset download
+ -> several real sentence videos
+ -> four-stream extraction
+ -> hand-aware checkpoint check
+ -> inference
+ -> ground truth/prediction/confidence/CER/blank/space/shape report
+```
 
-Validation notebook responsibilities:
-- automatic real-video selection;
-- four-stream extraction;
-- reject legacy checkpoint;
-- report prediction/confidence/CER/blank/space ratios and shapes for several real videos.
+The Lightning notebook is a persistent-workspace orchestrator around the same repository training code so Colab and Lightning do not silently implement different models.
 
 ---
 
-# N. Current blocker board
+# K. Git incidents / model push history
 
+Earlier model push:
 ```text
-A  Hand-aware extraction on clean Colab            NOT VERIFIED
-B  Hand-aware semantic overfit                      NOT VERIFIED
-C  Hand-aware full training                         BLOCKED until B
-D  New hand-aware checkpoint                        NOT AVAILABLE until C
-E  Multi-video real validation                      BLOCKED until D
-F  BridgeAdapter real calibration validation        BLOCKED until E
-G  Current CI after redesign                        NOT VERIFIED
-H  Browser runtime hand overlay                    NOT VERIFIED
-I  Render end-to-end after React migration          NOT VERIFIED
-J  Durable production DB                            NOT IMPLEMENTED
-K  HttpOnly auth strategy                           NOT IMPLEMENTED
-L  Production rate limiting                         NOT IMPLEMENTED
-M  40 GB training scale                             BLOCKED until correctness is proven
+241d8fcb664ac81612f3aa6e28360dd7c8dc9e5b
+```
+Only the model checkpoint was staged; `data/model_check/` remained untracked.
+
+Git identity failure:
+```text
+Author identity unknown
+```
+Fix: explicit user.name/user.email in Colab before local commit.
+
+Whitelist failure:
+```text
+Unexpected file staged/changed: data/model_check/
+```
+Fix: only explicitly approved model/vocabulary paths are staged.
+
+Current hand-aware migration intentionally invalidates the old checkpoint for readiness. A new checkpoint must not be pushed until semantic gates pass.
+
+---
+
+# L. General backend/security hardening
+
+Implemented or previously hardened:
+- JWT authentication;
+- server-side ownership checks;
+- request dimension/finiteness validation;
+- readiness vs liveness endpoints;
+- calibration duration and frame caps;
+- adapter budget enforcement;
+- safe adapter deletion;
+- real dashboard/history/evaluation data flows;
+- authenticated CSV export;
+- CORS/security headers;
+- timeout-aware API client;
+- removal of fake production translation/benchmark behavior.
+
+Known production gaps:
+```text
+SQLite on Render -> ephemeral
+localStorage bearer token -> still present
+rate limiting -> not implemented
+raw video server inference -> not implemented
 ```
 
 ---
 
-# O. Required next execution
+# M. Claude polish history
+
+Claude's earlier polish pass reported:
+1. test self-reference false failure fixed;
+2. pandas import moved to lazy import;
+3. dead auth ternary simplified;
+4. CSV export fixed to authenticated fetch/Blob;
+5. Render cwd-fragility override removed;
+6. CER placeholder evaluation bug fixed.
+
+Claude reported 52/52 tests and compile/YAML checks. This remains `CLAUDE-REPORTED` until independently rerun.
+
+---
+
+# N. Required acceptance gates
+
+## Gate A — Dataset
+```text
+metadata
+pose
+face
+left_hand
+right_hand
+unique UID
+aligned frame counts
+finite features
+valid targets
+valid CTC alignment
+```
+
+## Gate B — Semantic overfit
+Must demonstrate:
+```text
+finite loss
+meaningful loss reduction
+not blank-only
+not space-only
+multiple meaningful tokens
+acceptable CER
+```
+
+## Gate C — Full training
+Only after Gate B.
+
+## Gate D — Multi-sample train/held-out acceptance
+Use several train and validation examples and reject trivial output.
+
+## Gate E — Real-video validation
+Use multiple real ISL videos and record:
+```text
+ground truth
+prediction
+confidence
+CER
+blank ratio
+space ratio
+frame count
+pose/face/hand shapes
+```
+
+## Gate F — Application E2E
+Verify:
+```text
+auth
+-> dashboard
+-> live translation
+-> hand skeleton overlay
+-> calibration
+-> adapter
+-> history
+-> evaluation
+-> settings
+```
+
+---
+
+# O. Verification status
+
+Static GitHub inspection confirms the new hand-aware files and React frontend structure are present on `main`.
+
+A local container clone attempt was blocked by the environment's inability to resolve `github.com`, so local compile/build execution was NOT VERIFIED here.
+
+GitHub Actions for the latest hand-aware redesign commit had not produced a visible workflow run through the available connector at the time of this entry. Therefore CI is NOT VERIFIED.
+
+The new Colab hand-aware training path has not yet passed a fresh runtime semantic overfit gate. The old checkpoint is explicitly rejected by the new loader. Therefore model quality remains NOT VERIFIED.
+
+---
+
+# P. Current blocker board
+
+```text
+A  fresh hand-aware Colab extraction             NOT VERIFIED
+B  hand-aware semantic overfit                   NOT VERIFIED
+C  full hand-aware training                      BLOCKED until B
+D  new hand-aware checkpoint                     BLOCKED until C
+E  multi-video real validation                   BLOCKED until D
+F  adapter calibration on new checkpoint         BLOCKED until E
+G  backend CI after migration                    NOT VERIFIED
+H  frontend TypeScript/Vite build                NOT VERIFIED
+I  browser camera + hand overlay                 NOT VERIFIED
+J  Render E2E after Vite migration               NOT VERIFIED
+K  durable production DB                          NOT IMPLEMENTED
+L  HttpOnly production auth                       NOT IMPLEMENTED
+M  production rate limiting                       NOT IMPLEMENTED
+N  40 GB scale                                   BLOCKED until correctness
+```
+
+---
+
+# Q. Required next execution
 
 1. Start a fresh Colab GPU runtime.
 2. Pull latest `main`.
-3. Run `train_base_model_colab.ipynb` from cell 1.
-4. Confirm extraction creates all four arrays with synchronized frame counts.
+3. Run `notebooks/train_base_model_colab.ipynb` from cell 1.
+4. Confirm four feature directories exist and every sample is synchronized.
 5. Confirm `DATASET INTEGRITY: PASS`.
-6. Run the semantic overfit gate and stop immediately if it fails.
-7. Do not use the old pose+face checkpoint.
-8. Train the new hand-aware checkpoint only after Gate B passes.
-9. Run multi-sample train/held-out acceptance.
-10. Push checkpoint + vocabulary only after semantic acceptance.
-11. Run `validate_base_model_colab.ipynb` on several automatically selected real videos.
-12. Run backend tests and frontend TypeScript/build checks.
-13. Test the React browser flow with a real camera and verify both hand skeletons visibly track.
-14. Test auth -> dashboard -> translate -> history -> calibration -> adapter -> evaluation.
-15. Only after correctness is established, scale the data from ~8.5 GB toward 40 GB using incremental extraction, sharding, bounded memory, workers, and resumable checkpoints.
+6. Run the hand-aware semantic overfit gate.
+7. If it fails, stop and diagnose the first failure. Do not full-train.
+8. If it passes, run full hand-aware training.
+9. Run multi-sample train/held-out semantic acceptance.
+10. Push only after that acceptance passes.
+11. Run `validate_base_model_colab.ipynb` against several real videos.
+12. Run backend tests and `npm run check` / `npm run build` for the React frontend.
+13. Run browser camera/E2E checks with actual hand skeleton rendering.
+14. Verify Render build/readiness/auth/CORS.
+15. Only then consider large-scale 8.5 GB -> 40 GB training.
 
 ---
 
-# P. Design priorities for future agents
+# R. Scaling 8.5 GB -> 40 GB
 
-1. Correctness before scale.
-2. Real data before benchmark claims.
-3. Semantic evidence before checkpoint push.
-4. Hands are first-class model inputs in the new architecture.
-5. Reuse the canonical repository trainer instead of duplicating training logic in notebooks.
-6. Keep temporary data outside source history.
-7. Do not claim runtime verification without runtime evidence.
-8. Preserve the monochrome/minimal product language.
-9. Fix root causes, not symptoms.
-10. Update this file whenever a gate passes/fails or a new blocker appears.
+More data does not repair a broken objective. Once correctness is established, the larger dataset should use:
+```text
+incremental extraction
+ -> sharded persistent features
+ -> bounded DataLoader memory
+ -> pinned memory/workers
+ -> deterministic manifests
+ -> resumable checkpoints
+ -> periodic semantic validation
+```
+
+Do not load the whole 40 GB source dataset into RAM.
 
 ---
 
-# Q. Release verdict
+# S. Final release verdict
 
 ## NOT READY
 
-The software architecture is substantially more coherent and the hand-aware redesign is implemented in code, but the central product promise is still blocked by model runtime verification.
+Reason:
+- the previous checkpoint failed CTC semantics;
+- the strengthened gate correctly blocked the latest old-architecture attempt;
+- the hand-aware architecture and integrations are now implemented, but have not yet passed a fresh real-data semantic runtime gate;
+- the old checkpoint is deliberately rejected by the new loader;
+- browser/runtime/CI deployment verification remains open.
 
-The next valid milestone is:
+The product should only move to `READY WITH MINOR ISSUES` after the hand-aware model and application gates pass.
+
+---
+
+# T. LATEST DIARY ENTRY — FULL PROTOCOL REDESIGN + HAND-AWARE MIGRATION
+
+## 2026-08-27
+
+User requested full-scale redesign using the uploaded autonomous engineering protocol and a suitable project-wide framework, plus a preference for a monochrome/minimal visual system.
+
+Actions performed:
 ```text
-fresh real data
- -> four-stream extraction
- -> semantic overfit PASS
- -> hand-aware training
- -> multi-video real validation
- -> application E2E verification
+1. Reconstructed the ML model as a hand-aware four-stream temporal architecture.
+2. Extended extraction to left/right MediaPipe hand skeletons.
+3. Extended dataset loading/collation to four synchronized streams.
+4. Extended training and semantic overfit gate to four streams.
+5. Extended translation/calibration APIs and services.
+6. Changed model readiness so the old legacy checkpoint is unavailable until retraining.
+7. Added React/Vite/TypeScript application structure.
+8. Added shared landmark/session modules and visible 21-point hand skeletons.
+9. Replaced timer-only calibration with real capture/submission flow.
+10. Migrated the Render frontend to Vite build/dist + SPA routing.
+11. Removed duplicate legacy static pages and JS/CSS assets so React is the single frontend source.
+12. Updated the canonical Colab and validation workflows for hand-aware data.
+13. Rebuilt Lightning Studio notebook around the canonical repository trainer.
+14. Added hand model/collation regression coverage.
+15. Updated this diary with the full migration and current blocker state.
 ```
 
-Only after those gates pass should the project be treated as a functioning ISL translation product or scaled to 40 GB training.
+Tests/verification:
+```text
+GitHub source inspection: PASS
+GitHub branch updates: PASS
+Local compile/build: NOT VERIFIED (container network could not resolve github.com)
+GitHub Actions latest run: NOT VERIFIED (no run surfaced)
+Fresh Colab hand-aware semantic overfit: NOT VERIFIED
+Browser E2E: NOT VERIFIED
+Model quality: NOT VERIFIED
+```
+
+Important conclusion:
+```text
+The project is now architecturally migrated to a hand-aware multimodal stack,
+but the new model must be trained and semantically validated before the product
+can be called functional. Do not push the legacy checkpoint as a hand-aware model.
+```
