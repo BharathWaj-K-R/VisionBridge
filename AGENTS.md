@@ -1,292 +1,1388 @@
-# VisionBridge Multi-Agent Engineering Contract
+# VisionBridge Multi-Agent Engineering Contract + Complete Project Diary
 
-## State-update rule
-Every meaningful code/notebook change, error, test, training result, validation result, root-cause discovery, workaround, decision, blocked state, and milestone must be recorded here. Never mark VERIFIED without runtime evidence.
+## 0. PURPOSE / OPERATING PROTOCOL
 
-## Mission
-Continuous Indian Sign Language -> English translation.
+This file is the persistent hand-off memory for all agents working on VisionBridge (ChatGPT/Codex, Claude, or future agents).
+
+### State-update rule
+Every meaningful code/notebook change, error, test result, training result, validation result, root-cause discovery, workaround, decision, blocked state, and milestone must be recorded here.
+
+Never mark anything `VERIFIED` unless an actual runtime check produced the evidence.
+
+### Scope rule
+Change only the files required for the current task. Unrelated files must remain untouched. Do not use destructive Git operations (`git reset --hard`, `git clean`, blanket checkout/reset) in Colab workflows when user work may exist.
+
+### Training safety rule
+Never push a model checkpoint merely because:
+- loss decreased;
+- logits are finite;
+- at least one non-blank frame exists;
+- one trivial token is emitted;
+- an acceptance cell prints `PASS` without semantic evidence.
+
+A checkpoint is acceptable only after real-data semantic validation.
+
+### Handoff rule
+If an agent is interrupted, the next agent must read this file first and continue from the last recorded state rather than repeating old experiments blindly.
+
+---
+
+# 1. MISSION
+
+Continuous Indian Sign Language (ISL) -> English translation.
 
 ```text
-Real video -> MediaPipe Holistic -> pose(132) + face(1404) -> VisionBridgeBaseModel -> CTC decode -> English -> optional BridgeAdapter
+Real video
+  -> MediaPipe Holistic
+  -> pose(132) + face(1404)
+  -> VisionBridgeBaseModel
+  -> CTC decode
+  -> English text
+  -> optional BridgeAdapter signer personalization
 ```
 
-## Current repository state
-- Branch: `main`.
-- GitHub read/write: available.
-- Direct shell clone/runtime in this agent: blocked because `github.com` DNS cannot be resolved. Latest backend tests, browser E2E, and live Render checks are therefore NOT VERIFIED here.
-- Historical backend result: `30 passed, 0 failures`, but that predates the latest audit passes.
-- Claude polish commit `dcc132834a68bc607d47eb14c500466da516cbe6` is present and its six changes were independently inspected through Git history; Claude-reported runtime verification remains CLAUDE-REPORTED, not independently rerun here.
-- Current checkpoint and vocabulary are present in the repository, but checkpoint quality remains NOT VERIFIED.
+Product intent:
+- real browser camera capture;
+- browser-side landmark extraction;
+- server-backed translation;
+- few-shot signer adaptation;
+- authenticated history/calibration/profile workflows.
 
-## Core model contract
-- Pose: 132 values/frame.
-- Face: 1404 values/frame.
-- Maximum inference sequence: 1024 frames.
-- CTC blank: 0.
-- Backbone: pose encoder + face encoder + cross-modal fusion + shared Transformer + character head.
+---
 
-## Historical ML failure diary
-### Duplicate UID corruption
-Problem: sentence-level dataset paths can contain repeated filenames such as `fever (2).MP4`.
-Root cause: old training notebook used filename stem as the global UID.
-Impact: `.npy` feature files could overwrite each other or become mismatched with text labels.
-Fix: Colab training rebuilds processed data and generates collision-safe IDs from sentence label + filename + relative-path hash.
-Status: FIXED IN CODE, CLEAN RETRAIN NOT VERIFIED.
+# 2. CORE REPOSITORY CONTRACT
 
-### Real-video blank-collapse checkpoint
-Evidence from prior runtime:
-- `you are good`: pose `(69,132)`, face `(69,1404)`, predicted `(no sign detected)`, blank ratio `1.0`.
-- `i am suffering from fever`: pose `(72,132)`, face `(72,1404)`, predicted `(no sign detected)`, blank ratio `1.0`.
-The previous checkpoint is rejected as quality evidence.
+## Model/data contract
 
-### Deterministic split mismatch
-Root cause: training split and notebook acceptance could use different split orderings.
-Fix: deterministic seed 42 is shared between training and acceptance.
-Status: FIXED IN CODE, NOT RUNTIME-VERIFIED.
+| Item | Contract |
+|---|---:|
+| Pose features / frame | 132 |
+| Face features / frame | 1404 |
+| Maximum inference sequence | 1024 frames |
+| CTC blank token | 0 |
+| Vocabulary size | 49 in current checkpoint/vocab |
+| Calibration minimum | 300 seconds |
+| Calibration fitting cap | 256 frames |
 
-### CTC space-token collapse (latest runtime evidence)
-Runtime evidence from a freshly trained checkpoint on the 299-sample processed subset:
-- tokenizer: 49 classes, blank id 0, space id 37.
-- training sample `i am so sorry to hear that`: logits `(1,123,49)`, space on 123/123 frames, blank ratio 0, meaningful token count 0.
-- validation sample `i am hungry`: logits `(1,106,49)`, space on 106/106 frames, blank ratio 0, meaningful token count 0.
-- mean P(space) about 0.8521 on both samples.
-- manual greedy CTC decode and repository decoder both return `' '`.
-- feature tensors are finite and differ across the two videos, so the failure is not explained by zero input data.
-- target encoding is correct for inspected labels; spaces are token 37 and target lengths match character lengths.
-Conclusion: the checkpoint is semantically collapsed to the space token. This is not a decoder mismatch.
+Backbone:
+```text
+Pose encoder + Face encoder + Cross-modal fusion + Shared Transformer + CTC character head
+```
 
-## Important inference/training distinction
-`load_frozen_base_model()` intentionally freezes the complete model for inference. A forensic check that loads the checkpoint through this function will correctly report zero trainable parameters. This is NOT the root cause of the training failure.
-The training script constructs `VisionBridgeBaseModel` directly and passes its trainable parameters to AdamW. Training must therefore be debugged in the training path, not by removing inference-time freezing.
+## Repository layout
 
-## ML/data hardening diary
-`backend/app/training/isltranslate.py` rejects duplicate IDs, wrong pose/face shape, frame mismatch, empty/non-finite streams, unsupported target characters, impossible CTC targets, and invalid batch feature dimensions.
+```text
+backend/    FastAPI + SQLAlchemy/SQLite + model/training code
+frontend/   static HTML/CSS/vanilla JS UI
+notebooks/  Colab + Lightning + validation notebooks
+data/       dataset preparation/output area
+.github/    regression CI
+render.yaml Render deployment configuration
+```
 
-CTC contract accounts for adjacent repeated labels: minimum required input length is `target_length + repeated_adjacent_labels`.
+## Canonical project notebooks
 
-Tokenizer no longer silently drops unsupported target characters.
+Keep exactly these as project training/validation notebooks:
 
-`backend/scripts/extract_keypoints.py` resolves video files case-insensitively across common video extensions.
+1. `notebooks/train_base_model_colab.ipynb`
+2. `notebooks/train_base_model_lightning.ipynb`
+3. `notebooks/validate_base_model_colab.ipynb`
 
-`backend/scripts/convert_isign_pose.py` strictly enforces pose 132 / face 1404, aligned non-empty finite arrays, and rejects stale incompatible face streams.
+Temporary diagnostic/support notebooks should not become permanent repository clutter.
 
-Evaluator/inference load the saved vocabulary, reserve token 0 for CTC blank, and fail closed on checkpoint/vocabulary mismatch.
+---
 
-## Latest training-path hardening
-`backend/app/training/train_base_model.py` now:
-- explicitly verifies the scratch model has trainable parameters;
-- passes only trainable parameters to AdamW;
-- performs a first-training-batch gradient sanity check and fails on missing/non-finite gradients;
-- removes stale output/vocabulary files for non-resume runs so an old checkpoint cannot masquerade as a new result;
-- enables pinned memory and optional multi-worker loading for GPU training;
-- supports `--num-workers` (default 2);
-- saves a resumable checkpoint after each epoch when requested;
-- refuses to claim successful training if no final checkpoint was created.
-Status: CODE FIXED, runtime verification pending.
+# 3. COMPLETE ISSUE / FIX DIARY FROM THE BEGINNING
 
-## Latest CTC sanity-gate hardening
-`backend/app/training/overfit_sanity.py` was strengthened after the 100%-space collapse was observed.
-The gate now measures:
-- loss reduction;
-- whitespace-only prediction;
-- space-token frame ratio;
-- meaningful-token diversity;
-- character error rate.
-A single non-blank token is no longer enough. Space collapse and degenerate predictions now fail the gate.
-It also exposes pure helpers for CER/semantic-gate testing.
-Status: CODE FIXED, runtime verification pending.
+## Phase A — Initial project state and architecture work
 
-## Latest Colab notebook hardening
-`notebooks/train_base_model_colab.ipynb` was rebuilt so that:
-- it refuses to start from a dirty local repository;
-- no temporary MediaPipe extraction helper is written into the repository;
-- processed training data is rebuilt from scratch;
-- UIDs are globally collision-safe;
-- feature extraction enforces pose 132 / face 1404;
-- dataset integrity runs before training;
-- the strengthened semantic overfit gate runs before full training;
-- full training uses deterministic seed 42 and the hardened training script;
-- post-training acceptance evaluates multiple train and held-out samples;
-- acceptance rejects blank/space/trivial-token collapse and requires prediction diversity;
-- model/vocabulary compatibility is checked;
-- model push does NOT use destructive `git reset`/`git clean` operations and stages only the checkpoint + companion vocabulary.
-Status: CODE UPDATED, fresh Colab runtime verification pending.
+The project evolved from a prototype toward a real authenticated application. Early work established:
+- FastAPI backend;
+- static frontend;
+- PyTorch Pose+Face model;
+- CTC character decoding;
+- signer-adaptive BridgeAdapter concept;
+- Colab training and validation workflows;
+- Render deployment.
 
-## Backend/API hardening diary
-- Added bearer-auth dependency helpers.
-- Anonymous base-model translation remains allowed for the public demo.
-- Any user-scoped request requires a matching authenticated user.
-- Adapter use requires authenticated ownership.
-- Calibration requires authentication and matching user.
-- Translation validates frame count, dimensions, finite values, and maximum frame count before PyTorch.
-- Calibration validates target text/labels, true CTC minimum length, feature dimensions, finite values, and minimum duration.
-- Calibration uses `CALIBRATION_MAX_FRAMES=256` by default and evenly downsamples long sessions before adapter fitting.
-- Adapter parameter budget is enforced before saving.
-- Adapter deletion is owner-scoped and removes the stored file as well as the DB row using a reversible tombstone step around the DB transaction.
+Historical infrastructure constraints:
+- Render free tier has limited RAM/CPU and ephemeral local storage;
+- Colab is the practical training environment;
+- the complete ISLTranslate/related source data can be very large;
+- model weights are not expected to be trained on Render.
 
-## Health/readiness diary
-Problem: old `/health` returned HTTP 200 even when model readiness was degraded.
+---
+
+## Phase B — Dataset / feature extraction failures
+
+### 1. Missing processed dataset
+Observed:
+```text
+/content/VisionBridge/data FOUND
+/content/VisionBridge/data/processed MISSING
+/content/VisionBridge/data/processed/isltranslate MISSING
+```
+
+The notebook expected:
+```text
+data/processed/isltranslate/ISLTranslate.csv
+data/processed/isltranslate/pose/
+data/processed/isltranslate/face/
+```
+
+Fix direction:
+- rebuild processed data from the real dataset in Colab;
+- make the training notebook download/reconstruct data instead of assuming local processed files exist.
+
+Status: fixed in training notebook workflow; fresh end-to-end runtime still required for final verification.
+
+### 2. Uppercase `.MP4` path bug
+Observed:
+```text
+Skipping fever (2): no video file at .../fever (2).mp4
+```
+while actual file was:
+```text
+fever (2).MP4
+```
+
+Root cause: case-sensitive extension lookup on Linux.
+
 Fix:
-- `/api/v1/health` = lightweight process liveness.
-- `/api/v1/ready` = model/vocabulary readiness, returns HTTP 503 when not ready.
-- Render `healthCheckPath` points to `/api/v1/ready`.
-Readiness metadata is cached by model/vocab mtime+size.
-Status: FIXED IN CODE, NOT RUNTIME-VERIFIED.
+- extraction now resolves common video extensions case-insensitively:
+  `.mp4/.MP4/.avi/.AVI/.mov/.MOV/.mkv/.MKV`.
 
-## Feature completion diary
+Status: code fixed.
+
+### 3. Real-video extraction output mismatch
+Observed:
+```text
+VIDEO_ROOT contents:
+/content/VisionBridge/data/model_check/videos/good (3).MP4
+```
+while an intermediate step expected the lower-case filename.
+
+Fix:
+- use the exact selected source path when copying/extracting;
+- resolve paths independently of extension case;
+- ensure generated UID and output names derive from the actual source path.
+
+Status: code/workflow hardened.
+
+### 4. Feature dimensions
+The expected runtime contract became:
+```text
+pose = (T,132)
+face = (T,1404)
+```
+
+Observed successful real extraction examples:
+```text
+you are good -> pose (69,132), face (69,1404)
+i am suffering from fever -> pose (72,132), face (72,1404)
+```
+
+Guards were added so wrong dimensions fail explicitly.
+
+---
+
+## Phase C — MediaPipe runtime failures
+
+### 5. `mediapipe.solutions` missing
+Observed:
+```text
+AttributeError: module 'mediapipe' has no attribute 'solutions'
+```
+
+Root cause: Colab Python / MediaPipe API compatibility drift.
+
+Attempted legacy import:
+```python
+from mediapipe.python.solutions import holistic
+```
+which then failed under an incompatible installation:
+```text
+ModuleNotFoundError: No module named 'mediapipe.python'
+```
+
+### 6. MediaPipe isolated runtime
+A dedicated Python 3.12 environment was introduced inside Colab:
+```text
+/content/visionbridge_mp312
+```
+with pinned:
+```text
+mediapipe==0.10.21
+numpy==1.26.4
+```
+
+### 7. Matplotlib backend crash
+Observed:
+```text
+ValueError: Key backend: 'module://matplotlib_inline.backend_inline' is not a valid value
+```
+
+Root cause: isolated MediaPipe process inherited the notebook inline backend.
+
+Fix:
+```text
+MPLBACKEND=Agg
+MPLCONFIGDIR=<isolated config directory>
+```
+
+Status: code/notebook hardened.
+
+---
+
+## Phase D — UID collision / dataset identity failure
+
+### 8. Duplicate filename collision
+The ISL-CSLTR dataset contains repeated filenames across sentence folders, for example:
+```text
+fever (2).MP4
+fever (5).MP4
+good (3).MP4
+```
+
+Using only:
+```text
+path.stem
+```
+as UID could overwrite feature files or associate features with the wrong text.
+
+Fix:
+- generated IDs now include normalized label + filename stem + hash derived from the relative source path;
+- training notebook rebuilds data using globally collision-safe IDs.
+
+Status: FIXED IN CODE.
+
+---
+
+## Phase E — Early CTC blank-collapse failure
+
+### 9. Real-video blank-collapse checkpoint
+Observed before hardening:
+```text
+GROUND TRUTH: He is going into the room
+PREDICTED:    (no sign detected)
+CONFIDENCE:   0.0
+BLANK RATIO:  1.0
+NON-BLANK:    0
+UNIQUE TOKENS: 0
+```
+
+Additional real clip evidence:
+```text
+you are good
+-> no sign detected
+-> blank ratio 1.0
+
+i am suffering from fever
+-> no sign detected
+-> blank ratio 1.0
+```
+
+Conclusion:
+- the old checkpoint was unusable;
+- full training was blocked until the CTC optimization path could be proven on real data.
+
+---
+
+## Phase F — Deterministic split / reproducibility
+
+### 10. Split mismatch risk
+Training and notebook acceptance could reconstruct different train/validation selections.
+
+Fix:
+```text
+seed = 42
+```
+shared for dataset split and relevant training/acceptance logic.
+
+Status: CODE FIXED; fresh clean runtime re-verification required.
+
+---
+
+## Phase G — Notebook portability / Colab problems
+
+### 11. Invalid notebook file
+Observed:
+```text
+NotebookMissingRequiredFieldsError: nbformat_minor
+```
+
+This meant the generated/modified notebook was not valid for Colab.
+
+Fix:
+- regenerate proper nbformat 4 notebook structure including required metadata such as `nbformat_minor`.
+
+Status: fixed; current canonical notebook was reconstructed as a valid Colab notebook.
+
+### 12. Notebook should be fully runnable from first cell
+Requirement established:
+- fresh Colab runtime;
+- run training notebook from cell 1 to last cell;
+- dataset downloaded automatically;
+- environment prepared automatically;
+- real features extracted automatically;
+- model trained;
+- checkpoint validated;
+- push only after semantic acceptance.
+
+Status: canonical training notebook rebuilt around that workflow.
+
+---
+
+## Phase H — Temporary model validation workflow
+
+### 13. Wrong assumption about preprocessed data in validation notebook
+Observed:
+```text
+Missing metadata CSV: /content/VisionBridge/data/processed/isltranslate/ISLTranslate.csv
+```
+
+Then user established:
+```text
+/content/VisionBridge/data/model_check/processed
+```
+contained:
+```text
+pose/
+face/
+ISLTranslate.csv
+```
+
+Fix direction:
+- validation notebook should construct its own isolated validation data directory;
+- do not assume training data already exists under the canonical training path;
+- automatically download/select real video and extract keypoints for validation.
+
+Status: validation workflow hardened; multi-video runtime verification remains open.
+
+### 14. Validation notebook should select a real video automatically
+Requirement:
+- download ISL-CSLTR automatically;
+- identify a real sentence-level video;
+- copy/extract it;
+- use ground-truth sentence from its folder name;
+- run real model inference;
+- report prediction/confidence/blank ratio/CER.
+
+---
+
+## Phase I — Model acceptance gate was too weak
+
+### 15. False `MODEL ACCEPTANCE: PASS`
+Observed:
+```text
+TRAIN: ('i am so sorry to hear that', ' ', 0.852..., 123)
+VAL:   ('i am hungry', ' ', 0.852..., 106)
+MODEL ACCEPTANCE: PASS
+```
+
+The original acceptance logic effectively did:
+```python
+if non_blank_frames == 0: fail
+```
+
+Therefore:
+```text
+' '
+```
+passed because it is technically non-blank.
+
+This was a serious acceptance-gate bug.
+
+Fix:
+- added semantic CTC gate;
+- reject whitespace-only prediction;
+- reject high space-token frame ratio;
+- require meaningful-token diversity;
+- calculate CER;
+- reject high-CER predictions;
+- retain loss-reduction requirement.
+
+Status: CODE FIXED.
+
+---
+
+## Phase J — Tokenizer/vocabulary investigation
+
+### 16. Vocabulary confirmed correct
+Current vocabulary:
+```text
+0  <blank>
+1  a
+...
+26 z
+27 0
+...
+36 9
+37 ' '
+38 .
+39 ,
+40 ?
+41 !
+42 '
+43 "
+44 -
+45 :
+46 ;
+47 (
+48 )
+```
+
+Thus:
+```text
+vocab size = 49
+blank id = 0
+space id = 37
+```
+
+### 17. Target encoding confirmed sane
+Example:
+```text
+'i am suffering from fever'
+```
+encoded as:
+```text
+[9, 37, 1, 13, 37, 19, 21, 6, 6, 5, 18, 9, 14, 7,
+ 37, 6, 18, 15, 13, 37, 6, 5, 22, 5, 18]
+```
+
+Target length matched character count.
+No blank labels were injected.
+
+Example:
+```text
+i am (age)
+```
+correctly included token IDs for `(` and `)`.
+
+Conclusion:
+- tokenizer target encoding was not the primary problem observed here.
+
+---
+
+## Phase K — CTC space-token collapse
+
+### 18. Definitive forensic result
+Fresh checkpoint inference on two real samples:
+
+```text
+TRAIN:
+Truth: 'i am so sorry to hear that'
+Prediction: ' '
+Blank ratio: 0.0000
+Space ratio: 1.0000
+Unique meaningful tokens: 0
+Confidence: ~0.852
+
+VALIDATION:
+Truth: 'i am hungry'
+Prediction: ' '
+Blank ratio: 0.0000
+Space ratio: 1.0000
+Unique meaningful tokens: 0
+Confidence: ~0.852
+```
+
+Raw model distributions:
+```text
+sample 0: space on 123/123 frames
+sample 1: space on 106/106 frames
+```
+
+Mean probability of space:
+```text
+~0.8521
+```
+
+Manual greedy CTC decoder and repository decoder agreed:
+```text
+' '
+```
+
+Therefore this was NOT a decoder mismatch.
+
+### 19. Input feature sanity
+Real feature data was finite and non-identical:
+```text
+Pose finite: True
+Face finite: True
+Pose mean abs difference between samples: ~0.1226
+Face mean abs difference between samples: ~0.0512
+```
+
+Conclusion:
+- input arrays were not simply all-zero or identical.
+
+### 20. Root cause classification
+```text
+SPACE TOKEN COLLAPSE
+```
+
+Important nuance:
+- this is the observed checkpoint behavior;
+- the underlying optimization/data cause required a training-path investigation;
+- do not assume the inference freeze is the cause.
+
+---
+
+## Phase L — Inference vs training distinction
+
+### 21. Zero trainable parameters forensic result
+A forensic diagnostic loaded the model using:
+```python
+load_frozen_base_model(...)
+```
+
+It reported:
+```text
+Total parameters: 7,512,369
+Trainable parameters: 0
+Frozen parameters: 7,512,369
+```
+
+Output head:
+```text
+Linear(..., out_features=49)
+Output head trainable: 0
+```
+
+This initially looked like a training failure.
+
+Repository inspection established the actual architecture boundary:
+- `load_frozen_base_model()` intentionally freezes the model for inference;
+- `train_base_model.py` constructs `VisionBridgeBaseModel` directly;
+- training uses AdamW over the training model parameters.
+
+Conclusion:
+```text
+0 trainable in inference loader = EXPECTED
+0 trainable in training model = BUG
+```
+
+Do NOT remove inference-time freezing merely to make the forensic number non-zero.
+
+---
+
+## Phase M — Training path hardening
+
+### 22. Training script changes
+`backend/app/training/train_base_model.py` was hardened to:
+- assert the scratch training model has trainable parameters;
+- pass only trainable parameters to AdamW;
+- verify gradients on the first training batch;
+- fail on missing or non-finite gradients;
+- clean stale output/vocab for non-resume runs so an old checkpoint cannot masquerade as a new run;
+- support pinned memory / GPU-friendly loading;
+- support configurable `--num-workers` (default 2 in notebook workflow);
+- support resumable checkpoint state when requested;
+- refuse to declare successful training without the expected final artifact.
+
+Status: CODE FIXED; fresh Colab runtime required.
+
+### 23. CTC sanity script changes
+`backend/app/training/overfit_sanity.py` now:
+- uses real samples;
+- performs an actual scratch training loop;
+- measures loss reduction;
+- measures blank ratio;
+- measures space-token ratio;
+- measures meaningful-token diversity;
+- calculates CER;
+- rejects whitespace-only predictions;
+- rejects high space collapse;
+- rejects trivial token diversity;
+- rejects high CER.
+
+It exposes semantic-gate helpers for regression tests.
+
+Status: CODE FIXED; runtime verification pending.
+
+### 24. One important implementation note
+The current sanity implementation intentionally uses a tiny, real-data subset and a real trainable `VisionBridgeBaseModel` from scratch. It is an optimization sanity gate, not a model-quality benchmark.
+
+---
+
+## Phase N — Notebook training workflow hardening
+
+### 25. Canonical Colab notebook
+`notebooks/train_base_model_colab.ipynb` was rebuilt to:
+- clone/pull `main` safely;
+- refuse to overwrite dirty repository work;
+- require GPU;
+- establish isolated MediaPipe 0.10.21 environment;
+- download the real ISL-CSLTR dataset;
+- select a controlled subset for practical Colab experimentation;
+- rebuild processed features from scratch;
+- use collision-safe UIDs;
+- validate pose/face dimensions;
+- validate dataset integrity before training;
+- run semantic CTC overfit gate before full training;
+- run full training using deterministic seed 42;
+- validate train and held-out samples after training;
+- push only checkpoint + vocabulary after acceptance;
+- avoid destructive `git reset` / `git clean` behavior;
+- keep temporary helper artifacts outside the repository.
+
+Important: the notebook's source of truth is the repository, and runtime proof must still be obtained in Colab.
+
+### 26. Training notebook vocabulary ordering
+A bug was found where the acceptance decoder could request the vocabulary before it had been saved.
+
+Fix:
+```text
+training succeeds
+ -> tokenizer vocabulary is saved immediately
+ -> acceptance decoder loads it
+ -> only then is model acceptance performed
+```
+
+---
+
+# 4. GIT / COMMIT / PUSH HISTORY
+
+## 27. Model checkpoint push
+A validated checkpoint was committed as:
+```text
+241d8fcb664ac81612f3aa6e28360dd7c8dc9e5b
+```
+with message:
+```text
+train: update validated VisionBridge base model
+```
+
+Only:
+```text
+backend/app/models/weights/base_model.pt
+```
+was staged/committed.
+
+A local untracked directory remained:
+```text
+data/model_check/
+```
+which was intentionally not pushed.
+
+### 28. Git identity failure
+A Colab push attempt initially failed with:
+```text
+Author identity unknown
+Please tell me who you are.
+```
+
+Lesson:
+- Colab Git configuration must explicitly set user.name and user.email before local commits if committing from that runtime.
+
+### 29. Unwanted staged directory safeguard
+A later commit cell correctly refused:
+```text
+data/model_check/
+```
+when it was not an allowed artifact.
+
+Conclusion:
+- model push must explicitly whitelist expected paths;
+- diagnostic/output directories must not accidentally enter source history.
+
+---
+
+# 5. CLAUDE POLISH / GENERAL APPLICATION HARDENING
+
+Claude's polish pass reported six additional issues and a larger regression pass.
+
+### 30. Test self-reference false failure
+A test's own explanatory content contained a substring that a naive assertion banned.
+Fix: reword test comments.
+
+### 31. Pandas module-level import
+A top-level pandas import could break clean CI.
+Fix: lazy import.
+
+### 32. Dead ternary in frontend auth code
+Simplified `X ? Y : Y` to the actual expression.
+
+### 33. CSV export auth bug
+Plain anchor navigation could not send bearer authentication and would 401.
+Fix:
+- use authenticated fetch helper;
+- create Blob download on success.
+
+### 34. Render cwd-fragility override
+A redundant `render.yaml` environment override reintroduced cwd sensitivity.
+Fix: removed redundant override.
+
+### 35. Evaluation CER bug
+A local evaluator used a placeholder string instead of empty text, producing nonsense numbers for total misses.
+Fix: score against actual empty prediction.
+
+Claude reported:
+```text
+52/52 passing
+Python compile clean
+JavaScript syntax clean
+YAML valid
+```
+
+Independent verification established that the claimed Claude commit exists and its diff matches the six fixes, but Claude's runtime numbers remain `CLAUDE-REPORTED` unless independently rerun.
+
+---
+
+# 6. BACKEND/API HARDENING DIARY
+
 ### Authentication
-Real registration/login UI and JWT bearer authentication added. Private pages redirect to authentication when no token is present.
+Implemented:
+- registration;
+- login;
+- JWT bearer authentication;
+- protected application routes.
+
+Anonymous base-model translation remains allowed by design when a compatible checkpoint is installed.
+
+### Authorization
+Implemented:
+- user-scoped access checks;
+- adapter ownership checks;
+- calibration authentication/ownership.
+
+### Translation validation
+Implemented checks for:
+- frame count;
+- pose 132;
+- face 1404;
+- finite values;
+- maximum sequence length.
+
+### Calibration validation
+Implemented:
+- target text/label contract;
+- CTC minimum-length validation;
+- minimum calibration duration;
+- finite feature validation;
+- 256-frame fitting cap;
+- synchronized downsampling.
+
+### Adapter lifecycle
+Implemented:
+- parameter budget enforcement;
+- owner-scoped deletion;
+- reversible file/DB deletion flow.
+
+### Health/readiness
+Changed from unsafe single health semantics to:
+```text
+GET /api/v1/health = liveness
+GET /api/v1/ready  = model/vocabulary readiness
+```
+`/ready` returns HTTP 503 when model readiness is unavailable.
+Render health check targets `/api/v1/ready`.
+Readiness metadata is cached by model/vocab signature.
+
+---
+
+# 7. FRONTEND HARDENING DIARY
+
+### Demo/static behavior removed
+Removed:
+- fake translation ticker;
+- fake production translation fallback;
+- hardcoded benchmark claims;
+- static dashboard activity;
+- static history cards;
+- mock calibration behavior.
 
 ### Dashboard
-Hardcoded usage/model/activity cards replaced with authenticated backend data derived from translation logs, model readiness, and the latest signer adapter.
+Now uses authenticated backend data:
+- model readiness;
+- translation counts;
+- average confidence;
+- average latency;
+- recent translation activity;
+- latest adapter.
 
 ### History
-Static history cards replaced with authenticated persistent history, search, date ranges, sorting, and CSV export.
+Now uses persistent API data with:
+- search;
+- date ranges;
+- sorting;
+- CSV export using authenticated fetch.
 
-### Signer profiles/adapters
-Static cards replaced with real adapter listing and owner-scoped deletion. Adapter file lifecycle is now cleaned up with the database record.
+### Signer profiles
+Now use real backend adapter listing + owner-scoped deletion.
 
 ### Evaluation
-Fabricated accuracy/BLEU/WER/memory claims removed. Evaluation reports only persisted evidence and explicitly says when benchmark data is unavailable.
+Only displays persisted evidence.
+Unmeasured benchmark metrics are explicitly unavailable rather than fabricated.
 
 ### Calibration
-Simulated calibration animation replaced with real browser MediaPipe capture, target-text submission, backend vocabulary encoding, CTC validation, frame capping/downsampling, and adapter persistence.
+Uses browser-side MediaPipe capture and submits synchronized pose/face landmarks to backend fitting.
 
 ### Live translation
-Fake/demo translation fallback removed. Browser MediaPipe produces 132/1404 keypoints and sends real inference requests to `/api/v1/translate`.
+Browser-side MediaPipe produces:
+```text
+pose [T,132]
+face [T,1404]
+```
+and the frontend sends those to `/api/v1/translate`.
 
-## Frontend integrity diary
-- Removed fake translation ticker and hardcoded model benchmark claims.
-- Dashboard/history/users/evaluation now render server-backed state.
-- Calibration page explicitly describes browser extraction and backend adapter fitting.
-- Frontend JS syntax is covered by CI using `node --check` on every `.js` file.
-- API endpoint remains configurable through browser settings/local storage.
-- Shared API client has a 20-second default timeout and correctly combines timeout cancellation with caller-provided AbortSignals.
-- Live translation uses the shared authenticated API client.
+### Frontend API client
+Implemented:
+- configurable API endpoint;
+- 20-second default request timeout;
+- correct composition of timeout abort + caller abort;
+- shared authenticated request path for live translation.
 
-## Database/deployment diary
-Current persistence is SQLAlchemy + SQLite.
-Render free-tier storage is ephemeral, so the deployment is suitable for a disposable demo, not durable production persistence.
-No production external DB has been wired yet.
+### CI syntax checks
+Every frontend `.js` file is checked using:
+```text
+node --check
+```
 
-## CI/testing diary
-`.github/workflows/backend-tests.yml` runs:
-1. Python dependency installation.
-2. Python `compileall` for `app` and `tests`.
-3. `pytest tests -q`.
-4. Node `--check` on every frontend JS file.
+---
 
-Claude reports full backend suite `52/52` plus Python/JS/YAML checks and end-to-end evaluation/overfit reruns for commit `dcc132834a68bc607d47eb14c500466da516cbe6`.
-Independent verification: Claude commit exists and its six-file diff matches the claimed fixes. Runtime result remains CLAUDE-REPORTED.
+# 8. SECURITY / DEPLOYMENT DIARY
 
-Latest workflow execution for current main is NOT independently verified; connector reports no workflow run for recent commits.
+### CORS
+Restricted to required methods/headers.
 
-## Configuration/training notebook diary
-- Removed unused `MAX_INFERENCE_LATENCY_MS` setting from backend config and Render config.
-- Fixed notebook vocabulary save ordering before acceptance decode.
-- Kept three project notebooks: base-model Colab training, Lightning training, base-model Colab validation.
-- Training notebook requires a GPU and fresh dataset rebuild.
-- `backend/requirements-training.txt` is aligned to MediaPipe `0.10.21`.
-- Current Colab notebook now rejects a dirty repository at startup and keeps temporary helper files outside the repository.
+### Response security headers
+Conservative security headers added.
 
-## Security red-team diary
-- API CORS narrowed to explicitly required methods/headers.
-- Added conservative API response security headers.
-- Browser bearer token remains in localStorage. This is a known production hardening issue because same-origin JavaScript can read it. Migration to HttpOnly cookies/BFF requires coordinated CSRF/session changes and is deliberately deferred.
-- No production rate limiter is currently implemented.
-- Colab model push path was changed to avoid destructive Git operations.
+### Current auth storage caveat
+Browser bearer token remains in localStorage.
+Known risk:
+- same-origin JavaScript can access the token if XSS exists.
 
-## Known architectural boundary
-`/api/v1/translate` accepts pre-extracted pose/face keypoints. It does not decode arbitrary uploaded video server-side.
-Production path is intentionally:
-`camera -> browser MediaPipe -> keypoints -> backend -> model`.
-Raw-video backend upload is not implemented.
+Production follow-up:
+- consider HttpOnly secure cookie/BFF session strategy;
+- add deliberate CSRF design.
 
-## Tests added in latest pass
-`backend/tests/test_overfit_semantic_gate.py` covers:
-- whitespace-only prediction rejection;
-- correct prediction acceptance;
-- empty-prediction CER behavior.
-Runtime test execution is pending in an environment with the repository available.
+### Rate limiting
+Not implemented yet.
 
-## Remaining blockers / acceptance gates
-A. Fresh clean Colab dataset rebuild -> NOT VERIFIED.
-B. Semantic real-data CTC sanity must PASS without blank/space/trivial-token collapse -> NOT VERIFIED after code changes.
-C. Full clean model retraining -> BLOCKED by B.
-D. Multi-video unseen real validation -> BLOCKED by C.
-E. BridgeAdapter quality validation on held-out real signers -> BLOCKED by D.
-F. Latest full backend test run -> NOT VERIFIED by this agent.
-G. Latest GitHub Actions workflow -> NOT VERIFIED.
-H. Frontend browser/E2E runtime -> NOT VERIFIED.
-I. Live Render health/CORS/auth/calibration/persistence -> NOT VERIFIED.
-J. Durable production database -> NOT IMPLEMENTED.
-K. Production auth token hardening (HttpOnly cookie/BFF + CSRF strategy) -> NOT IMPLEMENTED.
-L. Production rate limiting -> NOT IMPLEMENTED.
+### Database
+Current persistence:
+```text
+SQLAlchemy + SQLite
+```
 
-## Issue diary timeline
-### 2026-08-25
-- Duplicate filename UID collision discovered -> collision-safe training IDs implemented.
-- Real ISL clips produced 100% CTC blanks -> old checkpoint rejected.
-- Deterministic train/validation split mismatch found -> seed 42 alignment fixed.
-- Decoder vocabulary state bug found -> saved vocabulary validated before decode.
-- 132/1404 dimension mismatches found -> dataset/API/converter guards added.
-- Uppercase `.MP4` extractor failure found -> case-insensitive extension resolution fixed.
-- Stale face-dimension converter contract found -> strict 1404 validation added.
-- Adapter authorization gap found -> bearer auth + ownership checks added.
-- Calibration CTC minimum-length and minimum-duration gaps found -> validation added.
-- Silent tokenizer target-character dropping found -> strict target validation added.
-- Fake frontend translations and unverified benchmark metrics found -> removed.
-- Dashboard/history/users/evaluation were demo/static -> converted to backend/database workflows.
-- Calibration was a mock -> converted to real browser capture + backend fitting.
-- CI only covered backend tests -> Python compile + frontend JS syntax checks added.
-- `/health` readiness semantics were unsafe -> liveness/readiness split added.
-- Adapter DB delete orphaned weight files -> staged/reversible file lifecycle added.
-- Calibration could train ~900 frames -> `CALIBRATION_MAX_FRAMES=256` cap and synchronized downsampling added.
-- Adapter budget was only reported, not enforced -> calibration now fails closed before save.
-- Readiness repeatedly reloaded checkpoint metadata -> readiness signature cache added.
-- Synthetic inference test incorrectly demanded semantics from random features -> assertion corrected.
-- Claude polish pass found six additional issues and reports 52/52 tests plus Python/JS/YAML/evaluation/overfit verification; this remains Claude-reported runtime evidence.
-- Dead `MAX_INFERENCE_LATENCY_MS` config found -> removed.
-- API security hardening added.
-- Frontend API timeout added and caller-signal composition corrected.
-- Live translation moved to shared authenticated API client.
-- Notebook vocabulary save ordering corrected.
-- Training MediaPipe pin aligned.
+Render free-tier local persistence is ephemeral.
+Therefore:
+```text
+demo/disposable deployment = acceptable
+production durable persistence = NOT READY
+```
 
-### 2026-08-27 — CTC space-collapse forensic pass
-- User ran model acceptance and obtained `TRAIN prediction=' '`, `VAL prediction=' '`, confidence ~0.852; old gate incorrectly reported `MODEL ACCEPTANCE: PASS` because it only checked that at least one frame was non-blank.
-- Vocabulary forensic confirmed 49 classes, `<blank>` id 0, space id 37.
-- Target encoding forensic confirmed normal character/space IDs and target lengths.
-- Real feature forensic confirmed pose/face finite and non-identical across samples.
-- Logit forensic confirmed 100% framewise space selection on both train and validation samples, with manual CTC and repository decoding agreeing. Root cause classified as SPACE TOKEN COLLAPSE.
-- Trainability forensic showed 0 trainable parameters only when loading through `load_frozen_base_model()`. That is intentional inference behavior, not proof that `train_base_model.py` trains zero parameters.
-- Repository inspection confirmed `train_base_model.py` constructs `VisionBridgeBaseModel` directly and AdamW over model parameters, so the training path was the correct target for hardening.
-- `overfit_sanity.py` strengthened so space-only output, low diversity, and high CER fail the sanity gate.
-- `train_base_model.py` strengthened with trainable-parameter checks, gradient verification, stale-checkpoint cleanup, pinned-memory/multi-worker loading, and explicit final artifact verification.
-- `train_base_model_colab.ipynb` rebuilt to use the strengthened gate, remove in-repo temporary helper artifacts, perform semantic post-training acceptance over multiple train/held-out samples, and forbid destructive Git reset/clean during model push.
-- Added semantic acceptance regression tests.
+A managed external database is required for durable production state.
 
-## Current next steps
-1. Start a fresh Colab runtime.
-2. Pull latest `main`.
-3. Run `notebooks/train_base_model_colab.ipynb` from cell 1.
-4. Require `DATASET INTEGRITY: PASS`.
-5. Require `OVERFIT SANITY: PASS` with non-space meaningful output and acceptable CER on the sanity sample.
-6. Run full training only after the gate passes.
-7. Require train + held-out semantic acceptance before pushing a checkpoint.
-8. Run `notebooks/validate_base_model_colab.ipynb` on multiple real unseen videos.
-9. Run the latest full backend test suite in a clean runtime and compare with Claude's 52/52 report.
-10. Verify the latest GitHub Actions workflow is green.
-11. Verify `/api/v1/health` and `/api/v1/ready` on deployed backend.
-12. Verify live frontend CORS/auth/history/calibration/translation journeys.
-13. Move durable deployment persistence to a managed database before production.
-14. Add production rate limiting and structured request IDs/observability.
-15. Decide whether to migrate browser auth tokens from localStorage to secure HttpOnly cookies with a deliberate CSRF strategy.
-16. Only then resume/evaluate BridgeAdapter on held-out signers.
+---
 
-## Current quality verdict
-**NOT READY.**
-The code path is hardened substantially, but the latest clean runtime retraining must still prove that the model no longer collapses to blank/space and can produce useful English on real ISL data. Runtime CI, browser/Render E2E, durable persistence, production auth hardening and rate limiting also remain open.
+# 9. ARCHITECTURAL BOUNDARY
 
-## Golden rule
-Static correctness, another agent's report, or a commit diff is not runtime proof. Only an actual test or real-data experiment earns VERIFIED.
+The backend translation API expects pre-extracted keypoints:
+```text
+POST /api/v1/translate
+```
+with pose + face arrays.
+
+It does NOT currently accept arbitrary raw video and run MediaPipe server-side.
+
+The intended production pipeline remains:
+```text
+camera
+ -> browser MediaPipe
+ -> keypoints
+ -> backend
+ -> model
+```
+
+---
+
+# 10. TEST / CI DIARY
+
+Current GitHub workflow checks:
+1. install backend dependencies;
+2. compile Python app/tests;
+3. run pytest;
+4. run frontend JS syntax checks.
+
+Historical Claude report:
+```text
+52/52 tests passing
+```
+plus Python/JS/YAML/evaluation/overfit checks.
+
+Status of that evidence:
+```text
+CLAUDE-REPORTED
+```
+not independently reproduced by this agent.
+
+Latest workflow status after current commits:
+- no workflow run was available for the inspected recent commits through the connector;
+- therefore current CI is `NOT VERIFIED`.
+
+---
+
+# 11. CURRENT MODEL STATE / CRITICAL LESSON
+
+The most recent observed checkpoint failed semantic validation like this:
+```text
+TRAIN -> ' '
+VAL   -> ' '
+space ratio -> 1.0
+meaningful tokens -> 0
+```
+
+Do NOT interpret:
+```text
+loss reduction
+```
+as sufficient evidence.
+
+Do NOT interpret:
+```text
+non-blank token exists
+```
+as sufficient evidence.
+
+The model must demonstrate actual character-level recovery on real data.
+
+---
+
+# 12. REQUIRED ACCEPTANCE GATES
+
+## Gate A — Dataset integrity
+Must prove:
+```text
+metadata exists
+pose exists
+face exists
+UIDs unique
+pose = [T,132]
+face = [T,1404]
+T aligned
+finite values
+valid targets
+CTC alignment valid
+```
+
+## Gate B — Semantic CTC overfit
+Must prove all of:
+```text
+finite loss
+meaningful loss reduction
+not blank-only
+not space-only
+multiple meaningful tokens
+acceptable CER
+```
+
+The tiny sanity gate is intended to answer:
+```text
+Can the current model + preprocessing + target encoding + CTC + optimizer
+memorize at least a tiny real-data sample?
+```
+
+## Gate C — Full clean training
+Only after Gate B passes.
+
+## Gate D — Train + held-out semantic acceptance
+At minimum:
+- multiple training examples;
+- multiple held-out examples;
+- meaningful predictions;
+- no collapse;
+- vocabulary/checkpoint compatibility.
+
+## Gate E — Real-video validation
+The actual validation notebook must use real ISL videos and report:
+- ground truth;
+- prediction;
+- confidence;
+- blank ratio;
+- CER;
+- frame count;
+- feature shapes;
+- model readiness.
+
+## Gate F — Application regression
+Must verify:
+- auth;
+- dashboard;
+- translation;
+- calibration;
+- adapter ownership;
+- history;
+- CSV export;
+- evaluation;
+- readiness.
+
+---
+
+# 13. KNOWN ERROR CATALOG
+
+Keep these examples searchable for future agents:
+
+```text
+AttributeError: module 'mediapipe' has no attribute 'solutions'
+```
+-> MediaPipe runtime mismatch.
+
+```text
+ModuleNotFoundError: No module named 'mediapipe.python'
+```
+-> incompatible MediaPipe package/API combination.
+
+```text
+ValueError: Key backend: 'module://matplotlib_inline.backend_inline' is not a valid value
+```
+-> isolated MediaPipe runtime inherited Colab matplotlib backend.
+
+```text
+NotebookMissingRequiredFieldsError: nbformat_minor
+```
+-> invalid notebook structure.
+
+```text
+Missing metadata CSV: /content/VisionBridge/data/processed/isltranslate/ISLTranslate.csv
+```
+-> validation notebook assumed unavailable processed training data.
+
+```text
+no video file at .../fever (2).mp4
+```
+-> extension case mismatch with `.MP4` source.
+
+```text
+FileNotFoundError: ... good (3).npy
+```
+-> extraction failed before producing feature artifact; never load output blindly after a failed extraction.
+
+```text
+Author identity unknown
+```
+-> configure Git name/email in Colab before local commit.
+
+```text
+Unexpected file staged/changed: data/model_check/
+```
+-> model push whitelist correctly detected an unrelated directory.
+
+```text
+PREDICTED: (no sign detected)
+BLANK RATIO: 1.0
+```
+-> historical CTC blank-collapse checkpoint.
+
+```text
+PREDICTED: ' '
+SPACE RATIO: 1.0
+```
+-> latest observed CTC space-token collapse.
+
+---
+
+# 14. IMPORTANT REPOSITORY FILE ROLES
+
+## `backend/app/models/base_model.py`
+Defines the model and inference-time frozen loader.
+
+Important:
+```text
+frozen inference loader != training model
+```
+
+## `backend/app/training/train_base_model.py`
+Actual base-model training entry point.
+
+## `backend/app/training/overfit_sanity.py`
+Pre-training semantic real-data optimization gate.
+
+## `backend/app/training/isltranslate.py`
+Dataset/tokenizer/collation and contract enforcement.
+
+## `backend/services / routes`
+Runtime inference/calibration/auth/etc.
+
+## `notebooks/train_base_model_colab.ipynb`
+Canonical one-click Colab training workflow.
+
+## `notebooks/validate_base_model_colab.ipynb`
+Canonical real-video checkpoint validation workflow.
+
+## `notebooks/train_base_model_lightning.ipynb`
+Persistent/alternate training workflow.
+
+## `AGENTS.md`
+Shared memory / diary / coordination contract.
+
+---
+
+# 15. MULTI-AGENT WORK PROTOCOL
+
+## Before editing
+1. Read this file.
+2. Inspect the relevant source files.
+3. Identify the exact root cause.
+4. State what is NOT the root cause when evidence exists.
+
+## During editing
+1. Modify only required files.
+2. Preserve public contracts unless intentionally changing them.
+3. Add/adjust tests for changed behavior.
+4. Update this diary immediately after each meaningful change or error.
+
+## After editing
+1. Compile / syntax-check.
+2. Run focused tests.
+3. Run broader regression tests where feasible.
+4. Re-read changed code.
+5. Record exact runtime evidence.
+6. Commit only the intended files.
+7. Never claim runtime verification based solely on static inspection.
+
+## If an agent encounters an error
+Record:
+```text
+SYMPTOM
+ROOT CAUSE
+FIX
+FILES CHANGED
+TEST PERFORMED
+RESULT
+NEXT BLOCKER
+```
+
+## Commit rule
+Commit messages should describe the actual change, e.g.:
+```text
+fix: reject CTC space collapse in semantic gate
+fix: harden training gradient checks
+fix: rebuild Colab training pipeline safely
+docs: update multi-agent project diary
+```
+
+---
+
+# 16. CURRENT REPOSITORY STATE
+
+Branch:
+```text
+main
+```
+
+GitHub read/write:
+```text
+AVAILABLE
+```
+
+Current latest known main commit from the last update sequence:
+```text
+192f6f2096e32bfd727cd8f8eac4d0054d4236c4
+```
+
+Important training/gate commits from the recent pass:
+```text
+271598dd1d04dc0130d7c63a3c88cffada0dd0bd
+0e2e6777fc6a5b18258750f859103b0a7d122b23
+b898fa1f5c05406ee82d71a80f0c130b0fbbf386
+e0d9eecf7dfee9b80a4f8b73adb6d307b319269e
+192f6f2096e32bfd727cd8f8eac4d0054d4236c4
+```
+
+The exact branch head should always be rechecked before another agent pushes.
+
+---
+
+# 17. CURRENT BLOCKER BOARD
+
+```text
+A  Fresh clean Colab dataset rebuild              NOT VERIFIED
+B  Semantic real-data CTC gate                    NOT VERIFIED after latest code changes
+C  Full clean base-model training                 BLOCKED until B
+D  Multi-video unseen real validation              BLOCKED until C
+E  BridgeAdapter held-out signer validation        BLOCKED until D
+F  Latest complete backend test suite               NOT VERIFIED
+G  Latest GitHub Actions result                     NOT VERIFIED
+H  Browser/E2E frontend runtime                      NOT VERIFIED
+I  Live Render auth/CORS/readiness/persistence      NOT VERIFIED
+J  Durable production database                       NOT IMPLEMENTED
+K  HttpOnly production auth strategy                 NOT IMPLEMENTED
+L  Production rate limiting                           NOT IMPLEMENTED
+```
+
+---
+
+# 18. CURRENT NEXT STEPS FOR THE NEXT AGENT / USER
+
+### Step 1
+Start a fresh Colab runtime and use the current `main`.
+
+### Step 2
+Open:
+```text
+notebooks/train_base_model_colab.ipynb
+```
+
+### Step 3
+Run from cell 1 to the end.
+
+Expected first gates:
+```text
+GPU detected
+MediaPipe 0.10.21
+real dataset downloaded
+collision-safe processed data
+DATASET INTEGRITY: PASS
+```
+
+### Step 4
+Run the semantic overfit gate.
+
+It must NOT produce:
+```text
+prediction = ' '
+space ratio = 1.0
+```
+
+It must produce meaningful non-space characters and acceptable CER.
+
+### Step 5
+Only after the semantic gate passes, run full training.
+
+### Step 6
+Post-training acceptance must use multiple train + held-out samples and reject trivial collapse.
+
+### Step 7
+Push the checkpoint + vocabulary only after semantic acceptance.
+
+### Step 8
+Open:
+```text
+notebooks/validate_base_model_colab.ipynb
+```
+
+Run several real unseen ISL videos, not just one cherry-picked clip.
+
+### Step 9
+Run backend regression tests and frontend syntax checks.
+
+### Step 10
+Verify deployed `/api/v1/health` and `/api/v1/ready`.
+
+### Step 11
+Verify real browser:
+```text
+auth
+ -> dashboard
+ -> translation
+ -> history
+ -> calibration
+ -> adapter profile
+ -> evaluation
+```
+
+### Step 12
+Only after the base model and application are proven should the project scale the training data from ~8.5 GB toward 40 GB.
+
+---
+
+# 19. SCALING NOTE: 8.5 GB -> 40 GB
+
+The project can be designed to train on substantially more than 8.5 GB, but scaling storage alone does not fix a collapsed model.
+
+Required design for larger data:
+```text
+stream/extract incrementally
+ -> collision-safe persistent IDs
+ -> shard processed features
+ -> bounded-memory DataLoader
+ -> pinned memory
+ -> multiple workers
+ -> resumable checkpoints
+ -> deterministic split manifest
+ -> metrics/early stopping
+ -> held-out semantic evaluation
+```
+
+Do not simply load all raw video/features into RAM.
+
+40 GB should be a scaling phase only after the smaller pipeline proves semantic correctness.
+
+---
+
+# 20. RELEASE VERDICT
+
+## Current status
+
+# NOT READY
+
+Why:
+- the historical checkpoint exhibited complete CTC collapse;
+- the latest observed checkpoint exhibited 100% space-token collapse;
+- the semantic gate has now been strengthened but still requires a fresh Colab runtime proof;
+- current CI/E2E claims are not independently verified;
+- durable production persistence, rate limiting, and production-grade browser credential storage remain open.
+
+The codebase is substantially hardened, but the central product promise remains unproven until:
+```text
+REAL ISL VIDEO
+ -> REAL KEYPOINTS
+ -> TRAINED CHECKPOINT
+ -> NON-TRIVIAL DECODING
+ -> CORRECT ENGLISH
+```
+is demonstrated on real data.
+
+---
+
+# 21. GOLDEN RULES FOR ALL FUTURE AGENTS
+
+1. Never trust a `PASS` string without understanding the assertion behind it.
+2. Never confuse inference-time freezing with training-time trainability.
+3. Never treat lower CTC loss as proof of semantic learning.
+4. Never treat a non-blank token as semantic success.
+5. Never push a checkpoint that has not passed real-data semantic validation.
+6. Never assume a file exists just because a previous cell was supposed to create it.
+7. Never hard-code case-sensitive assumptions for dataset video extensions.
+8. Never silently discard unsupported target characters.
+9. Never let temporary Colab artifacts enter the repository.
+10. Never modify unrelated project files.
+11. Never erase user work using destructive Git commands.
+12. Record every meaningful event in this file.
+13. Prefer reproducible diagnostics over repeated full retraining.
+14. Separate `CODE FIXED`, `TESTED`, `RUNTIME VERIFIED`, and `CLAUDE-REPORTED` states.
+15. When uncertain, stop before pushing another half-baked checkpoint.
+
+---
+
+# 22. MOST RECENT DIARY ENTRY
+
+## 2026-08-27 — Full-history consolidation
+
+Request:
+- consolidate the complete history from the beginning of the ChatGPT project-debugging conversation into `AGENTS.md`;
+- preserve failures, fixes, experiments, current model diagnosis, training rules, notebook state, and next steps for other agents.
+
+Action:
+- replaced the shorter diary with this consolidated master record;
+- retained the existing engineering contract and expanded it into a chronological failure/fix record;
+- explicitly recorded the MediaPipe, notebook, dataset, UID, CTC blank, CTC space-collapse, inference-freeze confusion, training-path hardening, Git/push, frontend/backend, security, CI, and scaling history;
+- recorded current blockers and the required next execution order.
+
+Status:
+```text
+AGENTS.md UPDATED
+RUNTIME VERIFICATION OF THE NEW DIARY FILE: COMMIT SUCCESS IS THE ONLY LOCAL WRITE EVIDENCE
+MODEL QUALITY: NOT VERIFIED
+RETRAINING: BLOCKED UNTIL SEMANTIC GATE PASSES
+```
+
+Future agent instruction:
+```text
+READ THIS FILE FIRST.
+DO NOT REPEAT ALREADY RESOLVED INVESTIGATIONS WITHOUT NEW EVIDENCE.
+```
