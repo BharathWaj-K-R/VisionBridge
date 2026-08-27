@@ -1,20 +1,9 @@
-"""Tiny real-data overfit check for the VisionBridge CTC training path.
+"""Small real-data CTC optimization gate for VisionBridge.
 
-Use this before a full retraining run. The default gate deliberately trains on
-ONE of the shortest real sentence labels for a longer run so the test answers
-the narrow question: can the current model/CTC pipeline memorize one real
-example at all?
-
-Example:
-
-PYTHONPATH=backend python -m app.training.overfit_sanity \
-  --data-dir data/processed/isltranslate \
-  --samples 1 \
-  --steps 2000
-
-This is not a model-quality benchmark. A PASS means the optimization path can
-escape the all-blank solution on a real example. Full training quality is
-still evaluated by the training notebook's validation predictions/CER gate.
+This intentionally trains a tiny subset from scratch. A PASS means the current
+model, preprocessing, target encoding, CTC loss, optimizer and greedy decoder
+can learn meaningful non-space characters on real data. It is a gate, not a
+model-quality benchmark.
 """
 from __future__ import annotations
 
@@ -34,87 +23,166 @@ CTC_BLANK_ID = 0
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description=__doc__,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-dir", required=True)
     parser.add_argument("--samples", type=int, default=1)
     parser.add_argument("--steps", type=int, default=2000)
     parser.add_argument("--lr", type=float, default=2e-3)
     parser.add_argument("--device", default=None)
+    parser.add_argument("--min-loss-reduction", type=float, default=0.20)
+    parser.add_argument("--max-space-ratio", type=float, default=0.90)
+    parser.add_argument("--min-meaningful-unique", type=int, default=2)
+    parser.add_argument("--max-mean-cer", type=float, default=0.90)
     return parser.parse_args()
+
+
+def levenshtein(a: str, b: str) -> int:
+    """Return character-level edit distance without external dependencies."""
+    if len(a) < len(b):
+        a, b = b, a
+    previous = list(range(len(b) + 1))
+    for i, char_a in enumerate(a, start=1):
+        current = [i]
+        for j, char_b in enumerate(b, start=1):
+            current.append(
+                min(
+                    current[-1] + 1,
+                    previous[j] + 1,
+                    previous[j - 1] + (char_a != char_b),
+                )
+            )
+        previous = current
+    return previous[-1]
+
+
+def cer(prediction: str, target: str) -> float:
+    """Character error rate used only by the sanity gate."""
+    prediction = prediction.lower()
+    target = target.lower()
+    return levenshtein(prediction, target) / max(len(target), 1)
 
 
 def greedy_ctc_decode(
     logits: torch.Tensor,
     tokenizer: SimpleCharTokenizer,
-) -> tuple[str, float, int, int, int]:
-    """Decode one sample and return text, confidence, frame counts, and tokens."""
+) -> tuple[str, float, float, int]:
+    """Decode [1,T,V] logits and return text/confidence/space-ratio/diversity."""
     if logits.ndim != 3 or logits.shape[0] != 1:
-        raise ValueError(f"Expected logits shape [1, T, V], got {tuple(logits.shape)}")
+        raise ValueError(
+            f"Expected logits shape [1,T,V], got {tuple(logits.shape)}"
+        )
 
     probs = torch.softmax(logits, dim=-1)
     top_probs, top_ids = probs.max(dim=-1)
-
     frame_ids = top_ids[0].tolist()
     frame_probs = top_probs[0].tolist()
 
-    collapsed_ids: list[tuple[int, float]] = []
-    previous_id: int | None = None
+    collapsed: list[tuple[int, float]] = []
+    previous: int | None = None
     for token_id, probability in zip(frame_ids, frame_probs):
         token_id = int(token_id)
-        if token_id != previous_id:
-            collapsed_ids.append((token_id, float(probability)))
-            previous_id = token_id
+        if token_id != previous:
+            collapsed.append((token_id, float(probability)))
+            previous = token_id
 
-    non_blank_collapsed = [
+    decoded = [
         (token_id, probability)
-        for token_id, probability in collapsed_ids
+        for token_id, probability in collapsed
         if token_id != CTC_BLANK_ID
     ]
-
-    tokens = [
-        tokenizer.id_to_token[token_id]
-        if 0 <= token_id < len(tokenizer.id_to_token)
-        else f"<{token_id}>"
-        for token_id, _ in non_blank_collapsed
-    ]
-    text = "".join(tokens) or "(no sign detected)"
+    tokens = [tokenizer.id_to_token[token_id] for token_id, _ in decoded]
+    text = "".join(tokens)
     confidence = (
-        sum(probability for _, probability in non_blank_collapsed)
-        / len(non_blank_collapsed)
-        if non_blank_collapsed
+        sum(probability for _, probability in decoded) / len(decoded)
+        if decoded
         else 0.0
     )
-    frame_non_blank = sum(token_id != CTC_BLANK_ID for token_id in frame_ids)
-    frame_total = len(frame_ids)
-    unique_non_blank = len({token_id for token_id, _ in non_blank_collapsed})
-    return text, confidence, frame_non_blank, frame_total, unique_non_blank
+    space_id = tokenizer.token_to_id[" "]
+    space_ratio = sum(
+        token_id == space_id for token_id in frame_ids
+    ) / max(len(frame_ids), 1)
+    unique_meaningful = len({
+        token
+        for token in tokens
+        if token.strip()
+    })
+    return text, confidence, space_ratio, unique_meaningful
+
+
+def semantic_gate_failures(
+    target: str,
+    prediction: str,
+    space_ratio: float,
+    unique_meaningful: int,
+    *,
+    max_space_ratio: float = 0.90,
+    min_meaningful_unique: int = 2,
+    max_cer: float = 0.90,
+) -> list[str]:
+    """Return concrete reasons a sanity prediction is semantically trivial."""
+    failures: list[str] = []
+    if not prediction.strip():
+        failures.append("prediction is empty/whitespace-only")
+    if space_ratio >= max_space_ratio:
+        failures.append(
+            f"space collapse {space_ratio:.3f} >= {max_space_ratio:.3f}"
+        )
+    if unique_meaningful < min_meaningful_unique:
+        failures.append(
+            "meaningful token diversity "
+            f"{unique_meaningful} < {min_meaningful_unique}"
+        )
+    sample_cer = cer(prediction, target)
+    if sample_cer > max_cer:
+        failures.append(
+            f"CER {sample_cer:.3f} > {max_cer:.3f}"
+        )
+    return failures
 
 
 def main() -> None:
     args = parse_args()
-    device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
+    device = torch.device(
+        args.device
+        or ("cuda" if torch.cuda.is_available() else "cpu")
+    )
 
     tokenizer = SimpleCharTokenizer()
-    dataset = ISLTranslateKeypointDataset(args.data_dir, tokenizer=tokenizer)
-    n = min(max(args.samples, 1), len(dataset))
+    dataset = ISLTranslateKeypointDataset(
+        args.data_dir,
+        tokenizer=tokenizer,
+    )
+    n = min(max(1, args.samples), len(dataset))
 
-    # For the default single-sample gate, deliberately choose the shortest
-    # real label available. This removes unnecessary sequence-to-label
-    # difficulty from the architectural/optimization sanity check.
-    indexed = list(range(len(dataset)))
-    indexed.sort(key=lambda idx: len(dataset.examples[idx].text))
-    chosen_indices = indexed[:n]
+    ordered = sorted(
+        range(len(dataset)),
+        key=lambda i: (
+            len(dataset.examples[i].text),
+            dataset.examples[i].uid,
+        ),
+    )
+    chosen: list[int] = []
+    seen_texts: set[str] = set()
+    for index in ordered:
+        text = dataset.examples[index].text
+        if text not in seen_texts:
+            chosen.append(index)
+            seen_texts.add(text)
+        if len(chosen) == n:
+            break
+    if len(chosen) < n:
+        raise RuntimeError(
+            f"Could only select {len(chosen)} distinct real labels from "
+            f"{len(dataset)} dataset samples."
+        )
 
-    subset = Subset(dataset, chosen_indices)
-    loader = DataLoader(subset, batch_size=n, shuffle=False, collate_fn=collate_ctc_batch)
+    loader = DataLoader(
+        Subset(dataset, chosen),
+        batch_size=n,
+        shuffle=False,
+        collate_fn=collate_ctc_batch,
+    )
     batch = next(iter(loader))
-
-    model = VisionBridgeBaseModel(vocab_size=tokenizer.vocab_size).to(device)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
-    loss_fn = torch.nn.CTCLoss(blank=CTC_BLANK_ID, zero_infinity=True)
 
     pose = batch["pose"].to(device)
     face = batch["face"].to(device)
@@ -122,102 +190,162 @@ def main() -> None:
     input_lengths = batch["input_lengths"].to(device)
     label_lengths = batch["label_lengths"].to(device)
 
-    print(f"Sanity samples: {n} (shortest real labels)")
-    print("Targets:")
-    for i, text in enumerate(batch["text"]):
-        print(f"  {i}: {text!r}")
-
-    model.eval()
-    with torch.inference_mode():
-        logits = model(pose, face, input_lengths)
-        initial_loss = float(
-            loss_fn(
-                torch.log_softmax(logits, dim=-1).transpose(0, 1),
-                labels,
-                input_lengths,
-                label_lengths,
-            ).item()
+    model = VisionBridgeBaseModel(
+        vocab_size=tokenizer.vocab_size
+    ).to(device)
+    trainable = sum(
+        parameter.numel()
+        for parameter in model.parameters()
+        if parameter.requires_grad
+    )
+    if trainable <= 0:
+        raise RuntimeError(
+            "OVERFIT SANITY FAILED: scratch training model has zero "
+            "trainable parameters."
         )
 
-    model.train()
-    for step in range(1, args.steps + 1):
-        logits = model(pose, face, input_lengths)
+    optimizer = torch.optim.AdamW(
+        model.parameters(),
+        lr=args.lr,
+    )
+    loss_fn = torch.nn.CTCLoss(
+        blank=CTC_BLANK_ID,
+        zero_infinity=True,
+    )
+
+    def compute_loss() -> tuple[torch.Tensor, torch.Tensor]:
+        logits = model(
+            pose,
+            face,
+            input_lengths,
+        )
         loss = loss_fn(
             torch.log_softmax(logits, dim=-1).transpose(0, 1),
             labels,
             input_lengths,
             label_lengths,
         )
-        optimizer.zero_grad(set_to_none=True)
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-        optimizer.step()
-
-        if step == 1 or step % max(1, args.steps // 10) == 0:
-            print(f"step={step} loss={float(loss.item()):.4f}")
+        return logits, loss
 
     model.eval()
     with torch.inference_mode():
-        final_logits = model(pose, face, input_lengths)
-        final_loss = float(
-            loss_fn(
-                torch.log_softmax(final_logits, dim=-1).transpose(0, 1),
-                labels,
-                input_lengths,
-                label_lengths,
-            ).item()
-        )
+        _, initial_loss_tensor = compute_loss()
+    initial_loss = float(initial_loss_tensor.item())
 
-    non_blank = 0
-    total = 0
-    decoded_non_blank = 0
+    print(f"Device: {device}")
+    print(f"Sanity samples: {n}")
+    print(f"Trainable parameters: {trainable:,}")
+    print("Targets:")
+    for i, text in enumerate(batch["text"]):
+        print(f"  {i}: {text!r}")
+
+    model.train()
+    for step in range(1, args.steps + 1):
+        _, loss = compute_loss()
+        if not torch.isfinite(loss):
+            raise RuntimeError(
+                f"OVERFIT SANITY FAILED: non-finite loss at step {step}."
+            )
+        optimizer.zero_grad(set_to_none=True)
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(
+            model.parameters(),
+            1.0,
+        )
+        optimizer.step()
+        if step == 1 or step % max(1, args.steps // 10) == 0:
+            print(
+                f"step={step} loss={float(loss.item()):.4f}"
+            )
+
+    model.eval()
+    with torch.inference_mode():
+        final_logits, final_loss_tensor = compute_loss()
+    final_loss = float(final_loss_tensor.item())
+    loss_reduction = (
+        1.0 - (final_loss / initial_loss)
+        if initial_loss
+        else 0.0
+    )
+
+    metrics: list[dict[str, object]] = []
     print("\nPredictions on overfit samples:")
-    for i in range(n):
-        valid_frames = int(input_lengths[i].item())
-        sample_logits = final_logits[i : i + 1, :valid_frames]
-        text, confidence, sample_non_blank, sample_total, unique_non_blank = greedy_ctc_decode(
-            sample_logits,
-            tokenizer,
+    for i, target in enumerate(batch["text"]):
+        frames = int(input_lengths[i].item())
+        prediction, confidence, space_ratio, unique_meaningful = (
+            greedy_ctc_decode(
+                final_logits[i : i + 1, :frames],
+                tokenizer,
+            )
         )
-        target = batch["text"][i]
-        decoded_non_blank += unique_non_blank
-        non_blank += sample_non_blank
-        total += sample_total
+        sample_cer = cer(prediction, target)
+        metrics.append(
+            {
+                "target": target,
+                "prediction": prediction,
+                "confidence": confidence,
+                "space_ratio": space_ratio,
+                "unique_meaningful": unique_meaningful,
+                "cer": sample_cer,
+            }
+        )
         print(
-            f"  {i}: truth={target!r} predicted={text!r} "
-            f"confidence={confidence:.3f} frame_non_blank={sample_non_blank} "
-            f"unique_non_blank={unique_non_blank}"
+            f"  {i}: truth={target!r} "
+            f"predicted={prediction!r} "
+            f"confidence={confidence:.3f} "
+            f"cer={sample_cer:.3f} "
+            f"space_ratio={space_ratio:.3f} "
+            f"unique_meaningful={unique_meaningful}"
         )
 
-    frame_blank_ratio = 1.0 - (non_blank / max(total, 1))
-    loss_reduction = 0.0 if initial_loss == 0 else 1.0 - (final_loss / initial_loss)
+    mean_cer = sum(
+        float(metric["cer"])
+        for metric in metrics
+    ) / len(metrics)
+    max_space_ratio = max(
+        float(metric["space_ratio"])
+        for metric in metrics
+    )
+    min_unique_meaningful = min(
+        int(metric["unique_meaningful"])
+        for metric in metrics
+    )
 
-    print("\n" + "=" * 60)
-    print(f"Device:              {device}")
-    print(f"Samples:             {n}")
-    print(f"Initial CTC loss:    {initial_loss:.4f}")
-    print(f"Final CTC loss:      {final_loss:.4f}")
-    print(f"Loss reduction:      {loss_reduction * 100:.1f}%")
-    print(f"Frame blank ratio:   {frame_blank_ratio:.4f}")
-    print(f"Frame non-blank:     {non_blank}/{total}")
-    print(f"Unique decoded IDs:  {decoded_non_blank}")
-    print("=" * 60)
+    print("\n" + "=" * 64)
+    print(f"Initial CTC loss:       {initial_loss:.4f}")
+    print(f"Final CTC loss:         {final_loss:.4f}")
+    print(f"Loss reduction:         {loss_reduction * 100:.1f}%")
+    print(f"Mean CER:               {mean_cer:.4f}")
+    print(f"Max space ratio:        {max_space_ratio:.4f}")
+    print(f"Min meaningful tokens:  {min_unique_meaningful}")
+    print(f"Trainable parameters:   {trainable:,}")
+    print("=" * 64)
 
-    if not torch.isfinite(torch.tensor(final_loss)):
-        raise RuntimeError("OVERFIT SANITY FAILED: final loss is not finite.")
-    if loss_reduction < 0.20:
-        raise RuntimeError(
-            "OVERFIT SANITY FAILED: loss did not fall by at least 20%. "
-            "Fix the training/data path before full retraining."
+    failures: list[str] = []
+    if loss_reduction < args.min_loss_reduction:
+        failures.append(
+            f"loss reduction {loss_reduction:.3f} "
+            f"< {args.min_loss_reduction:.3f}"
         )
-    if decoded_non_blank == 0:
-        raise RuntimeError(
-            "OVERFIT SANITY FAILED: even the shortest real sample still decodes to no non-blank tokens. "
-            "Do not start the full training run yet."
+    for metric in metrics:
+        failures.extend(
+            semantic_gate_failures(
+                str(metric["target"]),
+                str(metric["prediction"]),
+                float(metric["space_ratio"]),
+                int(metric["unique_meaningful"]),
+                max_space_ratio=args.max_space_ratio,
+                min_meaningful_unique=args.min_meaningful_unique,
+                max_cer=args.max_mean_cer,
+            )
         )
-    if decoded_non_blank > 0 and non_blank == 0:
+
+    if failures:
+        unique_failures = list(dict.fromkeys(failures))
         raise RuntimeError(
-            "OVERFIT SANITY FAILED: decoder/blank statistics are inconsistent."
+            "OVERFIT SANITY FAILED: "
+            + "; ".join(unique_failures)
+            + ". Do not run full training or push a checkpoint."
         )
 
     print("OVERFIT SANITY: PASS")
