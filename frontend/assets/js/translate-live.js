@@ -18,7 +18,6 @@
   const cameraFrame = document.querySelector(".sb-camera-frame");
   const placeholder = cameraFrame ? cameraFrame.querySelector(".placeholder") : null;
 
-  const API_BASE = window.VB_API_BASE_URL || "http://localhost:8000/api/v1";
   const FRAME_WINDOW = 50;
   const TARGET_FPS = 15;
 
@@ -123,7 +122,10 @@
     sendInFlight = true;
     const start = performance.now();
     try {
-      const res = await fetch(`${API_BASE}/translate`, {
+      if (typeof window.VB_API_FETCH !== "function") {
+        throw new Error("Shared API client is unavailable. Reload the page and try again.");
+      }
+      const res = await window.VB_API_FETCH("/translate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -145,10 +147,13 @@
     } catch (err) {
       console.warn("VisionBridge: backend call failed.", err);
       const isNetworkFailure = err instanceof TypeError;
+      const isTimeout = err?.name === "AbortError";
       setCaption(
-        isNetworkFailure
-          ? "Live translation unavailable — backend connection failed."
-          : `Live translation error: ${err.message}`,
+        isTimeout
+          ? "Live translation timed out. Check the backend and try again."
+          : isNetworkFailure
+            ? "Live translation unavailable — backend connection failed."
+            : `Live translation error: ${err.message}`,
         0,
         0
       );
