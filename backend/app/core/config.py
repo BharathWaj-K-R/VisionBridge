@@ -49,9 +49,6 @@ class Settings:
     CALIBRATION_MAX_FRAMES: int = int(
         os.getenv("CALIBRATION_MAX_FRAMES", "256")
     )
-    MAX_INFERENCE_LATENCY_MS: int = int(
-        os.getenv("MAX_INFERENCE_LATENCY_MS", "500")
-    )
     MAX_INFERENCE_FRAMES: int = int(
         os.getenv("MAX_INFERENCE_FRAMES", "1024")
     )
