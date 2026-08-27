@@ -1,7 +1,4 @@
-"""
-Pydantic request/response models. Kept separate from ORM models so the API
-contract can evolve independently of the DB schema.
-"""
+"""Pydantic API contracts for VisionBridge."""
 import datetime as dt
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -33,6 +30,8 @@ class CalibrationRequest(BaseModel):
     calibration_seconds: float = Field(gt=0)
     pose_keypoints: list[list[float]]
     face_keypoints: list[list[float]]
+    left_hand_keypoints: list[list[float]] | None = None
+    right_hand_keypoints: list[list[float]] | None = None
     target_labels: list[int] | None = Field(default=None, min_length=1)
     target_text: str | None = Field(default=None, min_length=1, max_length=200)
 
@@ -67,6 +66,8 @@ class TranslationRequest(BaseModel):
     adapter_id: int | None = Field(default=None, gt=0)
     pose_keypoints: list[list[float]]
     face_keypoints: list[list[float]]
+    left_hand_keypoints: list[list[float]] | None = None
+    right_hand_keypoints: list[list[float]] | None = None
 
 
 class TranslationResult(BaseModel):
