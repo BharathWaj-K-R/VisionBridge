@@ -15,6 +15,7 @@
     { href: "/pages/settings.html", label: "Settings" },
   ];
   const PRIVATE_PAGES = new Set(["dashboard.html", "calibration.html", "history.html", "users.html", "evaluation.html"]);
+  const API_TIMEOUT_MS = 20_000;
 
   function authToken() {
     try { return localStorage.getItem("visionbridge.accessToken"); } catch { return null; }
@@ -24,12 +25,24 @@
     return token ? { Authorization: `Bearer ${token}` } : {};
   }
   async function apiFetch(path, options = {}) {
-    const response = await fetch(`${window.VB_API_BASE_URL}${path}`, { ...options, headers: { ...(options.headers || {}), ...authHeaders() } });
-    if (response.status === 401) {
-      try { localStorage.removeItem("visionbridge.accessToken"); } catch { /* ignore */ }
-      if (PRIVATE_PAGES.has(window.location.pathname.split("/").pop())) window.location.href = "/pages/auth.html";
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+    const requestOptions = {
+      ...options,
+      headers: { ...(options.headers || {}), ...authHeaders() },
+    };
+    if (!requestOptions.signal) requestOptions.signal = controller.signal;
+
+    try {
+      const response = await fetch(`${window.VB_API_BASE_URL}${path}`, requestOptions);
+      if (response.status === 401) {
+        try { localStorage.removeItem("visionbridge.accessToken"); } catch { /* ignore */ }
+        if (PRIVATE_PAGES.has(window.location.pathname.split("/").pop())) window.location.href = "/pages/auth.html";
+      }
+      return response;
+    } finally {
+      clearTimeout(timeoutId);
     }
-    return response;
   }
   window.VB_AUTH_TOKEN = authToken;
   window.VB_API_FETCH = apiFetch;
