@@ -1,103 +1,116 @@
 # VisionBridge
 
-**Few-Shot Signer-Adaptive Continuous Indian Sign Language Translation**
+**Hand-aware, few-shot signer-adaptive continuous Indian Sign Language recognition workspace.**
 
-Real-time ISL-to-text translation using a pose + facial-expression fusion transformer as a frozen base model, plus a lightweight few-shot adapter (**BridgeAdapter**) intended to personalize to a new signer's style from calibration data.
-
-## Repo layout
+VisionBridge is being rebuilt around one coherent stack:
 
 ```text
-visionbridge/
-├── backend/          FastAPI + SQLite backend, model code, adapters
-│   ├── app/
-│   │   ├── api/       route handlers (auth, translate, calibration, dashboard, history, users, evaluation, health)
-│   │   ├── core/      config + security
-│   │   ├── db/        SQLAlchemy session + ORM models
-│   │   ├── models/    frozen base model + BridgeAdapter
-│   │   ├── schemas/   Pydantic request/response contracts
-│   │   └── services/  inference + calibration orchestration
-│   ├── tests/
-│   └── requirements.txt
-├── frontend/          Static HTML/CSS/JS UI with live API integration
-├── data/              dataset preparation area
-├── notebooks/         Colab/Lightning training and validation notebooks
-├── .github/workflows/ backend + frontend regression CI
-└── render.yaml        Render deployment config for backend + frontend
+Browser React/Vite app
+  -> MediaPipe Holistic
+  -> pose + face + left-hand + right-hand landmarks
+  -> FastAPI API
+  -> hand-aware PyTorch temporal model
+  -> CTC decoding
+  -> optional BridgeAdapter personalization
 ```
+
+## Stack
+
+| Layer | Choice |
+|---|---|
+| Web app | React + Vite + TypeScript |
+| Landmark extraction | MediaPipe Holistic |
+| API | FastAPI |
+| Persistence | SQLAlchemy / SQLite for demo; managed DB required for durable production |
+| ML | PyTorch temporal Transformer + local temporal convolution |
+| Training | Colab + Lightning notebooks |
+| Deployment | Render |
 
 ## Model contract
 
-| Contract | Current value |
+| Stream | Features/frame |
 |---|---:|
-| Pose features / frame | 132 |
-| Face features / frame | 1404 |
-| Maximum inference sequence | 1024 frames |
-| CTC blank token | 0 |
-| Calibration minimum | 300 seconds |
-| Calibration fitting cap | 256 frames |
+| Pose | 132 = 33 × (x,y,z,visibility) |
+| Face | 1404 = 468 × (x,y,z) |
+| Left hand | 63 = 21 × (x,y,z) |
+| Right hand | 63 = 21 × (x,y,z) |
+| CTC blank | 0 |
+| Vocabulary | 49 in current tokenizer |
+| Maximum sequence | 1024 frames |
 
-These are implementation contracts, not benchmark claims.
+Hands are first-class model inputs. Every training and inference sample is expected to contain synchronized pose, face, left-hand, and right-hand streams. Missing hands can be represented by zero-filled 63D frames during dataset compatibility handling, but the new production API requires both hand streams explicitly.
 
-## Datasets
+## Web experience
 
-The training pipeline is wired for real ISL keypoint datasets. See the Colab notebook and `backend/app/training/isltranslate.py` for the expected processed layout.
+The browser application uses a monochrome, minimal design system and real data flows. The live translation surface displays the camera feed with a 21-point skeleton overlay for both hands and sends synchronized landmark windows to the FastAPI translation endpoint.
 
-## Training notebooks
+Routes:
 
-- `notebooks/train_base_model_colab.ipynb` — real-video extraction, clean UID rebuilding, CTC sanity gate, deterministic training, and acceptance checks.
-- `notebooks/train_base_model_lightning.ipynb` — persistent training workflow.
-- `notebooks/validate_base_model_colab.ipynb` — real-video checkpoint validation.
+```text
+/dashboard
+/translate
+/calibration
+/history
+/evaluation
+/settings
+```
 
-## Local development
+Authentication uses the existing FastAPI bearer-token flow. The web client reads `VITE_API_BASE_URL` at build time.
+
+## Training
+
+Canonical notebooks:
+
+- `notebooks/train_base_model_colab.ipynb`
+- `notebooks/train_base_model_lightning.ipynb`
+- `notebooks/validate_base_model_colab.ipynb`
+
+The Colab flow must be run on a fresh GPU runtime. It reconstructs real dataset features, validates all four modalities, runs a semantic CTC overfit gate, performs training only after that gate passes, and must not push a checkpoint that is blank/space/trivial output.
+
+## Important model-history status
+
+A previous checkpoint was observed to produce a literal space token on 100% of frames for both train and validation examples. The earlier acceptance test incorrectly treated any non-blank output as success. The acceptance gate was hardened to reject empty, whitespace-only, space-collapsed, low-diversity, and high-CER predictions.
+
+A fresh hand-aware training run is therefore required before the new checkpoint can be considered usable. The old pose+face checkpoint is not a valid substitute for the new hand-aware architecture.
+
+## Development
 
 ### Backend
 
 ```bash
 cd backend
 python -m venv .venv
-# activate the environment using your platform's standard command
+# activate using your platform's standard command
 pip install -r requirements.txt
 uvicorn app.main:app --reload
-# API docs: http://localhost:8000/docs
 ```
 
 ### Frontend
 
-Serve `frontend/` with any static HTTP server, for example:
-
 ```bash
-npx serve frontend
+cd frontend
+npm install
+npm run dev
 ```
 
-The browser performs MediaPipe Holistic keypoint extraction for the live translation and calibration flows, then sends pose/face keypoints to the configured backend API.
+Production build:
 
-## Authentication and account workflows
+```bash
+npm run build
+```
 
-- `/api/v1/auth/register` creates an account.
-- `/api/v1/auth/login` returns a bearer token.
-- Dashboard, calibration, history, signer-adapter management, and evaluation require authentication.
-- Anonymous base-model translation remains supported by `/api/v1/translate` when a compatible base checkpoint is installed.
+Set:
 
-## Health and readiness
+```text
+VITE_API_BASE_URL=https://<your-backend>/api/v1
+```
 
-- `GET /api/v1/health` is a lightweight process-liveness endpoint and does not load the model.
-- `GET /api/v1/ready` validates the checkpoint/vocabulary contract and returns HTTP 503 until the model is ready.
-- Render uses `/api/v1/ready` as its health check so an alive-but-unready service is not reported as healthy.
+## Deployment
 
-## Deployment (Render)
+`render.yaml` builds the React app into `frontend/dist` and rewrites SPA routes to `/index.html`. The backend readiness endpoint is `/api/v1/ready`.
 
-`render.yaml` defines:
-- `visionbridge-backend` — FastAPI service.
-- `visionbridge-frontend` — static site.
+SQLite on Render free service remains disposable local state. Use an external managed database before claiming durable production persistence.
 
-The current Render configuration uses SQLite on service-local storage. That is suitable only for a disposable demo because the storage is ephemeral on the free service plan. Use persistent storage or an external database before treating the deployment as durable production infrastructure.
+## Verification policy
 
-Update `ALLOWED_ORIGINS` and the frontend API endpoint to the actual deployed service URLs.
-
-## Verification status
-
-The repository contains automated backend tests and GitHub Actions checks for Python compilation, backend tests, and frontend JavaScript syntax. The current model checkpoint and clean-data retraining are **not considered quality-verified until a real Colab/CI run demonstrates non-blank predictions on real ISL data**.
-
-Adapter deletion removes both the database record and its on-disk weights, and calibration now fails closed if the adapter would exceed the documented parameter budget.
-
-The evaluation UI intentionally reports benchmark metrics as **not measured** unless evidence is persisted. It does not display fabricated accuracy, BLEU, WER, or memory numbers.
+A feature is not considered complete until the relevant UI/API/model path is integrated and runtime-tested. Model quality is explicitly **not verified** until a fresh real-data training + semantic validation run passes. CI results are only reported when an actual workflow run is available.

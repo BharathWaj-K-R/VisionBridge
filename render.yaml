@@ -1,5 +1,4 @@
 services:
-  # --- Backend: FastAPI web service ---
   - type: web
     name: visionbridge-backend
     runtime: python
@@ -21,14 +20,20 @@ services:
         value: "60"
       - key: CALIBRATION_MIN_SECONDS
         value: "300"
-    # NOTE: SQLite on Render free tier is ephemeral. For durable production
-    # persistence, use an external managed database or durable disk.
 
-  # --- Frontend: static site ---
   - type: web
     name: visionbridge-frontend
     runtime: static
     rootDir: frontend
-    buildCommand: ""
-    staticPublishPath: .
-    envVars: []
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://visionbridge-backend.onrender.com/api/v1
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+# SQLite is intentionally retained for the disposable demo deployment.
+# Use an external managed database before treating this as durable production data.
