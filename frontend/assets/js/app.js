@@ -26,12 +26,22 @@
   }
   async function apiFetch(path, options = {}) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+    const timeoutId = setTimeout(() => controller.abort(new DOMException("Request timed out", "TimeoutError")), API_TIMEOUT_MS);
     const requestOptions = {
       ...options,
       headers: { ...(options.headers || {}), ...authHeaders() },
+      signal: controller.signal,
     };
-    if (!requestOptions.signal) requestOptions.signal = controller.signal;
+
+    let removeCallerAbortListener = null;
+    if (options.signal) {
+      const onCallerAbort = () => controller.abort(options.signal.reason);
+      if (options.signal.aborted) onCallerAbort();
+      else {
+        options.signal.addEventListener("abort", onCallerAbort, { once: true });
+        removeCallerAbortListener = () => options.signal.removeEventListener("abort", onCallerAbort);
+      }
+    }
 
     try {
       const response = await fetch(`${window.VB_API_BASE_URL}${path}`, requestOptions);
@@ -42,6 +52,7 @@
       return response;
     } finally {
       clearTimeout(timeoutId);
+      if (removeCallerAbortListener) removeCallerAbortListener();
     }
   }
   window.VB_AUTH_TOKEN = authToken;
