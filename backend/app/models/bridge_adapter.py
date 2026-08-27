@@ -48,35 +48,33 @@ class BridgeAdapterStack(nn.Module):
         left_hand: torch.Tensor | None = None,
         right_hand: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        """Reuse the base model's modality encoders and splice adapters into its temporal stack."""
-        padding_mask = None
-        if pose.shape[1] != face.shape[1]:
+        """Reuse frozen base streams and splice adapters into its shared encoder."""
+        if pose.shape[:2] != face.shape[:2]:
             raise ValueError("pose/face frame counts must match for adapter inference")
-        if left_hand is None:
-            left_hand = torch.zeros(
-                pose.shape[0], pose.shape[1], 63, dtype=pose.dtype, device=pose.device
-            )
-        if right_hand is None:
-            right_hand = torch.zeros_like(left_hand)
 
-        # The base model performs all shape and modality validation here.
-        pose_emb = base_model.pose_encoder(
-            pose,
-            padding_mask,
-        )
-        face_emb = base_model.face_encoder(
-            face,
-            padding_mask,
-        )
-        if not getattr(base_model, "use_hands", False):
-            streams = (pose_emb, face_emb)
+        use_hands = bool(getattr(base_model, "use_hands", False))
+        if use_hands:
+            if left_hand is None or right_hand is None:
+                raise ValueError("hand-aware base model requires both hand streams")
         else:
-            left_emb = base_model.left_hand_encoder(left_hand, padding_mask)
-            right_emb = base_model.right_hand_encoder(right_hand, padding_mask)
-            streams = (pose_emb, face_emb, left_emb, right_emb)
+            if left_hand is None:
+                left_hand = torch.zeros(
+                    pose.shape[0], pose.shape[1], 63, dtype=pose.dtype, device=pose.device
+                )
+            if right_hand is None:
+                right_hand = torch.zeros_like(left_hand)
 
-        hidden = base_model.fusion(streams, padding_mask)
-        hidden = base_model.temporal_conv(hidden)
+        pose_emb = base_model.pose_encoder(pose)
+        face_emb = base_model.face_encoder(face)
+        if use_hands:
+            left_emb = base_model.left_hand_encoder(left_hand)
+            right_emb = base_model.right_hand_encoder(right_hand)
+            streams = (pose_emb, face_emb, left_emb, right_emb)
+            hidden = base_model.fusion(streams)
+            hidden = base_model.temporal_conv(hidden)
+        else:
+            hidden = base_model.fusion(pose_emb, face_emb)
+
         for layer, adapter in zip(base_model.shared_encoder.layers, self.adapters):
             hidden = layer(hidden)
             hidden = adapter(hidden)
@@ -96,8 +94,7 @@ class BridgeAdapterStack(nn.Module):
         blank_id: int = 0,
     ) -> dict:
         start = time.time()
-        for parameter in base_model.parameters():
-            parameter.requires_grad = False
+        base_model.freeze()
         optimizer = torch.optim.AdamW(self.parameters(), lr=lr)
         ctc_loss = nn.CTCLoss(blank=blank_id, zero_infinity=True)
         input_lengths = torch.full(
