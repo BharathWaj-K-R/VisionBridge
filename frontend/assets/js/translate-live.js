@@ -12,17 +12,32 @@
   const confVal = document.querySelectorAll("[data-sb-confidence-val]");
   const latencyEl = document.querySelector("[data-sb-latency]");
   const fpsEl = document.querySelector("[data-sb-fps]");
+  const handStatusEl = document.querySelector("[data-sb-hand-status]");
   const startBtn = document.querySelector("[data-sb-start]");
   const pauseBtn = document.querySelector("[data-sb-pause]");
   const stopBtn = document.querySelector("[data-sb-stop]");
   const cameraFrame = document.querySelector(".sb-camera-frame");
   const placeholder = cameraFrame ? cameraFrame.querySelector(".placeholder") : null;
+  const skeletonCanvas = cameraFrame
+    ? cameraFrame.querySelector("[data-sb-hand-skeleton]")
+    : null;
 
   const FRAME_WINDOW = 50;
   const TARGET_FPS = 15;
 
   const EXPECTED_POSE_DIM = 33 * 4;
   const EXPECTED_FACE_DIM = 468 * 3;
+
+  // MediaPipe Hands topology. Each hand is a 21-point skeleton:
+  // wrist -> thumb/index/middle/ring/pinky chains with the palm connections.
+  const HAND_CONNECTIONS = [
+    [0, 1], [1, 2], [2, 3], [3, 4],
+    [0, 5], [5, 6], [6, 7], [7, 8],
+    [5, 9], [9, 10], [10, 11], [11, 12],
+    [9, 13], [13, 14], [14, 15], [15, 16],
+    [13, 17], [17, 18], [18, 19], [19, 20],
+    [0, 17],
+  ];
 
   let video, holistic, camera;
   let poseBuffer = [];
@@ -162,7 +177,85 @@
     }
   }
 
+  function resizeSkeletonCanvas() {
+    if (!skeletonCanvas || !cameraFrame) return;
+    const width = Math.max(1, cameraFrame.clientWidth);
+    const height = Math.max(1, cameraFrame.clientHeight);
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    skeletonCanvas.width = Math.round(width * dpr);
+    skeletonCanvas.height = Math.round(height * dpr);
+    skeletonCanvas.style.width = `${width}px`;
+    skeletonCanvas.style.height = `${height}px`;
+    const ctx = skeletonCanvas.getContext("2d");
+    if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function drawHandSkeleton(landmarks, label) {
+    if (!skeletonCanvas || !landmarks || landmarks.length < 21) return;
+
+    const ctx = skeletonCanvas.getContext("2d");
+    if (!ctx) return;
+
+    const width = skeletonCanvas.clientWidth;
+    const height = skeletonCanvas.clientHeight;
+
+    ctx.save();
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = label === "left" ? "rgba(67, 160, 71, 0.95)" : "rgba(30, 136, 229, 0.95)";
+    ctx.fillStyle = label === "left" ? "rgba(67, 160, 71, 0.98)" : "rgba(30, 136, 229, 0.98)";
+
+    for (const [from, to] of HAND_CONNECTIONS) {
+      const a = landmarks[from];
+      const b = landmarks[to];
+      if (!a || !b) continue;
+      ctx.beginPath();
+      ctx.moveTo(a.x * width, a.y * height);
+      ctx.lineTo(b.x * width, b.y * height);
+      ctx.stroke();
+    }
+
+    for (let index = 0; index < landmarks.length; index += 1) {
+      const lm = landmarks[index];
+      if (!lm) continue;
+      ctx.beginPath();
+      ctx.arc(lm.x * width, lm.y * height, index === 0 ? 4 : 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+
+  function drawHands(results) {
+    if (!skeletonCanvas) return;
+
+    resizeSkeletonCanvas();
+    const ctx = skeletonCanvas.getContext("2d");
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, skeletonCanvas.clientWidth, skeletonCanvas.clientHeight);
+
+    const left = results.leftHandLandmarks;
+    const right = results.rightHandLandmarks;
+    const detected = Number(Boolean(left)) + Number(Boolean(right));
+
+    if (handStatusEl) {
+      handStatusEl.textContent = detected === 0
+        ? "Hands not detected"
+        : `${detected} hand${detected === 1 ? "" : "s"} tracked`;
+    }
+
+    drawHandSkeleton(left, "left");
+    drawHandSkeleton(right, "right");
+  }
+
   function onHolisticResults(results) {
+    // Hands are deliberately visualized separately from the existing backend
+    // translation contract. Each detected hand has 21 3D landmarks that are
+    // rendered as a live skeleton for signer feedback and diagnostics.
+    drawHands(results);
+
     poseBuffer.push(flattenPose(results.poseLandmarks));
     faceBuffer.push(flattenFace(results.faceLandmarks));
 
@@ -218,6 +311,7 @@
     video.style.borderRadius = "inherit";
     placeholder.innerHTML = "";
     placeholder.appendChild(video);
+    resizeSkeletonCanvas();
     return true;
   }
 
@@ -248,6 +342,11 @@
       video.srcObject.getTracks().forEach((track) => track.stop());
       video.srcObject = null;
     }
+    if (skeletonCanvas) {
+      const ctx = skeletonCanvas.getContext("2d");
+      if (ctx) ctx.clearRect(0, 0, skeletonCanvas.clientWidth, skeletonCanvas.clientHeight);
+    }
+    if (handStatusEl) handStatusEl.textContent = "Hands waiting";
     setCaption("Translation stopped. Press Start to resume.", 0, 0);
   }
 
@@ -269,6 +368,7 @@
   startBtn && startBtn.addEventListener("click", handleStart);
   pauseBtn && pauseBtn.addEventListener("click", () => { running = false; });
   stopBtn && stopBtn.addEventListener("click", stopRealTranslation);
+  window.addEventListener("resize", resizeSkeletonCanvas);
 
   setCaption("Press Start to begin live translation.", 0, 0);
 })();
