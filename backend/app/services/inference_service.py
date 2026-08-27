@@ -78,7 +78,7 @@ def model_status() -> dict[str, str | bool]:
         return {
             "available": False,
             "status": "unavailable",
-            "modality": "pose+face+hands",
+            "modality": "hand-aware",
         }
 
     signature = (
@@ -95,29 +95,19 @@ def model_status() -> dict[str, str | bool]:
         output_head_weight = state.get("output_head.weight")
         hand_aware = "left_hand_encoder.input_proj.0.weight" in state
         if output_head_weight is None:
+            result = {"available": False, "status": "invalid_checkpoint", "modality": "unknown"}
+        elif not hand_aware:
             result = {
                 "available": False,
-                "status": "invalid_checkpoint",
-                "modality": "unknown",
+                "status": "legacy_checkpoint_requires_retraining",
+                "modality": "legacy-pose-face",
             }
         elif len(id_to_token) != int(output_head_weight.shape[0]):
-            result = {
-                "available": False,
-                "status": "vocabulary_mismatch",
-                "modality": "hand-aware" if hand_aware else "legacy",
-            }
+            result = {"available": False, "status": "vocabulary_mismatch", "modality": "hand-aware"}
         else:
-            result = {
-                "available": True,
-                "status": "ready",
-                "modality": "hand-aware" if hand_aware else "legacy-pose-face",
-            }
+            result = {"available": True, "status": "ready", "modality": "hand-aware"}
     except Exception:
-        result = {
-            "available": False,
-            "status": "invalid_checkpoint",
-            "modality": "unknown",
-        }
+        result = {"available": False, "status": "invalid_checkpoint", "modality": "unknown"}
 
     _model_status_cache = (signature, result)
     return result.copy()
@@ -179,20 +169,9 @@ def run_inference(
 
     with torch.no_grad():
         if adapter is not None:
-            logits = adapter.forward_with_base(
-                model,
-                pose,
-                face,
-                left_hand,
-                right_hand,
-            )
+            logits = adapter.forward_with_base(model, pose, face, left_hand, right_hand)
         else:
-            logits = model(
-                pose,
-                face,
-                left_hand,
-                right_hand,
-            )
+            logits = model(pose, face, left_hand, right_hand)
 
     latency_ms = (time.perf_counter() - start) * 1000
     text, confidence = decode_logits(logits)
