@@ -4,6 +4,7 @@ import csv
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -46,15 +47,16 @@ def list_history(
     if search:
         query = query.filter(TranslationLog.predicted_text.ilike(f"%{search}%"))
 
-    items = query.all()
+    total_count = query.count()
     if sort == "confidence":
-        items.sort(key=lambda row: row.confidence if row.confidence is not None else -1, reverse=True)
+        query = query.order_by(TranslationLog.confidence.desc().nullslast(), TranslationLog.created_at.desc())
     elif sort == "length":
-        items.sort(key=lambda row: len(row.predicted_text), reverse=True)
+        query = query.order_by(func.length(TranslationLog.predicted_text).desc(), TranslationLog.created_at.desc())
     else:
-        items.sort(key=lambda row: row.created_at or dt.datetime.min, reverse=True)
+        query = query.order_by(TranslationLog.created_at.desc())
 
-    return {"items": [_serialize(item) for item in items[:limit]], "count": min(len(items), limit)}
+    items = query.limit(limit).all()
+    return {"items": [_serialize(item) for item in items], "count": total_count}
 
 
 @router.get("/export.csv")
