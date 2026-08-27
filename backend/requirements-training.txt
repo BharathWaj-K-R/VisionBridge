@@ -3,11 +3,14 @@
 # service — that would bloat the production build with packages the live
 # API never uses (mediapipe/opencv especially are large).
 #
+# The canonical Colab training notebook uses the same MediaPipe release in an
+# isolated Python 3.12 environment. Keep this file aligned with that runtime.
+#
 # Install with: pip install -r requirements-training.txt (in addition to
 # requirements.txt) on whatever machine/Colab instance does the actual
 # training run.
 
-mediapipe==0.10.14
+mediapipe==0.10.21
 opencv-python==4.10.0.84
 pose-format==0.4.0
 pandas==2.2.3
