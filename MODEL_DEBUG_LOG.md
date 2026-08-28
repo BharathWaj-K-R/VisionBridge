@@ -67,3 +67,53 @@ The bug was confirmed from the actual notebook code and the runtime dataset layo
 7. Push the checkpoint only after that gate passes.
 8. Run `notebooks/validate_base_model_colab.ipynb` on multiple real videos.
 9. Only then resume BridgeAdapter personalization work.
+
+## 2026-08-28 — Hand-aware training-path audit
+
+### Current repository state inspected
+
+`main` is at `29a870afc088e005508174fd8367c102d4f57216`. The repository contains the hand-aware four-stream model, dataset/collator, training gate, React/Vite frontend, Render configuration, and the legacy `base_model.pt` artifact.
+
+The legacy checkpoint remains intentionally incompatible with the new hand-aware loader and must not be promoted as a production model.
+
+### Static findings
+
+1. The production model constructor is trainable, while `load_frozen_base_model()` freezes only the inference instance as intended.
+2. The training loop passes all four streams and explicit CTC input/target lengths.
+3. The semantic gate already blocks empty, space-dominated, trivial, and high-CER outputs.
+4. A regression test still used the pre-migration two-stream model signature. It has been aligned with the hand-aware four-stream contract.
+5. The semantic gate test called `semantic_gate_failures()` without thresholds even though the function previously required them. Threshold defaults are now explicit and shared with the CLI defaults.
+6. The overfit gate previously exposed loss and greedy output but did not reveal whether target characters were receiving probability mass or whether optimizer updates actually occurred. It now reports first-step gradient norms, first-step parameter delta, framewise blank/space argmax ratios, and target-character peak probability.
+7. CI previously compiled/tests the backend but only syntax-checked JavaScript on the frontend. It now installs frontend dependencies and runs the TypeScript check plus Vite production build.
+
+### Changes on audit branch
+
+Branch: `agent/hand-aware-training-diagnostics`
+
+PR: #3
+
+No model checkpoint was generated, modified, or pushed.
+
+### Verification status
+
+**CODE FIXED:** hand-aware padding-mask regression test and semantic-gate threshold defaults.
+
+**CODE FIXED:** diagnostic observability for gradient/update/CTC-collapse analysis.
+
+**CODE FIXED:** CI now contains explicit frontend typecheck/build gates.
+
+**STATIC VERIFIED:** current repository configuration and changed source files were inspected through GitHub.
+
+**NOT VERIFIED:** backend pytest, frontend `npm run check`, frontend `npm run build`, and real-data hand-aware overfit could not be executed in this environment. The container cannot resolve `github.com`, and no real ISL processed dataset/GPU runtime is available here.
+
+**NOT VERIFIED:** the hand-aware model is not production-ready and the legacy checkpoint remains rejected.
+
+### Next required runtime evidence
+
+Run the diagnostic overfit gate on a fresh GPU runtime. Interpret the new diagnostics before changing architecture:
+
+- finite gradients + nonzero parameter delta + high target-character peaks + blank greedy path: investigate CTC decoding/alignment;
+- finite gradients + nonzero parameter delta + low target-character peaks: investigate feature signal/model optimization;
+- missing gradients or zero parameter delta: investigate graph/optimizer/trainability;
+- invalid lengths or target alignment: stop at dataset/collation;
+- only after these checks pass should full training be attempted.
