@@ -14,6 +14,9 @@ from app.training.isltranslate import (
 )
 
 CTC_BLANK_ID = 0
+DEFAULT_MAX_SPACE_RATIO = 0.90
+DEFAULT_MIN_MEANINGFUL_UNIQUE = 2
+DEFAULT_MAX_CER = 0.90
 
 
 def parse_args() -> argparse.Namespace:
@@ -24,9 +27,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--lr", type=float, default=2e-3)
     parser.add_argument("--device", default=None)
     parser.add_argument("--min-loss-reduction", type=float, default=0.50)
-    parser.add_argument("--max-space-ratio", type=float, default=0.90)
-    parser.add_argument("--min-meaningful-unique", type=int, default=2)
-    parser.add_argument("--max-mean-cer", type=float, default=0.90)
+    parser.add_argument("--max-space-ratio", type=float, default=DEFAULT_MAX_SPACE_RATIO)
+    parser.add_argument("--min-meaningful-unique", type=int, default=DEFAULT_MIN_MEANINGFUL_UNIQUE)
+    parser.add_argument("--max-mean-cer", type=float, default=DEFAULT_MAX_CER)
     return parser.parse_args()
 
 
@@ -78,15 +81,44 @@ def greedy_ctc_decode(logits: torch.Tensor, tokenizer: SimpleCharTokenizer) -> t
     return text, confidence, space_ratio, unique_meaningful
 
 
+def target_character_peak_probability(
+    logits: torch.Tensor,
+    target: str,
+    tokenizer: SimpleCharTokenizer,
+) -> float:
+    """Report whether target characters receive probability mass anywhere in time.
+
+    This is diagnostic only. It deliberately does not replace CTC decoding or
+    acceptance criteria. A high peak with a blank greedy path points toward
+    alignment/decoding behavior rather than an immediately obvious dead head.
+    """
+    if logits.ndim != 3 or logits.shape[0] != 1:
+        raise ValueError(f"Expected logits shape [1,T,V], got {tuple(logits.shape)}")
+    probs = torch.softmax(logits, dim=-1)[0]
+    target_ids = [tokenizer.token_to_id[ch] for ch in target]
+    if not target_ids:
+        return 0.0
+    peaks = [float(probs[:, token_id].max().item()) for token_id in target_ids]
+    return sum(peaks) / len(peaks)
+
+
+def frame_argmax_ratios(logits: torch.Tensor, tokenizer: SimpleCharTokenizer) -> tuple[float, float]:
+    probs = torch.softmax(logits, dim=-1)
+    ids = probs.argmax(dim=-1)[0]
+    blank_ratio = float((ids == CTC_BLANK_ID).float().mean().item())
+    space_ratio = float((ids == tokenizer.token_to_id[" "]).float().mean().item())
+    return blank_ratio, space_ratio
+
+
 def semantic_gate_failures(
     target: str,
     prediction: str,
     space_ratio: float,
     unique_meaningful: int,
     *,
-    max_space_ratio: float,
-    min_meaningful_unique: int,
-    max_cer: float,
+    max_space_ratio: float = DEFAULT_MAX_SPACE_RATIO,
+    min_meaningful_unique: int = DEFAULT_MIN_MEANINGFUL_UNIQUE,
+    max_cer: float = DEFAULT_MAX_CER,
 ) -> list[str]:
     failures: list[str] = []
     if not prediction.strip():
@@ -175,7 +207,7 @@ def main() -> None:
 
     model.eval()
     with torch.inference_mode():
-        _, initial_loss_tensor = compute_loss()
+        initial_logits, initial_loss_tensor = compute_loss()
     initial_loss = float(initial_loss_tensor.item())
 
     print(f"Device: {device}")
@@ -184,7 +216,21 @@ def main() -> None:
     print("Targets:")
     for i, text in enumerate(batch["text"]):
         print(f"  {i}: {text!r}")
+    print("Initial frame argmax diagnostics:")
+    for i, text in enumerate(batch["text"]):
+        blank_ratio, space_ratio = frame_argmax_ratios(
+            initial_logits[i : i + 1, : int(input_lengths[i].item())], tokenizer
+        )
+        peak = target_character_peak_probability(
+            initial_logits[i : i + 1, : int(input_lengths[i].item())], text, tokenizer
+        )
+        print(
+            f"  {i}: blank_ratio={blank_ratio:.3f} space_ratio={space_ratio:.3f} "
+            f"target_char_peak_mean={peak:.3f}"
+        )
 
+    first_gradient_norms: dict[str, float] = {}
+    first_parameter_delta = 0.0
     model.train()
     for step in range(1, args.steps + 1):
         _, loss = compute_loss()
@@ -192,10 +238,28 @@ def main() -> None:
             raise RuntimeError(f"OVERFIT SANITY FAILED: non-finite loss at step {step}.")
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
+        if step == 1:
+            for name, parameter in model.named_parameters():
+                if parameter.grad is not None:
+                    first_gradient_norms[name] = float(parameter.grad.detach().norm().item())
+            before = next(parameter for parameter in model.parameters() if parameter.requires_grad).detach().clone()
         torch.nn.utils.clip_grad_norm_([p for p in model.parameters() if p.requires_grad], 1.0)
         optimizer.step()
+        if step == 1:
+            after = next(parameter for parameter in model.parameters() if parameter.requires_grad).detach()
+            first_parameter_delta = float((after - before).norm().item())
+            if not first_gradient_norms:
+                raise RuntimeError("OVERFIT SANITY FAILED: no trainable parameter received a gradient.")
         if step == 1 or step % max(1, args.steps // 10) == 0:
             print(f"step={step} loss={float(loss.item()):.4f}")
+
+    if not first_gradient_norms or first_parameter_delta <= 0.0:
+        raise RuntimeError("OVERFIT SANITY FAILED: optimizer did not update trainable parameters.")
+    top_gradients = sorted(first_gradient_norms.items(), key=lambda item: item[1], reverse=True)[:5]
+    print("First-step gradient diagnostics:")
+    for name, norm in top_gradients:
+        print(f"  {name}: grad_norm={norm:.6g}")
+    print(f"First-step parameter delta norm: {first_parameter_delta:.6g}")
 
     model.eval()
     with torch.inference_mode():
@@ -207,16 +271,22 @@ def main() -> None:
     print("\nPredictions on overfit samples:")
     for i, target in enumerate(batch["text"]):
         frames = int(input_lengths[i].item())
+        sample_logits = final_logits[i : i + 1, :frames]
         prediction, confidence, space_ratio, unique_meaningful = greedy_ctc_decode(
-            final_logits[i : i + 1, :frames], tokenizer
+            sample_logits, tokenizer
         )
+        blank_ratio, frame_space_ratio = frame_argmax_ratios(sample_logits, tokenizer)
         sample_cer = cer(prediction, target)
+        target_peak = target_character_peak_probability(sample_logits, target, tokenizer)
         metrics.append(
             {
                 "target": target,
                 "prediction": prediction,
                 "confidence": confidence,
+                "blank_ratio": blank_ratio,
                 "space_ratio": space_ratio,
+                "frame_space_ratio": frame_space_ratio,
+                "target_char_peak_mean": target_peak,
                 "unique_meaningful": unique_meaningful,
                 "cer": sample_cer,
             }
@@ -224,7 +294,9 @@ def main() -> None:
         print(
             f"  {i}: truth={target!r} predicted={prediction!r} "
             f"confidence={confidence:.3f} cer={sample_cer:.3f} "
-            f"space_ratio={space_ratio:.3f} unique_meaningful={unique_meaningful}"
+            f"blank_ratio={blank_ratio:.3f} space_ratio={space_ratio:.3f} "
+            f"target_char_peak_mean={target_peak:.3f} "
+            f"unique_meaningful={unique_meaningful}"
         )
 
     mean_cer = sum(float(m["cer"]) for m in metrics) / len(metrics)
