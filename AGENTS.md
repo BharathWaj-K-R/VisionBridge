@@ -689,3 +689,81 @@ The project is now architecturally migrated to a hand-aware multimodal stack,
 but the new model must be trained and semantically validated before the product
 can be called functional. Do not push the legacy checkpoint as a hand-aware model.
 ```
+
+---
+
+# U. LATEST DIARY ENTRY — 2026-08-28 HAND-AWARE TRAINING VERIFICATION AUDIT
+
+## Repository state inspected
+
+`main` was inspected at `29a870afc088e005508174fd8367c102d4f57216`. The hand-aware model, four-stream dataset/collator, inference readiness checks, React/Vite frontend, Render configuration, and legacy checkpoint are present.
+
+The old `base_model.pt` is still a legacy pose+face artifact and remains intentionally invalid for the hand-aware production loader.
+
+## Static findings
+
+1. `VisionBridgeBaseModel` is trainable when constructed directly; `load_frozen_base_model()` freezes only the inference instance.
+2. `train_base_model.py` passes pose, face, left hand, right hand, input lengths, and target lengths into CTC correctly at the API level.
+3. `overfit_sanity.py` already blocks empty, whitespace-only, space-collapse, low-diversity, and high-CER outputs.
+4. `backend/tests/test_model_padding_mask.py` still used the pre-migration two-stream call signature. This was a real regression in the test suite and has been corrected to use all four streams.
+5. `semantic_gate_failures()` required three threshold keyword arguments even though the test suite called it without them. Explicit defaults were added, matching the CLI defaults.
+6. The overfit gate previously reported loss and greedy output but could not distinguish optimizer failure, probability collapse, and decoder behavior. It now reports first-step gradient norms, first-step parameter delta, framewise blank/space argmax ratios, and target-character peak probability.
+7. The existing GitHub Actions workflow only ran backend tests/compile and frontend JavaScript syntax checks. It now also runs `npm run check` and `npm run build` for the React/Vite frontend.
+
+## Changes
+
+Branch: `agent/hand-aware-training-diagnostics`
+
+PR: #3
+
+No model checkpoint was generated, modified, or pushed.
+
+## Verification levels
+
+```text
+CODE FIXED:
+- hand-aware padding-mask regression test
+- semantic gate threshold defaults
+- overfit diagnostic observability
+- frontend CI typecheck/build commands
+
+STATIC VERIFIED:
+- current main repository structure
+- changed source files and workflow configuration
+
+RUNTIME VERIFIED:
+- none in this environment for the changed repository
+
+NOT VERIFIED:
+- backend pytest
+- frontend npm check/build
+- real-data hand-aware extraction
+- real-data semantic overfit
+- full model training
+- real-video inference
+- browser E2E
+- Render E2E
+```
+
+## Runtime diagnosis required next
+
+Run the updated overfit gate on a fresh GPU/real ISL dataset before changing architecture. Interpret the evidence rather than tuning blindly:
+
+```text
+gradients missing or parameter delta == 0
+    -> graph/trainability/optimizer failure
+
+gradients valid + parameter updates valid + target-character peaks low
+    -> feature signal or optimization/model representation problem
+
+target-character peaks substantial + greedy path remains blank/space dominated
+    -> CTC alignment/decoding behavior requires focused investigation
+invalid frame/target lengths
+    -> dataset/collation contract failure
+```
+
+Full training remains blocked until the semantic overfit gate passes. No checkpoint may be pushed merely because loss decreases.
+
+## Current audit conclusion
+
+The repository has concrete test/verification regressions that have now been corrected on the audit branch, but the original hand-aware semantic failure is **not yet root-caused** from the available environment because the required real dataset and GPU runtime are unavailable. The safest state is therefore to improve observability, keep the legacy checkpoint rejected, and stop before full training.
