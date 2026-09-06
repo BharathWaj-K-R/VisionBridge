@@ -14,7 +14,11 @@ def test_missing_checkpoint_is_reported_as_unavailable(monkeypatch, tmp_path):
 
     try:
         status = inference_service.model_status()
-        assert status == {"available": False, "status": "unavailable"}
+        assert status == {
+            "available": False,
+            "status": "unavailable",
+            "modality": "hand-aware",
+        }
         with pytest.raises(inference_service.ModelUnavailableError):
             inference_service.get_base_model()
     finally:
