@@ -150,6 +150,11 @@ def test_translate_endpoint_returns_503_when_the_model_is_unavailable(monkeypatc
 
 @requires_real_weights
 def test_translate_endpoint_end_to_end_with_real_model_and_realistic_keypoints():
+    status = inference_service.model_status()
+    if not status.get("available"):
+        pytest.skip(f"real trained hand-aware checkpoint unavailable: {status}")
+    assert status.get("modality") == "hand-aware"
+
     pose, face, left_hand, right_hand = _realistic_keypoints(40)
     prev_cwd = os.getcwd()
     try:
