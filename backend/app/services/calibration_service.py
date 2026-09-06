@@ -15,6 +15,17 @@ from app.services.inference_service import get_base_model
 settings = get_settings()
 
 
+def temporal_layer_count(base_model) -> int:
+    """Return the depth of the current temporal encoder across model versions."""
+    encoder = base_model.shared_encoder
+    if hasattr(encoder, "num_layers"):
+        return int(encoder.num_layers)
+    layers = getattr(encoder, "layers", None)
+    if layers is not None:
+        return len(layers)
+    raise RuntimeError("Unsupported temporal encoder: cannot determine adapter depth")
+
+
 def calibrate_new_adapter(
     pose: torch.Tensor,
     face: torch.Tensor,
@@ -26,8 +37,10 @@ def calibrate_new_adapter(
 ) -> dict:
     """Train a fresh signer adapter against the multimodal base model."""
     base_model = get_base_model()
-    n_layers = len(base_model.shared_encoder.layers)
-    adapter = BridgeAdapterStack(d_model=base_model.d_model, n_layers=n_layers)
+    adapter = BridgeAdapterStack(
+        d_model=base_model.d_model,
+        n_layers=temporal_layer_count(base_model),
+    )
 
     base_param_count = sum(p.numel() for p in base_model.parameters())
     if not adapter.param_budget_ok(base_param_count):
