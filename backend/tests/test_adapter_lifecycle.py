@@ -7,11 +7,18 @@ from app.models.bridge_adapter import BridgeAdapterStack
 from app.services import calibration_service
 
 
+def _shared_layer_count(base: VisionBridgeBaseModel) -> int:
+    encoder = base.shared_encoder
+    if hasattr(encoder, "num_layers"):
+        return int(encoder.num_layers)
+    return len(encoder.layers)
+
+
 def test_adapter_parameter_budget_matches_current_backbone():
     base = VisionBridgeBaseModel(vocab_size=49)
     adapter = BridgeAdapterStack(
         d_model=base.d_model,
-        n_layers=len(base.shared_encoder.layers),
+        n_layers=_shared_layer_count(base),
         bottleneck_dim=16,
     )
     base_params = sum(p.numel() for p in base.parameters())
