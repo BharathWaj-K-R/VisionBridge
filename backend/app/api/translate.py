@@ -10,7 +10,7 @@ from app.db.models import SignerAdapter, TranslationLog, User
 from app.db.session import get_db
 from app.models.base_model import FACE_INPUT_DIM, HAND_INPUT_DIM, POSE_INPUT_DIM
 from app.schemas.schemas import TranslationRequest, TranslationResult
-from app.services.calibration_service import load_adapter_for_signer
+from app.services.calibration_service import load_adapter_for_signer, temporal_layer_count
 from app.services.inference_service import ModelUnavailableError, get_base_model, run_inference
 
 router = APIRouter(prefix="/translate", tags=["translate"])
@@ -108,7 +108,7 @@ def translate(
             adapter = load_adapter_for_signer(
                 row.weights_path,
                 d_model=base_model.d_model,
-                n_layers=len(base_model.shared_encoder.layers),
+                n_layers=temporal_layer_count(base_model),
             )
         except (ModelUnavailableError, OSError, RuntimeError) as exc:
             raise HTTPException(status_code=503, detail="Translation model is unavailable") from exc
