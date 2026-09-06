@@ -1,9 +1,9 @@
-"""VisionBridge multimodal temporal base model.
+"""VisionBridge hand-aware temporal CTC base model.
 
-The model consumes pose, face, and both hand skeleton streams. Hands are kept as
-separate modalities because hand geometry and motion carry much of the lexical
-signal in continuous sign language. The inference loader freezes the trained
-backbone; training constructs the model directly so parameters remain trainable.
+The model consumes pose, face, and both hand skeleton streams. The production
+model intentionally stays compact and CTC-friendly: per-stream normalization
+and projection -> learned multimodal gating -> local temporal convolution ->
+bidirectional GRU -> character CTC head.
 """
 from __future__ import annotations
 
@@ -11,45 +11,54 @@ import os
 
 import torch
 import torch.nn as nn
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 POSE_INPUT_DIM = 33 * 4
 FACE_INPUT_DIM = 468 * 3
 HAND_INPUT_DIM = 21 * 3
 MAX_SEQUENCE_LENGTH = 1024
+MODEL_ARCHITECTURE = "hand-aware-gru-ctc-v2"
 
 
 class StreamEncoder(nn.Module):
-    """Project one landmark stream into a shared temporal representation."""
+    """Normalize and project one landmark stream into a temporal representation."""
 
-    def __init__(self, input_dim: int, d_model: int = 256, n_layers: int = 1, n_heads: int = 4):
+    def __init__(self, input_dim: int, d_model: int = 256, dropout: float = 0.05):
         super().__init__()
+        self.input_norm = nn.LayerNorm(input_dim)
         self.input_proj = nn.Sequential(
             nn.Linear(input_dim, d_model),
             nn.LayerNorm(d_model),
             nn.GELU(),
+            nn.Dropout(dropout),
         )
-        self.pos_embedding = nn.Parameter(torch.zeros(1, MAX_SEQUENCE_LENGTH, d_model))
-        layer = nn.TransformerEncoderLayer(
-            d_model=d_model,
-            nhead=n_heads,
-            dim_feedforward=d_model * 2,
-            batch_first=True,
-            dropout=0.1,
-            norm_first=True,
+        self.motion_proj = nn.Sequential(
+            nn.Linear(input_dim, d_model),
+            nn.LayerNorm(d_model),
+            nn.GELU(),
         )
-        self.encoder = nn.TransformerEncoder(layer, num_layers=n_layers, enable_nested_tensor=False)
 
     def forward(self, x: torch.Tensor, padding_mask: torch.Tensor | None = None) -> torch.Tensor:
         if x.ndim != 3:
             raise ValueError("stream input must have shape (batch, frames, features)")
         if x.shape[1] > MAX_SEQUENCE_LENGTH:
             raise ValueError(f"sequence has {x.shape[1]} frames; maximum is {MAX_SEQUENCE_LENGTH}")
-        hidden = self.input_proj(x) + self.pos_embedding[:, : x.shape[1]]
-        return self.encoder(hidden, src_key_padding_mask=padding_mask)
+
+        normalized = self.input_norm(x)
+        hidden = self.input_proj(normalized)
+        if x.shape[1] > 1:
+            motion = torch.zeros_like(hidden)
+            delta = normalized[:, 1:] - normalized[:, :-1]
+            motion[:, 1:] = self.motion_proj(delta)
+            hidden = hidden + motion
+
+        if padding_mask is not None:
+            hidden = hidden.masked_fill(padding_mask.unsqueeze(-1), 0.0)
+        return hidden
 
 
 class MultimodalFusion(nn.Module):
-    """Fuse synchronized modalities per frame with learned gating."""
+    """Fuse synchronized modalities per frame with learned modality gates."""
 
     def __init__(self, d_model: int = 256, modalities: int = 4):
         super().__init__()
@@ -76,7 +85,7 @@ class MultimodalFusion(nn.Module):
 
 
 class TemporalConvBlock(nn.Module):
-    """Local temporal motion extractor placed before global attention."""
+    """Extract short-range signing motion before recurrent temporal modeling."""
 
     def __init__(self, d_model: int = 256):
         super().__init__()
@@ -102,36 +111,44 @@ class VisionBridgeBaseModel(nn.Module):
         hand_input_dim: int = HAND_INPUT_DIM,
         d_model: int = 256,
         vocab_size: int = 3000,
-        shared_layers: int = 4,
+        shared_layers: int = 2,
         n_heads: int = 4,
         use_hands: bool = True,
     ):
         super().__init__()
+        del n_heads  # retained for constructor compatibility with existing callers
         self.use_hands = use_hands
-        self.pose_encoder = StreamEncoder(pose_input_dim, d_model, n_layers=1, n_heads=n_heads)
-        self.face_encoder = StreamEncoder(face_input_dim, d_model, n_layers=1, n_heads=n_heads)
-        self.left_hand_encoder = StreamEncoder(hand_input_dim, d_model, n_layers=1, n_heads=n_heads) if use_hands else None
-        self.right_hand_encoder = StreamEncoder(hand_input_dim, d_model, n_layers=1, n_heads=n_heads) if use_hands else None
+        self.pose_encoder = StreamEncoder(pose_input_dim, d_model)
+        self.face_encoder = StreamEncoder(face_input_dim, d_model)
+        self.left_hand_encoder = StreamEncoder(hand_input_dim, d_model) if use_hands else None
+        self.right_hand_encoder = StreamEncoder(hand_input_dim, d_model) if use_hands else None
 
         modality_count = 4 if use_hands else 2
         self.fusion = MultimodalFusion(d_model=d_model, modalities=modality_count)
         self.temporal_conv = TemporalConvBlock(d_model)
 
-        layer = nn.TransformerEncoderLayer(
-            d_model=d_model,
-            nhead=n_heads,
-            dim_feedforward=d_model * 4,
+        gru_layers = max(1, int(shared_layers))
+        self.shared_encoder = nn.GRU(
+            input_size=d_model,
+            hidden_size=d_model // 2,
+            num_layers=gru_layers,
             batch_first=True,
-            dropout=0.1,
-            norm_first=True,
+            dropout=0.05 if gru_layers > 1 else 0.0,
+            bidirectional=True,
         )
-        self.shared_encoder = nn.TransformerEncoder(
-            layer,
-            num_layers=shared_layers,
-            enable_nested_tensor=False,
-        )
+        self.shared_norm = nn.LayerNorm(d_model)
         self.output_head = nn.Linear(d_model, vocab_size)
         self.d_model = d_model
+        self.architecture = MODEL_ARCHITECTURE
+        self._initialize_output_bias()
+
+    def _initialize_output_bias(self) -> None:
+        """Prevent early CTC blank starvation without fixing the blank forever."""
+        if self.output_head.bias is None:
+            return
+        nn.init.zeros_(self.output_head.bias)
+        with torch.no_grad():
+            self.output_head.bias[0] = -2.0
 
     @staticmethod
     def _padding_mask(lengths: torch.Tensor, max_frames: int) -> torch.Tensor:
@@ -171,17 +188,18 @@ class VisionBridgeBaseModel(nn.Module):
             if left_hand.shape[-1] != HAND_INPUT_DIM or right_hand.shape[-1] != HAND_INPUT_DIM:
                 raise ValueError(f"hand feature dimension must be {HAND_INPUT_DIM}")
 
-        if pose.shape[1] > MAX_SEQUENCE_LENGTH:
-            raise ValueError(f"sequence has {pose.shape[1]} frames; maximum is {MAX_SEQUENCE_LENGTH}")
+        frames = pose.shape[1]
+        if frames > MAX_SEQUENCE_LENGTH:
+            raise ValueError(f"sequence has {frames} frames; maximum is {MAX_SEQUENCE_LENGTH}")
 
         padding_mask = None
         if lengths is not None:
             if lengths.ndim != 1 or lengths.shape[0] != pose.shape[0]:
                 raise ValueError("lengths must have shape (batch,)")
             lengths = lengths.to(device=pose.device, dtype=torch.long)
-            if torch.any(lengths <= 0) or torch.any(lengths > pose.shape[1]):
+            if torch.any(lengths <= 0) or torch.any(lengths > frames):
                 raise ValueError("lengths must be in the range [1, frames]")
-            padding_mask = self._padding_mask(lengths, pose.shape[1])
+            padding_mask = self._padding_mask(lengths, frames)
 
         pose_emb = self.pose_encoder(pose, padding_mask)
         face_emb = self.face_encoder(face, padding_mask)
@@ -196,7 +214,26 @@ class VisionBridgeBaseModel(nn.Module):
         fused = self.temporal_conv(fused)
         if padding_mask is not None:
             fused = fused.masked_fill(padding_mask.unsqueeze(-1), 0.0)
-        hidden = self.shared_encoder(fused, src_key_padding_mask=padding_mask)
+
+        if lengths is not None:
+            packed = pack_padded_sequence(
+                fused,
+                lengths.detach().cpu(),
+                batch_first=True,
+                enforce_sorted=False,
+            )
+            packed_hidden, _ = self.shared_encoder(packed)
+            hidden, _ = pad_packed_sequence(
+                packed_hidden,
+                batch_first=True,
+                total_length=frames,
+            )
+        else:
+            hidden, _ = self.shared_encoder(fused)
+
+        hidden = self.shared_norm(hidden)
+        if padding_mask is not None:
+            hidden = hidden.masked_fill(padding_mask.unsqueeze(-1), 0.0)
         return self.output_head(hidden)
 
     def freeze(self) -> None:
@@ -205,12 +242,10 @@ class VisionBridgeBaseModel(nn.Module):
 
 
 def load_frozen_base_model(weights_path: str | None = None, **kwargs) -> VisionBridgeBaseModel:
-    """Load the new hand-aware checkpoint and freeze it for inference.
+    """Load the hand-aware checkpoint and freeze it for inference.
 
     A legacy pose+face checkpoint is rejected explicitly because its parameter
-    layout is incompatible with the new multimodal architecture. It must be
-    regenerated by the hand-aware training notebook rather than silently
-    attempting a partial migration.
+    layout is incompatible with the current multimodal architecture.
     """
     if weights_path:
         if not os.path.exists(weights_path):
@@ -221,12 +256,12 @@ def load_frozen_base_model(weights_path: str | None = None, **kwargs) -> VisionB
             kwargs["vocab_size"] = int(output_head_weight.shape[0])
 
         if "left_hand_encoder.input_proj.0.weight" not in state:
-            if "pose_encoder.input_proj.weight" in state:
+            if "pose_encoder.input_proj.0.weight" in state:
                 raise RuntimeError(
                     "Legacy pose+face checkpoint detected. "
-                    "Run notebooks/train_base_model_colab.ipynb to generate the new hand-aware checkpoint."
+                    "Run notebooks/train_base_model_colab.ipynb to generate the current hand-aware checkpoint."
                 )
-            raise RuntimeError("Unsupported VisionBridge checkpoint: hand-aware model weights are missing.")
+            raise RuntimeError("Unsupported VisionBridge checkpoint: current hand-aware weights are missing.")
 
         kwargs["use_hands"] = True
         model = VisionBridgeBaseModel(**kwargs)
