@@ -22,9 +22,9 @@ DEFAULT_MAX_CER = 0.90
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-dir", required=True)
-    parser.add_argument("--samples", type=int, default=2)
+    parser.add_argument("--samples", type=int, default=1)
     parser.add_argument("--steps", type=int, default=2500)
-    parser.add_argument("--lr", type=float, default=2e-3)
+    parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--device", default=None)
     parser.add_argument("--min-loss-reduction", type=float, default=0.50)
     parser.add_argument("--max-space-ratio", type=float, default=DEFAULT_MAX_SPACE_RATIO)
@@ -86,20 +86,14 @@ def target_character_peak_probability(
     target: str,
     tokenizer: SimpleCharTokenizer,
 ) -> float:
-    """Report whether target characters receive probability mass anywhere in time.
-
-    This is diagnostic only. It deliberately does not replace CTC decoding or
-    acceptance criteria. A high peak with a blank greedy path points toward
-    alignment/decoding behavior rather than an immediately obvious dead head.
-    """
+    """Measure whether every target character receives useful probability mass."""
     if logits.ndim != 3 or logits.shape[0] != 1:
         raise ValueError(f"Expected logits shape [1,T,V], got {tuple(logits.shape)}")
     probs = torch.softmax(logits, dim=-1)[0]
     target_ids = [tokenizer.token_to_id[ch] for ch in target]
     if not target_ids:
         return 0.0
-    peaks = [float(probs[:, token_id].max().item()) for token_id in target_ids]
-    return sum(peaks) / len(peaks)
+    return sum(float(probs[:, token_id].max().item()) for token_id in target_ids) / len(target_ids)
 
 
 def frame_argmax_ratios(logits: torch.Tensor, tokenizer: SimpleCharTokenizer) -> tuple[float, float]:
@@ -126,25 +120,16 @@ def semantic_gate_failures(
     if space_ratio >= max_space_ratio:
         failures.append(f"space collapse {space_ratio:.3f} >= {max_space_ratio:.3f}")
     if unique_meaningful < min_meaningful_unique:
-        failures.append(
-            f"meaningful token diversity {unique_meaningful} < {min_meaningful_unique}"
-        )
+        failures.append(f"meaningful token diversity {unique_meaningful} < {min_meaningful_unique}")
     sample_cer = cer(prediction, target)
     if sample_cer > max_cer:
         failures.append(f"CER {sample_cer:.3f} > {max_cer:.3f}")
     return failures
 
 
-def main() -> None:
-    args = parse_args()
-    device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
-
-    tokenizer = SimpleCharTokenizer()
-    dataset = ISLTranslateKeypointDataset(args.data_dir, tokenizer=tokenizer)
-    n = min(max(1, args.samples), len(dataset))
-
-    # Prefer distinct short labels. Short labels are a cleaner optimization
-    # probe and let us distinguish training-path failures from huge-target CTC difficulty.
+def _choose_examples(dataset: ISLTranslateKeypointDataset, n: int) -> list[int]:
+    # The first gate is intentionally a true single-sample capacity test by default.
+    # Additional samples belong to the later train/held-out acceptance gate.
     ordered = sorted(
         range(len(dataset)),
         key=lambda index: (len(dataset.examples[index].text), dataset.examples[index].uid),
@@ -160,6 +145,17 @@ def main() -> None:
             break
     if len(chosen) < n:
         raise RuntimeError("Insufficient distinct real labels for semantic overfit test")
+    return chosen
+
+
+def main() -> None:
+    args = parse_args()
+    device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
+
+    tokenizer = SimpleCharTokenizer()
+    dataset = ISLTranslateKeypointDataset(args.data_dir, tokenizer=tokenizer)
+    n = min(max(1, args.samples), len(dataset))
+    chosen = _choose_examples(dataset, n)
 
     loader = DataLoader(
         Subset(dataset, chosen),
@@ -185,18 +181,12 @@ def main() -> None:
     optimizer = torch.optim.AdamW(
         [p for p in model.parameters() if p.requires_grad],
         lr=args.lr,
-        weight_decay=1e-4,
+        weight_decay=0.0,
     )
     loss_fn = torch.nn.CTCLoss(blank=CTC_BLANK_ID, zero_infinity=True)
 
     def compute_loss() -> tuple[torch.Tensor, torch.Tensor]:
-        logits = model(
-            pose,
-            face,
-            left_hand,
-            right_hand,
-            input_lengths,
-        )
+        logits = model(pose, face, left_hand, right_hand, input_lengths)
         loss = loss_fn(
             torch.log_softmax(logits, dim=-1).transpose(0, 1),
             labels,
@@ -218,12 +208,9 @@ def main() -> None:
         print(f"  {i}: {text!r}")
     print("Initial frame argmax diagnostics:")
     for i, text in enumerate(batch["text"]):
-        blank_ratio, space_ratio = frame_argmax_ratios(
-            initial_logits[i : i + 1, : int(input_lengths[i].item())], tokenizer
-        )
-        peak = target_character_peak_probability(
-            initial_logits[i : i + 1, : int(input_lengths[i].item())], text, tokenizer
-        )
+        sample_logits = initial_logits[i : i + 1, : int(input_lengths[i].item())]
+        blank_ratio, space_ratio = frame_argmax_ratios(sample_logits, tokenizer)
+        peak = target_character_peak_probability(sample_logits, text, tokenizer)
         print(
             f"  {i}: blank_ratio={blank_ratio:.3f} space_ratio={space_ratio:.3f} "
             f"target_char_peak_mean={peak:.3f}"
@@ -238,23 +225,28 @@ def main() -> None:
             raise RuntimeError(f"OVERFIT SANITY FAILED: non-finite loss at step {step}.")
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
+
         if step == 1:
             for name, parameter in model.named_parameters():
                 if parameter.grad is not None:
                     first_gradient_norms[name] = float(parameter.grad.detach().norm().item())
             before = next(parameter for parameter in model.parameters() if parameter.requires_grad).detach().clone()
+
         torch.nn.utils.clip_grad_norm_([p for p in model.parameters() if p.requires_grad], 1.0)
         optimizer.step()
+
         if step == 1:
             after = next(parameter for parameter in model.parameters() if parameter.requires_grad).detach()
             first_parameter_delta = float((after - before).norm().item())
             if not first_gradient_norms:
                 raise RuntimeError("OVERFIT SANITY FAILED: no trainable parameter received a gradient.")
+
         if step == 1 or step % max(1, args.steps // 10) == 0:
             print(f"step={step} loss={float(loss.item()):.4f}")
 
     if not first_gradient_norms or first_parameter_delta <= 0.0:
         raise RuntimeError("OVERFIT SANITY FAILED: optimizer did not update trainable parameters.")
+
     top_gradients = sorted(first_gradient_norms.items(), key=lambda item: item[1], reverse=True)[:5]
     print("First-step gradient diagnostics:")
     for name, norm in top_gradients:
@@ -315,9 +307,7 @@ def main() -> None:
 
     failures: list[str] = []
     if loss_reduction < args.min_loss_reduction:
-        failures.append(
-            f"loss reduction {loss_reduction:.3f} < {args.min_loss_reduction:.3f}"
-        )
+        failures.append(f"loss reduction {loss_reduction:.3f} < {args.min_loss_reduction:.3f}")
     for metric in metrics:
         failures.extend(
             semantic_gate_failures(
