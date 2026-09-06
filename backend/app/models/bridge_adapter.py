@@ -26,12 +26,12 @@ class BottleneckAdapter(nn.Module):
 
 
 class BridgeAdapterStack(nn.Module):
-    """One lightweight adapter after each shared temporal Transformer layer."""
+    """Lightweight residual adapters attached after the shared temporal encoder."""
 
-    def __init__(self, d_model: int = 256, n_layers: int = 4, bottleneck_dim: int = 16):
+    def __init__(self, d_model: int = 256, n_layers: int = 2, bottleneck_dim: int = 16):
         super().__init__()
         self.adapters = nn.ModuleList(
-            [BottleneckAdapter(d_model, bottleneck_dim) for _ in range(n_layers)]
+            [BottleneckAdapter(d_model, bottleneck_dim) for _ in range(max(1, n_layers))]
         )
 
     def total_param_count(self) -> int:
@@ -39,6 +39,21 @@ class BridgeAdapterStack(nn.Module):
 
     def param_budget_ok(self, base_model_param_count: int, budget_pct: float = 2.0) -> bool:
         return 100.0 * self.total_param_count() / max(base_model_param_count, 1) <= budget_pct
+
+    @staticmethod
+    def _run_temporal_encoder(base_model, hidden: torch.Tensor) -> torch.Tensor:
+        """Run either the legacy Transformer encoder or current GRU encoder."""
+        encoder = base_model.shared_encoder
+        layers = getattr(encoder, "layers", None)
+        if layers is not None:
+            for layer in layers:
+                hidden = layer(hidden)
+            return hidden
+
+        result = encoder(hidden)
+        if isinstance(result, tuple):
+            return result[0]
+        return result
 
     def forward_with_base(
         self,
@@ -48,7 +63,7 @@ class BridgeAdapterStack(nn.Module):
         left_hand: torch.Tensor | None = None,
         right_hand: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        """Reuse frozen base streams and splice adapters into its shared encoder."""
+        """Reuse frozen base streams and apply residual adapters after temporal encoding."""
         if pose.shape[:2] != face.shape[:2]:
             raise ValueError("pose/face frame counts must match for adapter inference")
 
@@ -69,14 +84,13 @@ class BridgeAdapterStack(nn.Module):
         if use_hands:
             left_emb = base_model.left_hand_encoder(left_hand)
             right_emb = base_model.right_hand_encoder(right_hand)
-            streams = (pose_emb, face_emb, left_emb, right_emb)
-            hidden = base_model.fusion(streams)
+            hidden = base_model.fusion((pose_emb, face_emb, left_emb, right_emb))
             hidden = base_model.temporal_conv(hidden)
         else:
-            hidden = base_model.fusion(pose_emb, face_emb)
+            hidden = base_model.fusion((pose_emb, face_emb))
 
-        for layer, adapter in zip(base_model.shared_encoder.layers, self.adapters):
-            hidden = layer(hidden)
+        hidden = self._run_temporal_encoder(base_model, hidden)
+        for adapter in self.adapters:
             hidden = adapter(hidden)
         return base_model.output_head(hidden)
 
