@@ -25,5 +25,5 @@ def test_hand_aware_forward_requires_both_hands():
     model = VisionBridgeBaseModel(vocab_size=49, use_hands=True).eval()
     pose = torch.zeros(1, 8, POSE_INPUT_DIM)
     face = torch.zeros(1, 8, FACE_INPUT_DIM)
-    with pytest.raises(ValueError, match="hand-aware model requires"):
+    with pytest.raises(ValueError, match="required by the hand-aware model"):
         model(pose, face, lengths=torch.tensor([8]))
