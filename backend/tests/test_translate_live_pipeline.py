@@ -7,7 +7,7 @@ import torch
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.models.base_model import FACE_INPUT_DIM, POSE_INPUT_DIM, load_frozen_base_model
+from app.models.base_model import FACE_INPUT_DIM, HAND_INPUT_DIM, POSE_INPUT_DIM, load_frozen_base_model
 from app.services import inference_service
 from app.services.inference_service import ModelUnavailableError
 
@@ -24,11 +24,15 @@ requires_real_weights = pytest.mark.skipif(
 )
 
 
-def _realistic_keypoints(n_frames: int) -> tuple[list[list[float]], list[list[float]]]:
+def _realistic_keypoints(
+    n_frames: int,
+) -> tuple[list[list[float]], list[list[float]], list[list[float]], list[list[float]]]:
     torch.manual_seed(0)
     pose = (torch.rand(n_frames, POSE_INPUT_DIM) * 0.8 + 0.1).tolist()
     face = (torch.rand(n_frames, FACE_INPUT_DIM) * 0.8 + 0.1).tolist()
-    return pose, face
+    left_hand = (torch.rand(n_frames, HAND_INPUT_DIM) * 0.8 + 0.1).tolist()
+    right_hand = (torch.rand(n_frames, HAND_INPUT_DIM) * 0.8 + 0.1).tolist()
+    return pose, face, left_hand, right_hand
 
 
 @requires_real_weights
@@ -64,21 +68,23 @@ def test_decode_logits_rejects_vocab_mismatch():
 
 
 def test_translate_endpoint_rejects_mismatched_frame_counts():
-    pose, face = _realistic_keypoints(10)
+    pose, face, left_hand, right_hand = _realistic_keypoints(10)
     resp = client.post("/api/v1/translate", json={
         "user_id": None, "adapter_id": None,
         "pose_keypoints": pose, "face_keypoints": face[:8],
+        "left_hand_keypoints": left_hand, "right_hand_keypoints": right_hand,
     })
     assert resp.status_code == 422
     assert "frame count mismatch" in resp.json()["detail"]
 
 
 def test_translate_endpoint_rejects_wrong_face_dim():
-    pose, _ = _realistic_keypoints(5)
+    pose, _, left_hand, right_hand = _realistic_keypoints(5)
     bad_face = (torch.rand(5, 478 * 3) * 0.8 + 0.1).tolist()
     resp = client.post("/api/v1/translate", json={
         "user_id": None, "adapter_id": None,
         "pose_keypoints": pose, "face_keypoints": bad_face,
+        "left_hand_keypoints": left_hand, "right_hand_keypoints": right_hand,
     })
     assert resp.status_code == 422
     assert "1404" in resp.json()["detail"]
@@ -93,21 +99,23 @@ def test_translate_endpoint_rejects_empty_payload():
 
 
 def test_translate_endpoint_rejects_non_finite_keypoints():
-    pose, face = _realistic_keypoints(1)
+    pose, face, left_hand, right_hand = _realistic_keypoints(1)
     pose[0][0] = float("nan")
     resp = client.post("/api/v1/translate", json={
         "user_id": None, "adapter_id": None,
         "pose_keypoints": pose, "face_keypoints": face,
+        "left_hand_keypoints": left_hand, "right_hand_keypoints": right_hand,
     })
     assert resp.status_code == 422
     assert "non-finite" in resp.json()["detail"]
 
 
 def test_translate_endpoint_requires_auth_for_adapter_access():
-    pose, face = _realistic_keypoints(1)
+    pose, face, left_hand, right_hand = _realistic_keypoints(1)
     resp = client.post("/api/v1/translate", json={
         "user_id": None, "adapter_id": 1,
         "pose_keypoints": pose, "face_keypoints": face,
+        "left_hand_keypoints": left_hand, "right_hand_keypoints": right_hand,
     })
     assert resp.status_code == 401
 
@@ -126,7 +134,7 @@ def test_calibration_endpoint_requires_authentication():
 
 
 def test_translate_endpoint_returns_503_when_the_model_is_unavailable(monkeypatch):
-    pose, face = _realistic_keypoints(1)
+    pose, face, left_hand, right_hand = _realistic_keypoints(1)
 
     def unavailable_model(*_args, **_kwargs):
         raise ModelUnavailableError("checkpoint unavailable")
@@ -135,19 +143,21 @@ def test_translate_endpoint_returns_503_when_the_model_is_unavailable(monkeypatc
     resp = client.post("/api/v1/translate", json={
         "user_id": None, "adapter_id": None,
         "pose_keypoints": pose, "face_keypoints": face,
+        "left_hand_keypoints": left_hand, "right_hand_keypoints": right_hand,
     })
     assert resp.status_code == 503
 
 
 @requires_real_weights
 def test_translate_endpoint_end_to_end_with_real_model_and_realistic_keypoints():
-    pose, face = _realistic_keypoints(40)
+    pose, face, left_hand, right_hand = _realistic_keypoints(40)
     prev_cwd = os.getcwd()
     try:
         os.chdir(BACKEND_DIR)
         resp = client.post("/api/v1/translate", json={
             "user_id": None, "adapter_id": None,
             "pose_keypoints": pose, "face_keypoints": face,
+            "left_hand_keypoints": left_hand, "right_hand_keypoints": right_hand,
         })
     finally:
         os.chdir(prev_cwd)
