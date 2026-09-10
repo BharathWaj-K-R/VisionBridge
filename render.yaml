@@ -22,10 +22,11 @@ services:
         value: "300"
 
   - type: web
-    name: visionbridge-frontend
     runtime: static
-    buildCommand: cd frontend && npm install && npm run build
-    staticPublishPath: frontend/dist
+    name: visionbridge-frontend
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
     envVars:
       - key: NODE_VERSION
         value: 20.19.5
