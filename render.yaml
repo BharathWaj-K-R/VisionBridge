@@ -28,12 +28,21 @@ services:
     buildCommand: npm install && npm run build
     staticPublishPath: dist
     envVars:
+      - key: NODE_VERSION
+        value: 20.19.5
       - key: VITE_API_BASE_URL
         value: https://visionbridge-backend.onrender.com/api/v1
     routes:
       - type: rewrite
         source: /*
         destination: /index.html
+    headers:
+      - path: /index.html
+        name: Cache-Control
+        value: no-cache
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
 
 # SQLite is intentionally retained for the disposable demo deployment.
 # Use an external managed database before treating this as durable production data.
