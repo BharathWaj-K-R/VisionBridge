@@ -3,9 +3,19 @@ import { resolve } from "node:path";
 
 const dist = resolve("dist");
 const indexPath = resolve(dist, "index.html");
+const markerPath = resolve(dist, "deploy-marker.txt");
 
 if (!existsSync(indexPath)) {
   throw new Error("Production build verification failed: dist/index.html is missing");
+}
+
+if (!existsSync(markerPath)) {
+  throw new Error("Production build verification failed: deploy-marker.txt is missing from dist");
+}
+
+const marker = readFileSync(markerPath, "utf8").trim();
+if (marker !== "VISIONBRIDGE_DIST_ARTIFACT") {
+  throw new Error("Production build verification failed: unexpected dist artifact marker");
 }
 
 const html = readFileSync(indexPath, "utf8");
