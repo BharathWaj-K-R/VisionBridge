@@ -8,14 +8,20 @@
     <title>VisionBridge</title>
     <script>
       // Compatibility guard for an existing Render static service that may still
-      // publish frontend/ instead of frontend/dist. It redirects to the compiled
-      // Vite artifact before the browser tries to execute /src/main.tsx.
+      // publish frontend/ instead of frontend/dist. The marker is copied only
+      // into the Vite output, so a SPA rewrite cannot create a false positive.
       (function () {
         var path = window.location.pathname;
         if (!path.startsWith('/dist/')) {
-          fetch('/dist/index.html', { cache: 'no-store' })
+          fetch('/dist/deploy-marker.txt', { cache: 'no-store' })
             .then(function (response) {
-              if (response.ok) window.location.replace('/dist/index.html');
+              if (!response.ok) return null;
+              return response.text();
+            })
+            .then(function (marker) {
+              if (marker && marker.trim() === 'VISIONBRIDGE_DIST_ARTIFACT') {
+                window.location.replace('/dist/index.html');
+              }
             })
             .catch(function () {});
         }
