@@ -25,8 +25,8 @@ services:
     runtime: static
     name: visionbridge-frontend
     rootDir: frontend
-    buildCommand: npm install && npm run build
-    staticPublishPath: dist
+    buildCommand: npm install && npm run build && cp -R dist/. .
+    staticPublishPath: .
     envVars:
       - key: NODE_VERSION
         value: 20.19.5
