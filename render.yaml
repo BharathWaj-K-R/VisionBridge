@@ -15,7 +15,7 @@ services:
       - key: SECRET_KEY
         generateValue: true
       - key: ALLOWED_ORIGINS
-        value: https://visionbridge-frontend.onrender.com
+        value: https://visionbridge-2c7h.onrender.com
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
         value: "60"
       - key: CALIBRATION_MIN_SECONDS
@@ -24,9 +24,8 @@ services:
   - type: web
     name: visionbridge-frontend
     runtime: static
-    rootDir: frontend
-    buildCommand: npm install && npm run build
-    staticPublishPath: dist
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
     envVars:
       - key: NODE_VERSION
         value: 20.19.5
