@@ -8,13 +8,12 @@
     <title>VisionBridge</title>
     <script>
       // Compatibility guard for an existing Render static service that may still
-      // publish the repository's frontend/ directory instead of frontend/dist.
-      // In that case, redirect to the compiled artifact before the browser tries
-      // to execute the TypeScript source entrypoint.
+      // publish frontend/ instead of frontend/dist. It redirects to the compiled
+      // Vite artifact before the browser tries to execute /src/main.tsx.
       (function () {
         var path = window.location.pathname;
-        if (path === '/' || path.endsWith('/index.html')) {
-          fetch('/dist/index.html', { method: 'HEAD', cache: 'no-store' })
+        if (!path.startsWith('/dist/')) {
+          fetch('/dist/index.html', { cache: 'no-store' })
             .then(function (response) {
               if (response.ok) window.location.replace('/dist/index.html');
             })
