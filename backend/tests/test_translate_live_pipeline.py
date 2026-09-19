@@ -1,0 +1,240 @@
+"""Regression tests for live translation, shape validation, and adapter auth."""
+import os
+from pathlib import Path
+
+import pytest
+import torch
+from fastapi.testclient import TestClient
+
+from app.main import app
+from app.models.base_model import FACE_INPUT_DIM, HAND_INPUT_DIM, POSE_INPUT_DIM, load_frozen_base_model
+from app.services import inference_service
+from app.services.inference_service import ModelUnavailableError
+
+client = TestClient(app)
+client.__enter__()
+
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+REAL_WEIGHTS_PATH = BACKEND_DIR / "app" / "models" / "weights" / "base_model.pt"
+REAL_VOCAB_PATH = REAL_WEIGHTS_PATH.with_suffix(".vocab.json")
+
+requires_real_weights = pytest.mark.skipif(
+    not REAL_WEIGHTS_PATH.exists() or not REAL_VOCAB_PATH.exists(),
+    reason="real trained base_model.pt / base_model.vocab.json not present",
+)
+
+
+def _realistic_keypoints(
+    n_frames: int,
+) -> tuple[list[list[float]], list[list[float]], list[list[float]], list[list[float]]]:
+    torch.manual_seed(0)
+    pose = (torch.rand(n_frames, POSE_INPUT_DIM) * 0.8 + 0.1).tolist()
+    face = (torch.rand(n_frames, FACE_INPUT_DIM) * 0.8 + 0.1).tolist()
+    left_hand = (torch.rand(n_frames, HAND_INPUT_DIM) * 0.8 + 0.1).tolist()
+    right_hand = (torch.rand(n_frames, HAND_INPUT_DIM) * 0.8 + 0.1).tolist()
+    return pose, face, left_hand, right_hand
+
+
+@requires_real_weights
+def test_decode_logits_uses_real_vocab(monkeypatch):
+    id_to_token = inference_service._load_vocab(str(REAL_WEIGHTS_PATH))
+    assert len(id_to_token) == 49
+    token_to_id = {tok: i for i, tok in id_to_token.items()}
+    monkeypatch.setattr(inference_service, "_id_to_token", id_to_token)
+
+    target_text = "hi there"
+    ids = []
+    previous = None
+    for ch in target_text:
+        token_id = token_to_id[ch]
+        if token_id == previous:
+            ids.append(0)
+        ids.append(token_id)
+        previous = token_id
+
+    logits = torch.full((1, len(ids), len(id_to_token)), -10.0)
+    for t, token_id in enumerate(ids):
+        logits[0, t, token_id] = 10.0
+
+    text, confidence = inference_service.decode_logits(logits)
+    assert text == target_text
+    assert 0.0 <= confidence <= 1.0
+
+
+def test_decode_logits_rejects_vocab_mismatch():
+    inference_service._id_to_token = {0: "<blank>", 1: "a"}
+    with pytest.raises(ValueError, match="Decoder vocabulary/logit mismatch"):
+        inference_service.decode_logits(torch.zeros(1, 2, 3))
+
+
+def test_translate_endpoint_rejects_mismatched_frame_counts():
+    pose, face, left_hand, right_hand = _realistic_keypoints(10)
+    resp = client.post("/api/v1/translate", json={
+        "user_id": None, "adapter_id": None,
+        "pose_keypoints": pose, "face_keypoints": face[:8],
+        "left_hand_keypoints": left_hand, "right_hand_keypoints": right_hand,
+    })
+    assert resp.status_code == 422
+    assert "frame count mismatch" in resp.json()["detail"]
+
+
+def test_translate_endpoint_rejects_wrong_face_dim():
+    pose, _, left_hand, right_hand = _realistic_keypoints(5)
+    bad_face = (torch.rand(5, 478 * 3) * 0.8 + 0.1).tolist()
+    resp = client.post("/api/v1/translate", json={
+        "user_id": None, "adapter_id": None,
+        "pose_keypoints": pose, "face_keypoints": bad_face,
+        "left_hand_keypoints": left_hand, "right_hand_keypoints": right_hand,
+    })
+    assert resp.status_code == 422
+    assert "1404" in resp.json()["detail"]
+
+
+def test_translate_endpoint_rejects_empty_payload():
+    resp = client.post("/api/v1/translate", json={
+        "user_id": None, "adapter_id": None,
+        "pose_keypoints": [], "face_keypoints": [],
+    })
+    assert resp.status_code == 422
+
+
+def test_translate_endpoint_rejects_non_finite_keypoints():
+    pose, face, left_hand, right_hand = _realistic_keypoints(1)
+    pose[0][0] = float("nan")
+    resp = client.post("/api/v1/translate", json={
+        "user_id": None, "adapter_id": None,
+        "pose_keypoints": pose, "face_keypoints": face,
+        "left_hand_keypoints": left_hand, "right_hand_keypoints": right_hand,
+    })
+    assert resp.status_code == 422
+    assert "non-finite" in resp.json()["detail"]
+
+
+def test_translate_endpoint_requires_auth_for_adapter_access():
+    pose, face, left_hand, right_hand = _realistic_keypoints(1)
+    resp = client.post("/api/v1/translate", json={
+        "user_id": None, "adapter_id": 1,
+        "pose_keypoints": pose, "face_keypoints": face,
+        "left_hand_keypoints": left_hand, "right_hand_keypoints": right_hand,
+    })
+    assert resp.status_code == 401
+
+
+def test_calibration_endpoint_requires_authentication():
+    pose = [[0.0] * POSE_INPUT_DIM]
+    face = [[0.0] * FACE_INPUT_DIM]
+    resp = client.post("/api/v1/calibration", json={
+        "user_id": 1,
+        "calibration_seconds": 1,
+        "pose_keypoints": pose,
+        "face_keypoints": face,
+        "target_labels": [1],
+    })
+    assert resp.status_code == 401
+
+
+def test_translate_endpoint_returns_503_when_the_model_is_unavailable(monkeypatch):
+    pose, face, left_hand, right_hand = _realistic_keypoints(1)
+
+    def unavailable_model(*_args, **_kwargs):
+        raise ModelUnavailableError("checkpoint unavailable")
+
+    monkeypatch.setattr("app.api.translate.run_inference", unavailable_model)
+    resp = client.post("/api/v1/translate", json={
+        "user_id": None, "adapter_id": None,
+        "pose_keypoints": pose, "face_keypoints": face,
+        "left_hand_keypoints": left_hand, "right_hand_keypoints": right_hand,
+    })
+    assert resp.status_code == 503
+
+
+@requires_real_weights
+def test_translate_endpoint_end_to_end_with_real_model_and_realistic_keypoints():
+    status = inference_service.model_status()
+    if not status.get("available"):
+        pytest.skip(f"real trained hand-aware checkpoint unavailable: {status}")
+    assert status.get("modality") == "hand-aware"
+
+    pose, face, left_hand, right_hand = _realistic_keypoints(40)
+    prev_cwd = os.getcwd()
+    try:
+        os.chdir(BACKEND_DIR)
+        resp = client.post("/api/v1/translate", json={
+            "user_id": None, "adapter_id": None,
+            "pose_keypoints": pose, "face_keypoints": face,
+            "left_hand_keypoints": left_hand, "right_hand_keypoints": right_hand,
+        })
+    finally:
+        os.chdir(prev_cwd)
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert isinstance(body["predicted_text"], str) and body["predicted_text"]
+    assert 0.0 <= body["confidence"] <= 1.0
+    assert body["latency_ms"] >= 0
+    assert body["used_adapter"] is False
+    model = load_frozen_base_model(str(REAL_WEIGHTS_PATH))
+    assert model.output_head.out_features == 49
+
+
+def test_translate_attributes_log_to_authenticated_user_even_when_payload_user_id_is_null(monkeypatch):
+    """Regression test for a real bug: a client authenticated via a bearer
+    token attached to the request header (not echoed into the JSON body)
+    but sending user_id: null in the body — either because it hasn't
+    loaded the current user yet (a real post-login race condition in the
+    React frontend, which populates userId via api.me() on mount) or
+    because some other client simply doesn't echo it. The old log-
+    attribution logic required BOTH current_user and payload.user_id to be
+    non-None, so the translation would be silently logged with
+    user_id=None — meaning it could never show up on that user's own
+    History page. The fix derives attribution from the verified bearer
+    token alone. Uses mocked inference so this stays covered regardless of
+    whether a compatible trained checkpoint is currently available."""
+    import uuid
+
+    from app.db.models import TranslationLog
+    from app.db.session import SessionLocal
+
+    def fake_inference(*_args, **_kwargs):
+        return {"predicted_text": "hello", "confidence": 0.9, "latency_ms": 5.0, "used_adapter": False}
+
+    monkeypatch.setattr("app.api.translate.run_inference", fake_inference)
+
+    username = f"live-translate-user-{uuid.uuid4().hex[:8]}"
+    password = "correct horse battery staple"
+
+    register_resp = client.post("/api/v1/auth/register", json={"username": username, "password": password})
+    assert register_resp.status_code == 200, register_resp.text
+    user_id = register_resp.json()["id"]
+
+    login_resp = client.post("/api/v1/auth/login", json={"username": username, "password": password})
+    assert login_resp.status_code == 200, login_resp.text
+    token = login_resp.json()["access_token"]
+
+    pose, face, left_hand, right_hand = _realistic_keypoints(5)
+    resp = client.post(
+        "/api/v1/translate",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "user_id": None, "adapter_id": None,
+            "pose_keypoints": pose, "face_keypoints": face,
+            "left_hand_keypoints": left_hand, "right_hand_keypoints": right_hand,
+        },
+    )
+    assert resp.status_code == 200, resp.text
+
+    db = SessionLocal()
+    try:
+        log = db.query(TranslationLog).order_by(TranslationLog.id.desc()).first()
+        assert log is not None
+        assert log.user_id == user_id, (
+            f"expected the translation to be attributed to user {user_id} "
+            f"(from their bearer token), got user_id={log.user_id!r} — "
+            "this is exactly what makes History appear empty for live translations"
+        )
+    finally:
+        db.close()
+
+    history_resp = client.get("/api/v1/history", headers={"Authorization": f"Bearer {token}"})
+    assert history_resp.status_code == 200, history_resp.text
+    assert history_resp.json()["count"] >= 1
