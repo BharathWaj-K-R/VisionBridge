@@ -542,3 +542,7 @@ This verifies source/test/build integration. Real device latency and real signer
 ## 2026-09-23 — MediaPipe Tasks training compatibility
 
 The dataset-preparation path now uses MediaPipe Tasks Hand Landmarker in image mode with the versioned Google-hosted hand_landmarker.task model. The old mp.solutions API is not used by the active training path.
+
+## 2026-09-23 — RealSign download path
+
+The RealSign Dataset.zip file is stored through Git LFS. The training notebook downloads the actual archive from the Git LFS media endpoint and validates it with zipfile.is_zipfile before extraction. The ordinary raw GitHub file endpoint returns the small LFS pointer text instead of the 656 MB archive.
