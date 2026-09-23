@@ -198,7 +198,7 @@ export function loadMediaPipeHands(): Promise<any> {
     }
 
     const script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js";
+    script.src = "https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/hands.js";
     script.crossOrigin = "anonymous";
     script.dataset.vbMediapipe = "hands";
     script.onload = () => {
@@ -214,7 +214,7 @@ export function loadMediaPipeHands(): Promise<any> {
 export async function createHands(onResults: (results: any) => void): Promise<any> {
   const Hands = await loadMediaPipeHands();
   const hands = new Hands({
-    locateFile: (file: string) => "https://cdn.jsdelivr.net/npm/@mediapipe/hands/" + file,
+    locateFile: (file: string) => "https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/" + file,
   });
 
   hands.setOptions({
