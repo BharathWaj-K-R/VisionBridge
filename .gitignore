@@ -27,3 +27,4 @@ backend/app/models/weights/adapters/*.pt
 backend/app/models/weights/adapters/*.pth
 !backend/app/models/weights/.gitkeep
 !backend/app/models/weights/adapters/.gitkeep
+!backend/app/models/weights/letter_base_model.pt

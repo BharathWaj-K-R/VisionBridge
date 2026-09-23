@@ -626,3 +626,54 @@ DOWN-SCOPE IMPLEMENTATION: FIXED AND CI VERIFIED
 REAL-WORLD LETTER ACCURACY: NOT VERIFIED
 PRODUCTION READINESS: NOT CLAIMED
 ```
+
+
+---
+
+# 2026-09-23 — Base model + few-shot adapter redesign
+
+The active letter path is explicitly two-stage:
+
+~~~text
+126D normalized two-hand landmarks
+ -> frozen VisionBridgeLetterBaseModel
+ -> 64D embedding
+ -> Few-shot signer adapter
+ -> letter prediction
+~~~
+
+Base model:
+- 126 input features;
+- 64D embedding;
+- 26 A-Z logits;
+- cross-entropy objective;
+- trained once on a general ISL alphabet dataset;
+- frozen during signer calibration.
+
+Few-shot adapter:
+- receives the frozen base embedding rather than raw landmarks;
+- stores one normalized prototype per calibrated letter;
+- current UI requires three shots per selected letter;
+- no separate offline adapter-training job;
+- records the SHA-256 of the exact base checkpoint and rejects mismatched checkpoints.
+
+Default data path:
+- RealSign ISL alphabet images;
+- preparation converts images to normalized two-hand MediaPipe landmarks;
+- existing train/validation/test directories are preserved.
+
+Training requirement:
+~~~text
+REQUIRED: one base-model training run
+NOT REQUIRED: offline few-shot adapter training
+REQUIRED BEFORE ACCURACY CLAIM: held-out base test measurement + held-out signer test after calibration
+~~~
+
+Runtime / deployment:
+- /api/v1/letter/* uses the trained letter base model in real mode;
+- /api/v1/letter/status exposes explicit model readiness;
+- /users/me/adapters exposes only active letter adapters to the letter UI;
+- Render remains VITE_LOCAL_MODE=true until the small base checkpoint is installed and the remaining production infrastructure gates are intentionally addressed.
+
+Loose-end rule for this redesign:
+The only external execution dependency is the Colab base-model training run and installation of its resulting checkpoint. The repository now contains the model contract, dataset preparation, training CLI, training notebook, runtime adapter, API wiring, checkpoint compatibility checks, and regression tests. No hidden training step remains.

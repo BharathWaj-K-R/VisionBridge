@@ -35,10 +35,9 @@ services:
       # Explicit and intentional, not an accidental default: frontend/src/api.ts
       # defaults LOCAL_MODE to true unless this is set to "false" at build time.
       # Keep this true until ALL of the following are true, then flip it:
-      #   1. backend/app/models/weights/base_model.pt is a real, retrained,
-      #      hand-aware checkpoint (see AGENTS.md -- the current one is a legacy
-      #      pose+face artifact the model correctly refuses to load, so /translate
-      #      would 503 on every real request right now);
+      #   1. backend/app/models/weights/letter_base_model.pt is a real, retrained
+      #      A-Z letter checkpoint (see AGENTS.md; the active /letter API depends
+      #      on this frozen base before few-shot signer adapters can be fitted);
       #   2. the database is durable, not the ephemeral SQLite noted below;
       #   3. auth tokens are HttpOnly, not the current localStorage bearer token.
       # Flipping this to false before then would point the real live frontend at
