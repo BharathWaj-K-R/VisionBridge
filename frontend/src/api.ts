@@ -1,4 +1,4 @@
-import { BrowserLetterAdapter, BrowserLetterModel, type BrowserAdapterPayload, type BrowserModelPayload } from "./browserModel";
+import { BrowserLetterModel, type BrowserAdapterPayload, type BrowserModelPayload } from "./browserModel";
 import { normalizeHandPair } from "./landmarks";
 
 export type ApiError = Error & { status?: number };
