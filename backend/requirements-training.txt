@@ -10,7 +10,7 @@
 # requirements.txt) on whatever machine/Colab instance does the actual
 # training run.
 
-mediapipe==0.10.21
+mediapipe==0.10.35
 opencv-python==4.10.0.84
 pose-format==0.4.0
 pandas==2.2.3
