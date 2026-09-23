@@ -92,14 +92,16 @@ Run:
 notebooks/train_letter_base_colab.ipynb
 ~~~
 
-The notebook downloads the RealSign dataset, extracts the two-hand landmarks, prepares train/validation/test features, trains the base model, prints measured validation/test accuracy, and verifies the generated checkpoint.
+The notebook downloads the RealSign dataset, extracts the two-hand landmarks, prepares train/validation/test features, and automatically iterates base-model training. After each epoch it measures accuracy for every A-Z class on the full validation split. Training stops when every letter reaches the configured target, or when the maximum epoch cap is reached. The best checkpoint is always saved and the held-out test split is measured separately.
 
 Equivalent CLI training command:
 
 ~~~bash
 PYTHONPATH=backend python -m app.training.letter_base \
   --data-dir /content/visionbridge_letter_data \
-  --output backend/app/models/weights/letter_base_model.pt
+  --output backend/app/models/weights/letter_base_model.pt \
+  --epochs 300 \
+  --target-class-accuracy 1.0
 ~~~
 
 After the training run, commit the generated small checkpoint:
@@ -186,7 +188,7 @@ The old sentence translation screens are no longer the active product flow.
 
 ## Verification boundary
 
-CI validates the code, type-checks the frontend, builds the production artifact, and exercises the backend regression suite. These checks do not establish real-world recognition accuracy.
+The repository's GitHub Actions regression workflow is currently disabled. Historical CI runs verified the application code, frontend build, and backend tests, but no current CI result should be treated as active verification. Training still reports held-out validation and test measurements directly from the notebook.
 
 Two separate measurements matter:
 
