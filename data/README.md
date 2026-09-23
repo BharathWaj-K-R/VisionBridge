@@ -27,3 +27,8 @@ visionbridge_letter_data/
 The repository should not contain the raw dataset. Keep large datasets and generated training outputs in Colab or the local training workspace.
 
 Signer calibration happens later from a small number of real examples and does not require a separate offline adapter-training job.
+
+
+## Current training preparation
+
+The active VisionBridge pipeline uses the RealSign ISL A-Z image dataset. The dataset archive is stored with Git LFS, so the Colab notebook downloads the real archive from the Git LFS media endpoint rather than the ordinary raw GitHub file URL. Landmark extraction uses MediaPipe Tasks Hand Landmarker and produces the normalized 126D two-hand representation expected by the base model.
