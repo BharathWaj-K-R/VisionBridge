@@ -124,7 +124,7 @@ The backend is used for authentication, one-time model/adapter loading, calibrat
 
 The camera also renders a live 21-point hand skeleton plus a short wrist-motion trail.
 
-The tracker uses the lightweight MediaPipe Hands configuration, including model complexity 0. MediaPipe's documentation notes that model complexity affects inference latency and that higher tracking confidence can increase latency. citeturn105822search0
+The tracker uses the lightweight MediaPipe Hands configuration, including model complexity 0. MediaPipe's documentation notes that model complexity affects inference latency and that higher tracking confidence can increase latency.
 
 This targets near-zero network latency, not literal zero milliseconds. The actual result depends on the user's camera, browser, hardware, and tracking workload.
 
