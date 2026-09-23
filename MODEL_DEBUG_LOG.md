@@ -106,7 +106,7 @@ Architecture:
 
 The model must expose the embedding width and class vocabulary declared by its checkpoint.
 
-The base model remains replaceable during signer adaptation, and a changed model triggers adapter recalibration.
+The base model remains trainable, versioned, and replaceable during signer adaptation; a changed model triggers adapter recalibration.
 
 ---
 
@@ -436,7 +436,7 @@ Do not insert accuracy numbers that were not produced by an actual run.
 
 Do not preserve obsolete architecture descriptions as active instructions.
 
-The active model source of truth remains:
+The active dynamically replaceable model source of truth remains:
 
     126D hands
      -> dynamic base model
