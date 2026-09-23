@@ -107,6 +107,66 @@ backend/app/models/weights/letter_base_model.pt
 
 The file is intentionally allowed by .gitignore because the production API needs the trained base model locally.
 
+## Real-time architecture
+
+Recognition is optimized so the per-frame hot path stays inside the browser:
+
+~~~text
+camera
+  -> MediaPipe Hands
+  -> 126D normalization
+  -> browser base-model inference
+  -> browser few-shot adapter
+  -> letter + confidence
+~~~
+
+The backend is used for authentication, one-time model/adapter loading, calibration persistence, and asynchronous recognition-event history. The real-time loop does not wait for FastAPI on every frame.
+
+The camera also renders a live 21-point hand skeleton plus a short wrist-motion trail.
+
+The tracker uses the lightweight MediaPipe Hands configuration, including model complexity 0. MediaPipe's documentation notes that model complexity affects inference latency and that higher tracking confidence can increase latency. citeturn105822search0
+
+This targets near-zero network latency, not literal zero milliseconds. The actual result depends on the user's camera, browser, hardware, and tracking workload.
+
+## Run locally
+
+### 1. Train the base model
+
+Run `notebooks/train_letter_base_colab.ipynb`.
+
+Install the resulting checkpoint at:
+
+~~~text
+backend/app/models/weights/letter_base_model.pt
+~~~
+
+### 2. Start the backend
+
+~~~bash
+cd backend
+python -m pip install -r requirements.txt
+uvicorn app.main:app --reload
+~~~
+
+### 3. Start the frontend
+
+In a second terminal:
+
+~~~bash
+cd frontend
+npm install
+npm run dev
+~~~
+
+For the real model path, set:
+
+~~~text
+VITE_LOCAL_MODE=false
+VITE_API_BASE_URL=http://127.0.0.1:8000/api/v1
+~~~
+
+The browser fetches the current model once, fetches the selected signer adapter once, and performs frame-by-frame prediction locally.
+
 ## Frontend
 
 The active UI is:
