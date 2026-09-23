@@ -9,7 +9,7 @@ def test_private_account_endpoints_require_authentication():
         assert client.get("/api/v1/history").status_code == 401
         assert client.get("/api/v1/history/export.csv").status_code == 401
         assert client.get("/api/v1/users/me").status_code == 401
-        assert client.get("/api/v1/evaluation").status_code == 401
+        assert client.get("/api/v1/letter/model").status_code == 401
 
 
 def test_registration_rejects_invalid_credentials():
