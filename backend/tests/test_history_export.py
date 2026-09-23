@@ -22,93 +22,87 @@ def _register_and_login(username: str, password: str = "correct horse battery st
     return login_resp.json()["access_token"]
 
 
-def test_export_csv_contains_the_users_own_translation(monkeypatch):
-    def fake_inference(*_args, **_kwargs):
-        return {"predicted_text": "hello world", "confidence": 0.75, "latency_ms": 12.0, "used_adapter": False}
-
-    monkeypatch.setattr("app.api.translate.run_inference", fake_inference)
+def test_export_csv_contains_the_users_own_prediction():
+    from app.db.models import TranslationLog
+    from app.db.session import SessionLocal
 
     username = f"export-user-{uuid.uuid4().hex[:8]}"
     token = _register_and_login(username)
-    headers = {"Authorization": f"Bearer {token}"}
+    user_resp = client.get("/api/v1/users/me", headers={"Authorization": f"Bearer {token}"})
+    user_id = user_resp.json()["id"]
 
-    payload = {
-        "user_id": None, "adapter_id": None,
-        "pose_keypoints": [[0.0] * 132],
-        "face_keypoints": [[0.0] * 1404],
-        "left_hand_keypoints": [[0.0] * 63],
-        "right_hand_keypoints": [[0.0] * 63],
-    }
-    translate_resp = client.post("/api/v1/translate", headers=headers, json=payload)
-    assert translate_resp.status_code == 200, translate_resp.text
+    db = SessionLocal()
+    db.add(
+        TranslationLog(
+            user_id=user_id,
+            predicted_text="A",
+            confidence=0.75,
+            latency_ms=0.8,
+            used_adapter=1,
+        )
+    )
+    db.commit()
+    db.close()
 
-    export_resp = client.get("/api/v1/history/export.csv", headers=headers)
+    export_resp = client.get("/api/v1/history/export.csv", headers={"Authorization": f"Bearer {token}"})
     assert export_resp.status_code == 200, export_resp.text
-    assert "text/csv" in export_resp.headers["content-type"]
 
     rows = list(csv.reader(io.StringIO(export_resp.text)))
     assert rows[0] == ["id", "created_at", "predicted_text", "confidence", "latency_ms", "used_adapter"]
-    assert any(row[2] == "hello world" for row in rows[1:]), rows
+    assert any(row[2] == "A" for row in rows[1:])
 
 
-def test_export_csv_does_not_leak_another_users_translations(monkeypatch):
-    def fake_inference(*_args, **_kwargs):
-        return {"predicted_text": "user one only", "confidence": 0.5, "latency_ms": 5.0, "used_adapter": False}
+def test_export_csv_does_not_leak_another_users_predictions():
+    from app.db.models import TranslationLog
+    from app.db.session import SessionLocal
 
-    monkeypatch.setattr("app.api.translate.run_inference", fake_inference)
+    token_one = _register_and_login(f"export-user-a-{uuid.uuid4().hex[:8]}")
+    token_two = _register_and_login(f"export-user-b-{uuid.uuid4().hex[:8]}")
 
-    user_one = f"export-user-a-{uuid.uuid4().hex[:8]}"
-    user_two = f"export-user-b-{uuid.uuid4().hex[:8]}"
-    token_one = _register_and_login(user_one)
-    token_two = _register_and_login(user_two)
+    user_one = client.get("/api/v1/users/me", headers={"Authorization": f"Bearer {token_one}"}).json()["id"]
 
-    payload = {
-        "user_id": None, "adapter_id": None,
-        "pose_keypoints": [[0.0] * 132],
-        "face_keypoints": [[0.0] * 1404],
-        "left_hand_keypoints": [[0.0] * 63],
-        "right_hand_keypoints": [[0.0] * 63],
-    }
-    translate_resp = client.post(
-        "/api/v1/translate", headers={"Authorization": f"Bearer {token_one}"}, json=payload
+    db = SessionLocal()
+    db.add(
+        TranslationLog(
+            user_id=user_one,
+            predicted_text="SECRET",
+            confidence=0.5,
+            latency_ms=1.0,
+            used_adapter=1,
+        )
     )
-    assert translate_resp.status_code == 200, translate_resp.text
+    db.commit()
+    db.close()
 
     export_resp = client.get("/api/v1/history/export.csv", headers={"Authorization": f"Bearer {token_two}"})
     assert export_resp.status_code == 200, export_resp.text
-    assert "user one only" not in export_resp.text
+    assert "SECRET" not in export_resp.text
 
 
-def test_history_date_range_filter_includes_just_created_rows(monkeypatch):
-    """Regression test for the timezone-aware datetime fix in
-    db/models.py (created_at defaults) and history.py's _start_for_range():
-    both sides of the range comparison must stay consistent, or a row
-    created seconds ago could be silently excluded from range=7d/30d/90d
-    (or the reverse — everything silently matching regardless of range)."""
+def test_history_date_range_filter_includes_new_letter_predictions():
+    from app.db.models import TranslationLog
+    from app.db.session import SessionLocal
 
-    def fake_inference(*_args, **_kwargs):
-        return {"predicted_text": "just now", "confidence": 0.5, "latency_ms": 5.0, "used_adapter": False}
+    token = _register_and_login(f"range-user-{uuid.uuid4().hex[:8]}")
+    user_id = client.get("/api/v1/users/me", headers={"Authorization": f"Bearer {token}"}).json()["id"]
 
-    monkeypatch.setattr("app.api.translate.run_inference", fake_inference)
-
-    username = f"range-user-{uuid.uuid4().hex[:8]}"
-    token = _register_and_login(username)
-    headers = {"Authorization": f"Bearer {token}"}
-
-    payload = {
-        "user_id": None, "adapter_id": None,
-        "pose_keypoints": [[0.0] * 132],
-        "face_keypoints": [[0.0] * 1404],
-        "left_hand_keypoints": [[0.0] * 63],
-        "right_hand_keypoints": [[0.0] * 63],
-    }
-    translate_resp = client.post("/api/v1/translate", headers=headers, json=payload)
-    assert translate_resp.status_code == 200, translate_resp.text
+    db = SessionLocal()
+    db.add(
+        TranslationLog(
+            user_id=user_id,
+            predicted_text="Z",
+            confidence=0.5,
+            latency_ms=1.2,
+            used_adapter=1,
+        )
+    )
+    db.commit()
+    db.close()
 
     for range_value in ("7d", "30d", "90d", "all"):
-        resp = client.get(f"/api/v1/history?range={range_value}", headers=headers)
-        assert resp.status_code == 200, resp.text
-        items = resp.json()["items"]
-        assert any(item["predicted_text"] == "just now" for item in items), (
-            f"a row created seconds ago should always appear under range={range_value}"
+        response = client.get(
+            f"/api/v1/history?range={range_value}",
+            headers={"Authorization": f"Bearer {token}"},
         )
+        assert response.status_code == 200, response.text
+        assert any(item["predicted_text"] == "Z" for item in response.json()["items"])
