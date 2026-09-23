@@ -1,16 +1,6 @@
-# Extra dependencies needed ONLY for offline dataset preprocessing and
-# training (scripts/, app/training/). NOT installed on the Render backend
-# service — that would bloat the production build with packages the live
-# API never uses (mediapipe/opencv especially are large).
+# Dependencies used only for offline ISL landmark extraction and base-model training.
+# The live Render backend does not install this file.
 #
-# The canonical Colab training notebook uses this MediaPipe release for the
-# legacy Python Hands API used by dataset preparation. Keep it aligned with Colab.
-#
-# Install with: pip install -r requirements-training.txt (in addition to
-# requirements.txt) on whatever machine/Colab instance does the actual
-# training run.
-
+# MediaPipe 0.10.35 uses the supported Python Tasks API. The old
+# mp.solutions.hands API is intentionally not used by the active trainer.
 mediapipe==0.10.35
-opencv-python==4.10.0.84
-pose-format==0.4.0
-pandas==2.2.3
