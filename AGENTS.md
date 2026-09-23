@@ -191,6 +191,22 @@ A missing or incompatible checkpoint must make the model not ready rather than s
 
 ---
 
+# Dynamic scaling and model replacement
+
+The active model is not treated as permanently fixed. It is versioned, configurable, and replaceable.
+
+Default configuration:
+~~~text
+input_dim=126
+hidden_dim=128
+embedding_dim=64
+classes=26 (A-Z)
+~~~
+
+These are defaults rather than hard architectural limits. The checkpoint stores the actual dimensions, dropout, and label vocabulary. The training CLI exposes hidden and embedding dimensions so larger models can be trained as the dataset and product scope grow.
+
+The backend detects checkpoint file changes and hot-reloads the latest compatible model. Existing signer adapters retain the model version and checkpoint hash and require recalibration after an embedding-space change. This prevents silent incompatibility while keeping the system dynamically updatable.
+
 # 5. Few-shot signer adapter
 
 The adapter is deliberately prototype-based, not a second offline neural training job.
@@ -678,7 +694,7 @@ FRONTEND: CI VERIFIED
 
 ## 2026-09-23 — Active-state handoff
 
-The only required ML execution step still outside normal source and CI verification is:
+The initial base-model training step outside normal source and CI verification is:
 
 ~~~text
 run notebooks/train_letter_base_colab.ipynb
