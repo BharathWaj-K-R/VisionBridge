@@ -56,5 +56,5 @@ def checkpoint_status(path:str|Path)->dict[str,str|bool]:
         return {"available":True,"status":"ready","modality":"hand-only letter base + few-shot adapter","model_version":MODEL_VERSION}
     except FileNotFoundError:
         return {"available":False,"status":"letter_base_model_missing","modality":"hand-only letter base + few-shot adapter"}
-    except (OSError,RuntimeError,ValueError,EOFError,UnicodeError):
+    except (OSError,RuntimeError,ValueError,EOFError,pickle.UnpicklingError,UnicodeError):
         return {"available":False,"status":"letter_base_model_invalid","modality":"hand-only letter base + few-shot adapter"}
