@@ -1,738 +1,726 @@
-# VisionBridge Multi-Agent Engineering Contract + Project Diary
+# VisionBridge Engineering Contract
 
-## Operating rules
+This file is the persistent engineering hand-off for agents working on VisionBridge. Read it before making changes.
 
-This is the persistent hand-off record for ChatGPT/Codex, Claude, and future agents. Read it before editing. Every meaningful change, failure, test result, design decision, runtime blocker, and deployment finding must be recorded here. Distinguish `CODE FIXED`, `STATIC VERIFIED`, `RUNTIME VERIFIED`, `CI VERIFIED`, `CLAUDE-REPORTED`, and `NOT VERIFIED`.
+The active product is an Indian Sign Language alphabet/fingerspelling letter recognizer built around:
 
-Change only files required by the current task. Never use destructive Git cleanup in Colab. Never push a model because loss decreased, logits are finite, or a trivial token is emitted. A model checkpoint is acceptable only after real-data semantic validation.
+~~~text
+Browser camera
+ -> MediaPipe Hands
+ -> normalized 126D two-hand landmark vector
+ -> frozen 26-class VisionBridge letter base model
+ -> 64D signer-independent embedding
+ -> few-shot signer adapter
+ -> one predicted A-Z letter + confidence
+~~~
 
-Engineering loop:
-```text
-DISCOVER -> UNDERSTAND -> TRACE -> REPRODUCE -> ROOT CAUSE
--> DESIGN -> IMPLEMENT -> INTEGRATE -> TEST -> REGRESSION
--> REVIEW -> IMPROVE -> RE-AUDIT -> ZERO-LOOSE-ENDS
-```
-
-The project follows the uploaded autonomous engineering protocol. The protocol requires whole-repository reconnaissance, end-to-end feature completion, security/performance/UX reviews, regression testing, and a final evidence-based release verdict.
-
----
-
-# Mission
-
-Continuous Indian Sign Language -> English translation with few-shot signer adaptation.
-
-Current intended pipeline:
-```text
-Camera / real video
- -> MediaPipe Holistic
- -> pose + face + left-hand + right-hand skeletons
- -> hand-aware temporal PyTorch model
- -> character CTC decoder
- -> English text
- -> optional BridgeAdapter signer personalization
-```
-
-Frontend is standardized on React + Vite + TypeScript. Backend remains FastAPI + SQLAlchemy. Training remains PyTorch with Colab/Lightning orchestration. Visual language: monochrome, high-contrast, neat, stylish, minimalistic.
+The project is intentionally scoped to single-letter recognition, not sentence translation.
 
 ---
 
-# Current multimodal contract
+# 1. Engineering rules
 
-| Stream | Features/frame |
-|---|---:|
-| Pose | 132 = 33 * (x,y,z,visibility) |
-| Face | 1404 = 468 * (x,y,z) |
-| Left hand | 63 = 21 * (x,y,z) |
-| Right hand | 63 = 21 * (x,y,z) |
-| CTC blank | 0 |
-| Vocabulary | 49 |
-| Maximum sequence | 1024 frames |
+Every meaningful change must be traceable in this file or in the repository's normal documentation.
 
-Every trained hand-aware sample must carry four synchronized streams.
+Use these status labels where useful:
 
----
+~~~text
+CODE FIXED
+STATIC VERIFIED
+RUNTIME VERIFIED
+CI VERIFIED
+NOT VERIFIED
+BLOCKED
+~~~
 
-# Hand-aware model and training status
+Never mark something verified because it merely looks correct in source.
 
-The old pose+face checkpoint is invalid for the current four-stream production model. The production inference loader deliberately rejects the legacy artifact instead of partially loading it.
+Never accept a model because:
+- loss decreased;
+- logits are finite;
+- one trivial class is emitted;
+- a demo produces a plausible result on one sample.
 
-Current architecture:
-```text
-Pose encoder
-Face encoder
-Left-hand encoder
-Right-hand encoder
-        |
-        v
-Learned gated multimodal fusion
-        |
-        v
-Temporal feature extractor
-        |
-        v
-Bidirectional recurrent/temporal encoder
-        |
-        v
-49-class character CTC head
-```
+A model is accepted only after real-data validation.
 
-Training protections currently include:
-- trainable-parameter checks;
-- first-batch gradient checks;
-- finite-gradient validation;
-- semantic overfit sanity gate;
-- rejection of blank/space collapse;
-- meaningful-token diversity checks;
-- CER checks;
-- resumable checkpoints;
-- final checkpoint artifact verification.
+Use this engineering loop:
 
-Status:
-```text
-HAND-AWARE CODE: CODE FIXED
-LEGACY CHECKPOINT: INVALID FOR NEW MODEL
-NEW HAND-AWARE CHECKPOINT: NOT TRAINED / NOT ACCEPTED
-MODEL QUALITY: NOT VERIFIED
-```
+~~~text
+DISCOVER
+-> UNDERSTAND
+-> TRACE
+-> REPRODUCE
+-> ROOT CAUSE
+-> DESIGN
+-> IMPLEMENT
+-> INTEGRATE
+-> TEST
+-> REGRESSION
+-> REVIEW
+-> IMPROVE
+-> RE-AUDIT
+-> ZERO-LOOSE-ENDS
+~~~
+
+Change only files required by the task. Avoid destructive cleanup, especially in Colab or training environments.
 
 ---
 
-# Frontend current state
+# 2. Current product mission
 
-## Stack
-```text
-React + Vite + TypeScript
-```
+VisionBridge recognizes one ISL fingerspelled letter at a time.
 
-Canonical frontend structure:
-```text
+The active output is:
+
+~~~text
+letter: A-Z
+confidence: 0.0-1.0
+~~~
+
+The active system does not depend on sentence tokenization, sequence decoding, or sentence-level translation.
+
+The application stack is:
+
+~~~text
+Frontend: React + Vite + TypeScript
+Backend: FastAPI + SQLAlchemy
+ML runtime: PyTorch
+Landmarks: MediaPipe Hands
+Training: Python CLI + Colab notebook
+~~~
+
+---
+
+# 3. Active feature contract
+
+## Input representation
+
+Each camera frame is reduced to a fixed two-hand representation:
+
+~~~text
+Left hand:  21 landmarks x (x,y,z) = 63 values
+Right hand: 21 landmarks x (x,y,z) = 63 values
+Total: 126 float values
+~~~
+
+Rules:
+
+- landmarks are normalized around the wrist;
+- hand scale is normalized;
+- missing hands are zero-filled;
+- feature dimension must remain exactly 126;
+- preprocessing used for training must match preprocessing used at inference;
+- handedness handling must remain consistent between dataset preparation and runtime.
+
+Do not silently change the 126D contract.
+
+## Output representation
+
+The base model produces 26 A-Z logits and a 64D embedding.
+
+The active runtime ultimately returns:
+
+~~~text
+predicted letter
+confidence
+latency
+model version
+~~~
+
+Unknown or low-similarity predictions may be returned as a question mark.
+
+---
+
+# 4. Base model
+
+The active base model class is:
+
+~~~text
+VisionBridgeLetterBaseModel
+~~~
+
+Contract:
+
+~~~text
+Input:        126
+Embedding:     64
+Classes:       26 (A-Z)
+Objective:     cross-entropy
+~~~
+
+Current model structure:
+
+~~~text
+LayerNorm(126)
+ -> Linear(126 -> 128)
+ -> GELU
+ -> Dropout(0.10)
+ -> Linear(128 -> 64)
+ -> LayerNorm(64)
+ -> GELU
+ -> Linear(64 -> 26)
+~~~
+
+The base model is trained once on a general ISL alphabet dataset and then frozen for signer adaptation.
+
+Expected checkpoint path:
+
+~~~text
+backend/app/models/weights/letter_base_model.pt
+~~~
+
+The checkpoint contract includes:
+
+~~~text
+model_version
+input_dim = 126
+embedding_dim = 64
+num_classes = 26
+A-Z labels
+state_dict
+~~~
+
+The loader must reject incompatible checkpoints instead of partially loading them.
+
+A missing or incompatible checkpoint must make the model not ready rather than silently substituting another model.
+
+---
+
+# 5. Few-shot signer adapter
+
+The adapter is deliberately prototype-based, not a second offline neural training job.
+
+Pipeline:
+
+~~~text
+frozen base model
+ -> 64D embedding
+ -> L2-normalized embedding
+ -> per-letter prototype
+ -> cosine similarity
+ -> prediction
+~~~
+
+Calibration rules:
+
+- the signer provides a few real examples for selected letters;
+- the current frontend uses three shots per selected letter;
+- embeddings are generated by the frozen base model;
+- one normalized prototype is stored per calibrated letter;
+- prediction compares live embeddings against those prototypes.
+
+Current adapter properties:
+
+~~~text
+method: frozen-base-embedding-prototype
+embedding dimension: 64
+minimum similarity threshold: 0.35
+confidence: softmax over cosine scores
+base-checkpoint binding: SHA-256
+~~~
+
+The adapter must reject use against a different base checkpoint.
+
+There is no hidden offline adapter-training step.
+
+Keep this distinction explicit:
+
+~~~text
+BASE MODEL: trained once offline
+SIGNER ADAPTER: fitted from a few runtime examples
+~~~
+
+---
+
+# 6. Dataset preparation and training
+
+The default training source is the RealSign Indian Sign Language alphabet dataset.
+
+Dataset preparation converts alphabet images into the same normalized 126D landmark representation used at runtime.
+
+Canonical preparation script:
+
+~~~text
+backend/scripts/prepare_letter_dataset.py
+~~~
+
+It writes:
+
+~~~text
+train.npz
+val.npz
+test.npz
+labels.json
+~~~
+
+Canonical trainer:
+
+~~~text
+backend/app/training/letter_base.py
+~~~
+
+Canonical reproducible notebook:
+
+~~~text
+notebooks/train_letter_base_colab.ipynb
+~~~
+
+Standard training flow:
+
+~~~text
+dataset images
+ -> MediaPipe Hands landmark extraction
+ -> normalization
+ -> train/validation/test arrays
+ -> base-model training
+ -> held-out test measurement
+ -> checkpoint
+ -> runtime installation
+~~~
+
+The repository must never claim a base-model accuracy number until an actual training run produces and records it.
+
+---
+
+# 7. Training command
+
+Standard Colab training command:
+
+~~~bash
+PYTHONPATH=backend python -m app.training.letter_base \
+  --data-dir /content/visionbridge_letter_data \
+  --output backend/app/models/weights/letter_base_model.pt \
+  --epochs 30 \
+  --batch-size 128 \
+  --lr 0.001 \
+  --patience 6
+~~~
+
+The resulting checkpoint must exist at:
+
+~~~text
+backend/app/models/weights/letter_base_model.pt
+~~~
+
+The model must be checked for:
+
+- finite loss;
+- finite gradients;
+- valid dimensions;
+- class coverage;
+- non-trivial predictions;
+- validation performance;
+- held-out test performance.
+
+Do not push a newly trained checkpoint merely because training completed successfully.
+
+---
+
+# 8. Active backend contract
+
+Primary letter endpoints:
+
+~~~text
+GET  /api/v1/letter/status
+POST /api/v1/letter/calibrate
+POST /api/v1/letter/predict
+~~~
+
+Rules:
+
+- endpoints require authentication where the surrounding API contract requires it;
+- adapter access is scoped to the authenticated user;
+- input dimension is validated as 126;
+- malformed or invalid feature values are rejected;
+- inference requires a valid base checkpoint in real mode;
+- prediction events are logged through the existing history mechanism;
+- rate limiting and request validation patterns must be preserved.
+
+Adapter listing:
+
+~~~text
+/users/me/adapters
+~~~
+
+The active letter UI must receive only active letter adapters. Other repository artifacts must not accidentally appear as current letter adapters.
+
+Readiness:
+
+~~~text
+/api/v1/ready
+~~~
+
+Readiness must report whether the letter base model is available and compatible.
+
+Liveness:
+
+~~~text
+/health
+~~~
+
+Liveness is not the same as model readiness.
+
+---
+
+# 9. Active frontend contract
+
+Canonical frontend:
+
+~~~text
 frontend/
   index.html
   package.json
   vite.config.ts
   tsconfig.json
   public/
-    favicon.svg
   src/
-    main.tsx
-    App.tsx
-    api.ts
-    landmarks.ts
-    useLandmarkSession.ts
-    styles.css
-    vite-env.d.ts
-```
+~~~
 
-Application routes:
-```text
-/dashboard
-/translate
-/calibration
-/history
-/evaluation
-/settings
-```
+Important active modules include:
 
-The live translation page uses the real browser camera, MediaPipe Holistic, synchronized pose/face/left-hand/right-hand frames, visible hand skeleton overlays, and API-backed prediction/confidence/latency/error reporting.
+~~~text
+src/App.tsx
+src/api.ts
+src/landmarks.ts
+src/useLandmarkSession.ts
+src/styles.css
+~~~
 
-Calibration captures synchronized multimodal frames and submits the captured sequence for adapter fitting rather than using a timer-only placeholder.
+Browser flow:
 
-The obsolete duplicate static frontend was removed. React is the canonical frontend source.
+~~~text
+camera
+ -> hand landmark detection
+ -> 126D normalization
+ -> API request
+ -> base model embedding
+ -> signer adapter
+ -> letter + confidence
+~~~
 
-## Visual system
+The UI must make the current letter-oriented workflow understandable.
 
-The frontend now uses a deliberate monochrome visual system:
-- white primary canvas;
-- black structural/sidebar elements;
-- grayscale secondary text;
-- strong black borders;
-- restrained editorial serif headings;
-- subtle grid texture;
-- offset black/gray shadows;
-- responsive layouts retained;
-- no backend/theme changes.
+Calibration is a real capture/submission flow, not a timer placeholder.
 
-The browser page metadata is also aligned to the white theme and references the VisionBridge favicon. The favicon is a monochrome VisionBridge mark.
+The visual direction is:
 
-## 404 handling
-
-The SPA contains a first-class not-found page using the same frontend visual system. Unknown application routes do not fall back to an unrelated legacy page.
-
-## Authentication presentation
-
-The frontend authentication flow remains a lightweight client-side presentation layer while the database-backed authentication integration is deferred. No new backend authentication behavior was introduced during the frontend polish work.
+~~~text
+white / black monochrome
+minimal
+high contrast
+strong structure
+responsive
+professional
+~~~
 
 ---
 
-# Render/Vite deployment recovery
+# 10. Local/demo mode
 
-A live Render error exposed that the static service was serving the source Vite `index.html`, which requested `/src/main.tsx` and caused:
-```text
-Failed to load module script: Expected a JavaScript-or-Wasm module script but the server responded with a MIME type of binary/octet-stream.
-```
+The frontend supports a local/demo mode through:
 
-A secondary compatibility probe for `/dist/deploy-marker.txt` returned 404, proving the live service was not exposing the expected nested `dist` path.
+~~~text
+VITE_LOCAL_MODE
+~~~
 
-Deployment recovery therefore moved toward publishing the compiled Vite artifact at the service root when required, rather than relying on the source tree being the published directory.
+The Render configuration intentionally sets:
 
-Relevant deployment work includes:
-- pinned frontend runtime dependencies;
-- explicit Vite production artifact verification;
-- deterministic production artifact marker;
-- Render-safe artifact path handling;
-- explicit static publish configuration;
-- root-level compiled artifact fallback for an existing misconfigured static service.
+~~~text
+VITE_LOCAL_MODE=true
+~~~
 
-The live Render site could not be independently fetched from this environment, so live browser deployment remains `NOT VERIFIED` until checked in the actual browser/Render service.
+This is a deliberate deployment state while the real model and remaining production infrastructure are incomplete.
 
----
+The local/demo path must not be described as equivalent to real model inference.
 
-# Verification ledger
+The true base-model + adapter path is the real-mode path.
 
-## Verified through GitHub source inspection
-```text
-React/Vite/TypeScript frontend structure        STATIC VERIFIED
-Monochrome frontend styling                     STATIC VERIFIED
-Favicon reference and asset                     STATIC VERIFIED
-404 route/page implementation                   STATIC VERIFIED
-Four-stream API contract                        STATIC VERIFIED
-Hand-aware training protections                 STATIC VERIFIED
-Render/Vite build configuration                  STATIC VERIFIED
-```
+Do not flip Render to real mode merely because the frontend builds.
 
-## GitHub Actions
+Before switching the deployed frontend to real mode, verify at minimum:
 
-The repository has a regression workflow that checks backend Python compilation/tests and frontend TypeScript/Vite production build plus artifact verification.
-
-Known successful historical runs include the post-migration frontend dependency/build fixes, including the published Vite plugin version and Render build-path changes.
-
-The latest frontend-theme commit triggered GitHub Actions run #144, but at the last inspection it was still queued. Therefore that specific run was not yet a final CI verdict.
-
-Status:
-```text
-REPOSITORY CI: HISTORICALLY VERIFIED FOR PRIOR FIXES
-LATEST COMMIT CI: NOT VERIFIED UNTIL RUN COMPLETES
-```
-
-## Runtime
-
-Local execution from this environment was previously blocked because the container could not resolve `github.com`, so local browser/runtime execution is not treated as verification.
-
-Render live verification is also not complete from this environment.
+~~~text
+real base checkpoint installed
+durable production database connected
+production authentication hardened
+real backend translation verified
+browser camera flow verified
+~~~
 
 ---
 
-# Known production gaps
-
-```text
-SQLite on Render              -> ephemeral unless external DB is connected
-Client-side bearer storage    -> still present
-Rate limiting                 -> not implemented
-Raw video server inference    -> not implemented
-Production database wiring   -> pending user DB connection
-```
-
-These are tracked engineering gaps, not reasons to claim a production-ready backend when the evidence does not support it.
-
----
-
-# Required acceptance gates
+# 11. Verification gates
 
 ## Gate A — Dataset
-```text
-metadata
-pose
-face
-left_hand
-right_hand
-unique UID
-aligned frame counts
-finite features
-valid targets
-valid CTC alignment
-```
 
-## Gate B — Semantic overfit
-Must demonstrate finite loss, meaningful reduction, non-trivial output, meaningful-token diversity, and acceptable CER.
-
-## Gate C — Full training
-Only after Gate B.
-
-## Gate D — Multi-sample train/held-out acceptance
-Use several train and validation examples and reject trivial output.
-
-## Gate E — Real-video validation
-Record ground truth, prediction, confidence, CER, blank ratio, space ratio, frame count, and all stream shapes.
-
-## Gate F — Application E2E
 Verify:
-```text
-auth
--> dashboard
--> live translation
--> hand skeleton overlay
--> calibration
--> adapter
--> history
--> evaluation
--> settings
-```
 
----
+~~~text
+A-Z class coverage
+correct landmark extraction
+126D feature shape
+finite values
+consistent normalization
+valid train/validation/test splits
+no accidental feature collisions
+~~~
 
-# Current blocker board
+## Gate B — Base model
 
-```text
-A  fresh hand-aware Colab extraction             NOT VERIFIED
-B  hand-aware semantic overfit                   NOT VERIFIED
-C  full hand-aware training                      BLOCKED until B
-D  new hand-aware checkpoint                     BLOCKED until C
-E  multi-video real validation                   BLOCKED until D
-F  adapter calibration on new checkpoint         BLOCKED until E
-G  latest GitHub Actions run                     NOT VERIFIED
-H  local frontend build                          NOT VERIFIED here
-I  browser camera + hand overlay                 NOT VERIFIED here
-J  Render E2E after Vite migration               NOT VERIFIED here
-K  durable production DB                         NOT IMPLEMENTED
-L  production-grade HttpOnly auth                NOT IMPLEMENTED
-M  production rate limiting                      NOT IMPLEMENTED
-N  40 GB scale                                   BLOCKED until correctness
-```
+Verify:
 
----
+~~~text
+training runs without numerical failure
+validation improves meaningfully
+predictions are not collapsed to one class
+all required classes are represented
+held-out test accuracy is measured
+checkpoint loads strictly
+checkpoint metadata matches the runtime contract
+~~~
 
-# Chronological diary
+## Gate C — Few-shot adaptation
 
-## 2026-08-27 — Full protocol redesign + hand-aware migration
+Verify:
 
-Actions:
-```text
-1. Reconstructed the ML model as a hand-aware four-stream temporal architecture.
-2. Extended extraction to left/right MediaPipe hand skeletons.
-3. Extended dataset loading/collation to four synchronized streams.
-4. Extended training and semantic overfit gate to four streams.
-5. Extended translation/calibration APIs and services.
-6. Changed model readiness so the old legacy checkpoint is unavailable until retraining.
-7. Added React/Vite/TypeScript application structure.
-8. Added shared landmark/session modules and visible 21-point hand skeletons.
-9. Replaced timer-only calibration with real capture/submission flow.
-10. Migrated the Render frontend to Vite build/dist + SPA routing.
-11. Removed duplicate legacy static pages and assets so React is the single frontend source.
-12. Updated canonical Colab and validation workflows for hand-aware data.
-13. Rebuilt Lightning notebook around the canonical repository trainer.
-14. Added hand model/collation regression coverage.
-```
+~~~text
+calibration uses real signer examples
+prototype dimensions are correct
+adapter records the correct base checkpoint hash
+mismatched checkpoint is rejected
+held-out signer examples are evaluated after calibration
+~~~
 
-Status:
-```text
-SOURCE STRUCTURE: STATIC VERIFIED
-MODEL QUALITY: NOT VERIFIED
-RUNTIME: NOT VERIFIED
-```
+## Gate D — Runtime
 
-## 2026-09-10 — Frontend build/deployment recovery
+Verify:
 
-Observed Render browser error:
-```text
-main.tsx:1 Failed to load module script
-Expected a JavaScript-or-Wasm module script but the server responded with MIME type binary/octet-stream
-```
-
-Root cause:
-```text
-Live Render service was serving source frontend/index.html
-instead of the compiled Vite artifact.
-```
-
-Actions:
-```text
-1. Pinned frontend dependencies to known published versions.
-2. Hardened the production build verification script.
-3. Added deterministic production artifact marking.
-4. Made Vite artifact paths deployment-safe.
-5. Made Render static publish configuration explicit.
-6. Added a fallback deployment strategy for an existing service publishing frontend/ instead of frontend/dist.
-```
-
-Status:
-```text
-CODE FIXED: YES
-SOURCE CONFIG: STATIC VERIFIED
-LIVE RENDER: NOT VERIFIED HERE
-```
-
-## 2026-09-10 — Monochrome frontend polish
-
-Actions:
-```text
-1. Converted the browser theme to a white/black monochrome system.
-2. Preserved application functionality and route structure.
-3. Added the VisionBridge favicon.
-4. Added the application 404 page within the same visual system.
-5. Kept backend code untouched.
-```
-
-Status:
-```text
-FRONTEND THEME: CODE FIXED
-FAVICON: CODE FIXED
-404 PAGE: CODE FIXED
-BACKEND: UNCHANGED FOR THIS POLISH
-```
-
-## 2026-09-10 — Current engineering state
-
-The source tree now reflects the monochrome frontend and the updated deployment configuration. The project diary has been refreshed to reflect the current frontend structure, favicon/404 additions, deployment recovery work, and current verification boundaries.
-
-Do not mark Render or browser runtime as verified without observing the deployed service and browser behavior directly.
-Do not mark the new hand-aware model as accepted until the real-data semantic gates pass.
-
----
-
-# Required next execution
-
-1. Confirm GitHub Actions on the newest commit reaches a completed conclusion.
-2. Verify the Render frontend serves compiled assets from the service root and no longer requests `/src/main.tsx`.
-3. Verify the favicon loads with status 200.
-4. Verify an invalid route renders the application 404 page.
-5. Verify the frontend authentication presentation works without changing backend behavior.
-6. Connect the production database when ready and replace the deferred client-side auth layer with the backend auth flow.
-7. Separately execute the hand-aware Colab semantic overfit gate before any full training or model push.
-8. Run multi-video acceptance and then full application E2E.
-9. Only after correctness is proven consider larger 40 GB scale training.
-
----
-
-# Final release verdict
-
-## NOT READY
-
-Reason:
-- the current hand-aware model has not yet passed the required real-data semantic gates;
-- the previous checkpoint remains invalid for the new model;
-- live Render/browser verification is incomplete from this environment;
-- production database/auth hardening remains pending.
-
-The project can move toward `READY WITH MINOR ISSUES` only after the relevant evidence-based gates pass.
-
----
-
-# R. Claude full audit (this session)
-
-Synced to f2f6136 (the merge commit from the previous entry) and ran a
-systematic sweep: TODO/FIXME/placeholder grep across backend + frontend
-source, every API route's auth requirement checked against its actual
-sensitivity, adapter ownership/IDOR checks re-verified, CORS/security
-headers, and — most importantly — actually running the full backend
-suite and the real frontend build rather than reading code and assuming.
-
-Findings:
-
-1. **`/history/export.csv` had zero test coverage and zero frontend UI to
-   reach it.** The endpoint itself is correct (auth-required, scoped to
-   the requesting user via `TranslationLog.user_id == current_user.id`),
-   but the React rewrite (see entry Q above) never ported the export
-   button that existed in the previous vanilla-JS frontend. Fixed: added
-   `api.exportHistoryCsv()` (following the same LOCAL_MODE/real-request
-   split as the rest of `api.ts` — a small informational CSV in demo mode,
-   a real authenticated Blob download otherwise) and an Export CSV button
-   on the History page, using an authenticated `fetch` + client-side Blob
-   download rather than a plain `<a href>` (which would silently 401,
-   since the token lives in localStorage, not a cookie a browser would
-   attach to link navigation — the exact bug class already fixed once
-   earlier this session in the old frontend). Added
-   `backend/tests/test_history_export.py`: an end-to-end test that
-   registers a user, translates (mocked inference), exports, and checks
-   the row is actually present with the right fields — plus a second test
-   proving one user's export never contains another user's data. Also
-   added `/history/export.csv` to the existing
-   `test_private_account_endpoints_require_authentication` check, which
-   had every other private endpoint but not this one.
-
-2. **Significant, not yet acted on: `render.yaml`'s frontend service never
-   sets `VITE_LOCAL_MODE`.** `frontend/src/api.ts` defaults `LOCAL_MODE`
-   to `true` unless `VITE_LOCAL_MODE=false` is explicitly passed at build
-   time (see entry Q's context on the "database-free demo authentication
-   and API mode" commit — a deliberate choice by the repository owner,
-   not an agent). `render.yaml` does correctly set `VITE_API_BASE_URL` for
-   the frontend build, but never sets `VITE_LOCAL_MODE` anywhere. Unless
-   set some other way outside version control (Render dashboard env var
-   override), **the actual live production deployment is very likely
-   building and running with `LOCAL_MODE=true` right now** — meaning the
-   real site never calls the real backend at all: auth, translation, and
-   calibration are all faked client-side via localStorage, regardless of
-   whether the backend is healthy. This may well be the intended current
-   state given the backend/model are documented elsewhere in this diary as
-   not fully production-ready — but nothing in the versioned deployment
-   config marks it as a deliberate infrastructure choice one way or the
-   other, which is the actual gap. Deliberately NOT changed here: whether
-   the live demo should point at the real (still-incomplete-per-this-
-   diary) backend is a product decision, not an engineering bug — flagged
-   here so it isn't silently missed rather than decided unilaterally.
-
-Nothing else notable found this pass: no bare `except`/silent failures,
-no IDOR on adapter access or deletion, every private endpoint correctly
-requires auth, CORS/security headers unchanged and correct,
-`CALIBRATION_MIN_SECONDS` in render.yaml matches a real current setting.
-
-Verified: full backend suite — 66 passed, 1 accurately skipped (same
-checkpoint-availability skip as before), every `.py` file compiles,
-`npm run check` zero TypeScript errors, `npm run build` succeeds.
-
----
-
-# S. Resolving the `VITE_LOCAL_MODE` gap flagged in entry R
-
-Asked directly to resolve this. Given the backend's actual current state —
-no valid trained checkpoint (`/translate` would 503 on every real
-request), SQLite is documented above as ephemeral/disposable, auth tokens
-live in `localStorage` rather than an HttpOnly cookie — flipping
-`VITE_LOCAL_MODE` to `false` right now would point the real live frontend
-at a backend that cannot actually serve translations or retain user data.
-That would trade a working demo for a broken "real" experience.
-
-Resolution: added `VITE_LOCAL_MODE: "true"` explicitly to `render.yaml`'s
-frontend service env vars, with an inline comment listing exactly which
-three things need to be true before flipping it (real hand-aware
-checkpoint, durable DB, HttpOnly auth). This is a no-op for the live
-site's actual behavior — it was already effectively running with
-`LOCAL_MODE=true` via the code default — but closes the real gap: that
-default was previously undocumented in version control, so nothing marked
-it as a deliberate choice rather than an accidental omission.
-
-Verified directly rather than assumed: ran `npm run build` with
-`VITE_LOCAL_MODE=true` (render.yaml's new value) and confirmed the
-resulting bundle contains the demo-mode code path (`"Demo mode"` string
-survives Vite's dead-code elimination); ran it again with
-`VITE_LOCAL_MODE=false` and confirmed that string is absent from the
-bundle. This proves the env var genuinely controls what ships, not just
-that the code reads it.
-
-Not resolved here, deliberately: whether/when to actually flip it to
-`false` is still gated on the three items listed in the render.yaml
-comment, none of which changed this session.
-
----
-
-# 2026-09-23 — Letter-only fingerspelling downscope — plan
-
-## Decision
-
-Scope is reduced from continuous sentence-level ISL recognition to **single-letter fingerspelling recognition** with a signer-specific few-shot adapter. This is a deliberate product simplification driven by limited time.
-
-Removed from the product path:
-- pose and face inputs;
-- CTC sequence decoding and character tokenizer;
-- sentence-level translation;
-- sentence-level calibration;
-- dependency on a newly trained sentence checkpoint for the demo;
-- sentence-history and sentence-evaluation UI as primary product surfaces.
-
-Kept:
-- MediaPipe hand landmark extraction;
-- both hand streams where available;
-- the existing React/Vite frontend and FastAPI backend;
-- account and adapter ownership patterns;
-- rate-limiting and request validation patterns;
-- history logging;
-- the per-signer adaptation concept.
-
-## New feature contract
-
-```text
-left hand:  21 x (x,y,z) = 63
-right hand: 21 x (x,y,z) = 63
-combined hand vector: 126 floats
-output: one letter label + confidence
-```
-
-Each hand is normalized around its wrist and scale-normalized before matching. Missing hands are zero-filled. The adapter stores one prototype per calibrated letter, computed from a small number of real signer examples. Prediction uses cosine similarity against the signer prototypes.
-
-This downscope deliberately uses a **prototype few-shot adapter** rather than the legacy neural BridgeAdapterStack. No trained base checkpoint is required for the letter demo.
-
-## Dataset decision
-
-No external training dataset is introduced in this downscope. The demo learns its letter prototypes directly from live signer calibration examples, which avoids the sentence-level ISL-CSLTR dataset mismatch and avoids spending the remaining project time on a new training pipeline.
-
-## Runtime decision
-
-The deployed product remains a hand-only letter recognizer. Legacy sentence endpoints and training artifacts remain in the repository for regression/history safety, but they are not part of the active product flow.
-
-Status before implementation:
-```text
-LETTER ADAPTER: NOT IMPLEMENTED
-LETTER API: NOT IMPLEMENTED
-LETTER FRONTEND: NOT IMPLEMENTED
-```
-
-Next implementation target:
-```text
+~~~text
+camera capture
 hand landmarks
- -> 126D normalized vector
- -> few-shot signer prototypes
- -> cosine similarity
- -> predicted letter
-```
-
-
----
-
-# 2026-09-23 — Letter-only downscope implemented and merged
-
-Implementation status:
-```text
-LETTER ADAPTER: CODE FIXED
-LETTER API: CODE FIXED
-LETTER FRONTEND: CODE FIXED
-LEGACY SENTENCE PATH: RETAINED OUTSIDE ACTIVE PRODUCT FLOW
-```
-
-The active product now uses a 126-value normalized two-hand vector and a prototype-based signer adapter. A signer captures three examples per selected letter; the adapter stores one prototype per letter and predicts by cosine similarity. No new trained model checkpoint or external dataset is required for the active demo path.
-
-Verified through GitHub Actions run #152 on commit `eba52255d2a812078d8e642ffcd5a4c13eaebabc`:
-- backend: **71 passed, 1 skipped** in 6.22s;
-- frontend TypeScript check: **passed**;
-- Vite production build: **passed**;
-- production artifact verification: **passed**.
-
-The diff reviewed before merge contained exactly these intended files:
-```text
-AGENTS.md
-backend/app/api/letter.py
-backend/app/main.py
-backend/app/schemas/schemas.py
-backend/app/services/letter_fewshot.py
-backend/tests/test_letter_fewshot.py
-frontend/src/App.tsx
-frontend/src/api.ts
-frontend/src/landmarks.ts
-frontend/src/useLandmarkSession.ts
-```
-
-The downscope landed on main via merge commit:
-```text
-66e9bc1bdf58eafffa78c1493a0b90bc7dec0073
-```
-
-Remaining evidence boundaries:
-- no held-out signer accuracy benchmark was run;
-- no browser camera runtime was independently verified in this environment;
-- the legacy sentence model remains untrained/unaccepted;
-- Render remains intentionally in local/demo mode.
-
-Status:
-```text
-DOWN-SCOPE IMPLEMENTATION: FIXED AND CI VERIFIED
-REAL-WORLD LETTER ACCURACY: NOT VERIFIED
-PRODUCTION READINESS: NOT CLAIMED
-```
-
-
----
-
-# 2026-09-23 — Base model + few-shot adapter redesign
-
-The active letter path is explicitly two-stage:
-
-~~~text
-126D normalized two-hand landmarks
- -> frozen VisionBridgeLetterBaseModel
- -> 64D embedding
- -> Few-shot signer adapter
- -> letter prediction
+normalization
+API request
+model inference
+adapter lookup
+letter prediction
+confidence
+latency
+history logging
 ~~~
 
-Base model:
-- 126 input features;
-- 64D embedding;
-- 26 A-Z logits;
-- cross-entropy objective;
-- trained once on a general ISL alphabet dataset;
-- frozen during signer calibration.
+## Gate E — Application E2E
 
-Few-shot adapter:
-- receives the frozen base embedding rather than raw landmarks;
-- stores one normalized prototype per calibrated letter;
-- current UI requires three shots per selected letter;
-- no separate offline adapter-training job;
-- records the SHA-256 of the exact base checkpoint and rejects mismatched checkpoints.
+Verify the active product flow:
 
-Default data path:
-- RealSign ISL alphabet images;
-- preparation converts images to normalized two-hand MediaPipe landmarks;
-- existing train/validation/test directories are preserved.
-
-Training requirement:
 ~~~text
-REQUIRED: one base-model training run
-NOT REQUIRED: offline few-shot adapter training
-REQUIRED BEFORE ACCURACY CLAIM: held-out base test measurement + held-out signer test after calibration
+authentication
+ -> dashboard
+ -> calibration
+ -> letter recognition
+ -> history
+ -> evaluation/settings surfaces
 ~~~
 
-Runtime / deployment:
-- /api/v1/letter/* uses the trained letter base model in real mode;
-- /api/v1/letter/status exposes explicit model readiness;
-- /users/me/adapters exposes only active letter adapters to the letter UI;
-- Render remains VITE_LOCAL_MODE=true until the small base checkpoint is installed and the remaining production infrastructure gates are intentionally addressed.
-
-Loose-end rule for this redesign:
-The only external execution dependency is the Colab base-model training run and installation of its resulting checkpoint. The repository now contains the model contract, dataset preparation, training CLI, training notebook, runtime adapter, API wiring, checkpoint compatibility checks, and regression tests. No hidden training step remains.
-
+Do not revive inactive behavior merely to satisfy an old test or document.
 
 ---
 
-# 2026-09-23 — Final base + few-shot adapter verification
+# 12. Verification status
 
-PR #5 was merged into `main` as:
-```text
-cbefdaf1a5a1d3a16d4558dc4b537bd66801b6d7
-```
+Current known evidence:
 
-The final code change was CI-verified on GitHub Actions run #155 from commit `6da8ec46eca157859e114caf9b50dfda0b86f049`:
-```text
+~~~text
+Active architecture source: STATIC VERIFIED
+Base model implementation: CI VERIFIED
+Few-shot adapter implementation: CI VERIFIED
+Letter API implementation: CI VERIFIED
+Frontend TypeScript check: CI VERIFIED
+Frontend production build: CI VERIFIED
+Production artifact verification: CI VERIFIED
+Base checkpoint trained on real data: NOT VERIFIED
+Base test accuracy: NOT VERIFIED
+Held-out signer accuracy: NOT VERIFIED
+Browser camera runtime in this environment: NOT VERIFIED
+Live Render end-to-end behavior: NOT VERIFIED
+Production database hardening: NOT VERIFIED
+Production HttpOnly authentication: NOT VERIFIED
+~~~
+
+Known successful code verification:
+
+~~~text
+GitHub Actions run #155
 backend: 72 passed, 1 skipped
-Python compile: PASS
+Python compilation: PASS
 frontend TypeScript check: PASS
-frontend Vite production build: PASS
+Vite production build: PASS
 production artifact verification: PASS
-```
+~~~
 
-The active architecture is now:
-```text
-MediaPipe hands
- -> normalized 126D vector
- -> frozen 26-class letter base model
+Do not extend the above evidence into claims about model quality or real-world recognition.
+
+---
+
+# 13. Current blocker board
+
+~~~text
+A  Train base model on real ISL A-Z data            NOT VERIFIED
+B  Record held-out base test performance            BLOCKED until A
+C  Validate few-shot adaptation on held-out signer  BLOCKED until A/B
+D  Verify browser camera + real inference           NOT VERIFIED
+E  Verify live Render real-mode flow               BLOCKED until A-D
+F  Durable production database                     NOT IMPLEMENTED
+G  Production HttpOnly authentication              NOT IMPLEMENTED
+H  Production rate limiting hardening              NOT VERIFIED
+~~~
+
+There is no additional hidden ML training requirement for the active architecture.
+
+---
+
+# 14. Production boundaries
+
+Current infrastructure still has known limitations:
+
+~~~text
+SQLite on Render            -> disposable without external durable storage
+Client-side bearer token    -> still present in current deployment path
+Real-mode deployment        -> intentionally disabled
+Raw video server inference  -> not part of the active letter contract
+~~~
+
+Do not call the system production-ready while these boundaries remain unresolved.
+
+The active product can still be developed and validated independently of production hardening.
+
+---
+
+# 15. Repository cleanliness rules
+
+Do not reintroduce inactive model concepts into the active contract.
+
+Do not add new product work for:
+
+~~~text
+sentence translation
+sequence decoding
+sentence-level training
+unused input streams
+obsolete calibration flows
+~~~
+
+Do not silently rename the active 126D input contract.
+
+Do not add a second feature representation unless the runtime, training, tests, and documentation are updated together.
+
+Keep this as the canonical ML source of truth:
+
+~~~text
+base model -> frozen embedding -> few-shot signer prototypes -> letter
+~~~
+
+When modifying one stage, trace every dependent stage before editing.
+
+---
+
+# 16. Current architecture diary
+
+## 2026-09-23 — Letter-only architecture
+
+The active product was narrowed to single-letter ISL fingerspelling recognition.
+
+The current architecture was established as:
+
+~~~text
+MediaPipe Hands
+ -> normalized 126D hand vector
+ -> frozen 26-class base model
  -> 64D embedding
  -> few-shot signer adapter
  -> letter + confidence
-```
+~~~
 
-Training boundary:
-```text
-BASE MODEL: must be trained once on real ISL A-Z landmark data
-FEW-SHOT ADAPTER: fitted at runtime from a few signer examples; no offline training required
-LEGACY SENTENCE CTC MODEL: not required for the current product
-```
+This document treats that architecture as the only active product contract.
 
-The remaining external action is therefore exactly one reproducible Colab job:
-```text
-notebooks/train_letter_base_colab.ipynb
-```
+## 2026-09-23 — Base model + few-shot adapter implementation
 
-That job must produce:
-```text
+Implemented:
+
+~~~text
+VisionBridgeLetterBaseModel
+letter dataset preparation
+base-model training CLI
+Colab training notebook
+frozen-embedding few-shot adapter
+checkpoint checksum binding
+letter API integration
+letter frontend integration
+readiness reporting
+adapter ownership filtering
+regression tests
+~~~
+
+The adapter is deliberately prototype-based. It does not require a second offline training job.
+
+Status:
+
+~~~text
+BASE MODEL CODE: CI VERIFIED
+FEW-SHOT ADAPTER: CI VERIFIED
+API: CI VERIFIED
+FRONTEND: CI VERIFIED
+~~~
+
+## 2026-09-23 — Active-state handoff
+
+The only required ML execution step still outside normal source and CI verification is:
+
+~~~text
+run notebooks/train_letter_base_colab.ipynb
+~~~
+
+That run must create and validate:
+
+~~~text
 backend/app/models/weights/letter_base_model.pt
-```
+~~~
 
-The checkpoint must be validated on its held-out test split before it is treated as a usable base model. Real signer accuracy must then be measured on held-out examples after few-shot calibration.
+After checkpoint installation, the next evidence-producing work is:
 
-No other hidden model-training step exists in the active letter architecture.
+~~~text
+base held-out test
+ -> signer calibration
+ -> held-out signer evaluation
+ -> browser real-mode verification
+ -> Render verification
+~~~
 
-Final status:
-```text
-ARCHITECTURE: FIXED AND CI VERIFIED
-CODE PATH: FIXED AND CI VERIFIED
-BASE CHECKPOINT: NOT YET TRAINED
-FEW-SHOT ADAPTER: FIXED
-REAL-WORLD ACCURACY: NOT VERIFIED
-```
+No hidden adapter training step exists.
+
+---
+
+# 17. Definition of done
+
+A change is complete only when:
+
+~~~text
+source updated
+tests updated where needed
+regression checks pass
+documentation matches implementation
+no stale active-path contract remains
+verification status is honest
+known blockers are recorded
+~~~
+
+For model changes specifically:
+
+~~~text
+real data
+ -> measured result
+ -> compatible checkpoint
+ -> runtime validation
+ -> held-out signer validation
+~~~
+
+The repository must never claim a successful real-world model result without the corresponding evidence.
