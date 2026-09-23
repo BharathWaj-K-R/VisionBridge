@@ -340,7 +340,8 @@ dataset images
  -> MediaPipe Hands landmark extraction
  -> normalization
  -> train/validation/test arrays
- -> base-model training
+ -> iterative base-model training
+ -> per-letter validation check after each epoch
  -> held-out test measurement
  -> checkpoint
  -> runtime installation
@@ -358,10 +359,10 @@ Standard Colab training command:
 PYTHONPATH=backend python -m app.training.letter_base \
   --data-dir /content/visionbridge_letter_data \
   --output backend/app/models/weights/letter_base_model.pt \
-  --epochs 30 \
+  --epochs 300 \
   --batch-size 128 \
   --lr 0.001 \
-  --patience 6
+  --target-class-accuracy 1.0
 ~~~
 
 The resulting checkpoint must exist at:
@@ -838,3 +839,26 @@ DYNAMIC BROWSER MODEL: CODE FIXED
 ASYNC HISTORY: CODE FIXED
 REAL DEVICE LATENCY: NOT VERIFIED
 ~~~
+
+## 2026-09-23 — Iterative A-Z training
+
+The base-model trainer now evaluates every letter after each epoch and prioritizes the weakest validation class when selecting the best checkpoint.
+
+~~~text
+train epoch
+ -> full validation sweep
+ -> per-letter accuracy
+ -> identify weakest letter
+ -> adjust learning rate on plateau
+ -> continue automatically
+~~~
+
+Default stopping target:
+
+~~~text
+100% validation accuracy for every A-Z class
+~~~
+
+The training loop has a maximum epoch cap so an impossible target cannot create an endless Colab session. A checkpoint is still saved when the cap is reached, and the held-out test result is reported separately.
+
+This target is a validation criterion, not a guarantee of perfect recognition for unseen signers or live camera input.
