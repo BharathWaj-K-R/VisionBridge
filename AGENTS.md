@@ -302,7 +302,7 @@ SIGNER ADAPTER: fitted from a few runtime examples
 
 # 6. Dataset preparation and training
 
-The default training source is the RealSign Indian Sign Language alphabet dataset. Dataset preprocessing uses the supported MediaPipe Tasks Hand Landmarker API rather than the removed legacy mp.solutions API.
+The default training source is the RealSign Indian Sign Language alphabet dataset. Dataset preprocessing uses the supported MediaPipe Tasks Hand Landmarker API and its versioned hand-landmarker.task model bundle. The source archive is a Git LFS object and the Colab notebook uses the Git LFS media endpoint.
 
 Dataset preparation converts alphabet images into the same normalized 126D landmark representation used at runtime.
 
