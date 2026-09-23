@@ -274,6 +274,7 @@ The active real-time hot path is:
 
     camera
      -> MediaPipe Hands
+     -> hand tracing
      -> normalized 126D vector
      -> browser model
      -> browser adapter
