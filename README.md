@@ -6,7 +6,7 @@ VisionBridge's active product is a two-stage fingerspelling recognizer:
 
 ~~~text
 Browser camera
-  -> MediaPipe hand landmarks
+  -> MediaPipe Tasks Hand Landmarker hand landmarks
   -> normalized 126D two-hand vector
   -> dynamic 26-class ISL letter base model
   -> 64D signer-independent embedding
@@ -69,7 +69,7 @@ The default training source is the public RealSign Indian Sign Language alphabet
 
 RealSign ISL alphabet dataset: https://github.com/RealSign62/RealSign-Indian-Sign-Language-Dataset
 
-The repository preparation script converts those images into the same normalized 126-value hand contract used by the live application.
+The repository preparation script uses MediaPipe Tasks Hand Landmarker in image mode and converts its 21-point hand results into the same normalized 126-value hand contract used by the live application.
 
 ## Active API
 
@@ -92,7 +92,7 @@ Run:
 notebooks/train_letter_base_colab.ipynb
 ~~~
 
-The notebook downloads the RealSign dataset, extracts the two-hand landmarks, builds a stratified 80/20 train-validation split from the dataset's training + validation pools, and automatically iterates base-model training. After each epoch it measures accuracy for every A-Z class on the full validation split. Training can run for up to 500 epochs and stops when every letter reaches the configured target. The dataset's original testing split is kept untouched and measured separately. The best checkpoint is always saved.
+The notebook downloads the RealSign dataset, downloads the versioned MediaPipe Hand Landmarker task model, extracts the two-hand landmarks through the supported MediaPipe Tasks API, builds a stratified 80/20 train-validation split from the dataset's training + validation pools, and automatically iterates base-model training. After each epoch it measures accuracy for every A-Z class on the full validation split. Training can run for up to 500 epochs and stops when every letter reaches the configured target. The dataset's original testing split is kept untouched and measured separately. The best checkpoint is always saved.
 
 Equivalent CLI training command:
 
