@@ -3,8 +3,8 @@
 # service — that would bloat the production build with packages the live
 # API never uses (mediapipe/opencv especially are large).
 #
-# The canonical Colab training notebook uses the same MediaPipe release in an
-# isolated Python 3.12 environment. Keep this file aligned with that runtime.
+# The canonical Colab training notebook uses this MediaPipe release for the
+# legacy Python Hands API used by dataset preparation. Keep it aligned with Colab.
 #
 # Install with: pip install -r requirements-training.txt (in addition to
 # requirements.txt) on whatever machine/Colab instance does the actual
