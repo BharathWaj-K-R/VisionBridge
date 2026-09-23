@@ -50,7 +50,7 @@ class VisionBridgeLetterBaseModel(nn.Module):
             nn.Dropout(self.dropout),
             nn.Linear(self.hidden_dim, self.embedding_dim),
             nn.LayerNorm(self.embedding_dim),
-            nn.GELU(),
+            nn.GELU(approximate="tanh"),
         )
         self.output_head = nn.Linear(self.embedding_dim, self.num_classes)
 
