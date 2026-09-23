@@ -478,3 +478,63 @@ The active dynamically replaceable model source of truth remains:
      -> 64D embedding
      -> few-shot signer adapter
      -> letter
+
+
+---
+
+# 2026-09-23 — Browser fast path
+
+### Problem
+
+The previous real-mode UI sent prediction requests to FastAPI from the browser during live recognition. Network round trips were therefore part of the prediction loop.
+
+### Fix
+
+The active prediction path now loads the current model and signer adapter once and performs inference in the browser:
+
+    camera
+     -> MediaPipe Hands
+     -> normalized 126D vector
+     -> browser base model
+     -> browser few-shot adapter
+     -> letter + confidence
+
+Backend calls remain for:
+
+    initial model load
+    adapter load
+    calibration persistence
+    throttled recognition-event logging
+
+The UI also renders:
+
+    21-point hand skeleton
+    left/right hand labels
+    short wrist-motion trace
+    tracker FPS
+    measured local inference time
+
+### Performance decisions
+
+    MediaPipe Hands modelComplexity=0
+    640x480 ideal camera input
+    one in-flight tracker call
+    no per-frame network request
+    cached browser model
+    cached selected adapter
+    typed-array model math
+    lightweight canvas tracing
+
+### Verification
+
+    GitHub Actions run #197
+    backend: success
+    frontend: success
+
+This verifies source/test/build integration. Real device latency and real signer accuracy remain NOT VERIFIED.
+
+### Remaining uncertainty
+
+    actual MediaPipe latency varies by device/browser
+    real-world signer accuracy requires the trained base checkpoint
+    browser fast path requires a trained checkpoint in real mode
