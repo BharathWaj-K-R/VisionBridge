@@ -128,6 +128,31 @@ def load_checkpoint(path: str | Path) -> VisionBridgeLetterBaseModel:
     return model
 
 
+def build_browser_payload(model: VisionBridgeLetterBaseModel, model_sha256: str) -> dict:
+    """Return only inference weights needed by the browser fast path."""
+    state = model.state_dict()
+
+    def array(name: str) -> list:
+        return state[name].detach().cpu().tolist()
+
+    return {
+        "model_version": MODEL_VERSION,
+        "model_sha256": model_sha256,
+        "input_dim": model.input_dim,
+        "hidden_dim": model.hidden_dim,
+        "embedding_dim": model.embedding_dim,
+        "num_classes": model.num_classes,
+        "labels": list(model.labels),
+        "layers": {
+            "input_norm": {"weight": array("encoder.0.weight"), "bias": array("encoder.0.bias")},
+            "hidden": {"weight": array("encoder.1.weight"), "bias": array("encoder.1.bias")},
+            "embedding": {"weight": array("encoder.4.weight"), "bias": array("encoder.4.bias")},
+            "embedding_norm": {"weight": array("encoder.5.weight"), "bias": array("encoder.5.bias")},
+            "head": {"weight": array("output_head.weight"), "bias": array("output_head.bias")},
+        },
+    }
+
+
 def checkpoint_status(path: str | Path) -> dict[str, str | bool]:
     try:
         model = load_checkpoint(path)
