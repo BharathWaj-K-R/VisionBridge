@@ -343,8 +343,11 @@ Primary letter endpoints:
 
 ~~~text
 GET  /api/v1/letter/status
+GET  /api/v1/letter/model
+GET  /api/v1/letter/adapters/{id}
 POST /api/v1/letter/calibrate
 POST /api/v1/letter/predict
+POST /api/v1/letter/event
 ~~~
 
 Rules:
@@ -404,6 +407,7 @@ src/App.tsx
 src/api.ts
 src/landmarks.ts
 src/useLandmarkSession.ts
+src/browserModel.ts
 src/styles.css
 ~~~
 
@@ -413,7 +417,7 @@ Browser flow:
 camera
  -> hand landmark detection
  -> 126D normalization
- -> API request
+ -> browser model + adapter (loaded once)
  -> base model embedding
  -> signer adapter
  -> letter + confidence
