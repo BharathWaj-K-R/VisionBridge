@@ -538,3 +538,7 @@ This verifies source/test/build integration. Real device latency and real signer
     actual MediaPipe latency varies by device/browser
     real-world signer accuracy requires the trained base checkpoint
     browser fast path requires a trained checkpoint in real mode
+
+## 2026-09-23 — MediaPipe Tasks training compatibility
+
+The dataset-preparation path now uses MediaPipe Tasks Hand Landmarker in image mode with the versioned Google-hosted hand_landmarker.task model. The old mp.solutions API is not used by the active training path.
