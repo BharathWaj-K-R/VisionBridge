@@ -64,8 +64,10 @@ export function useLandmarkSession(sampleFps: number) {
         const width = video.videoWidth || 640;
         const height = video.videoHeight || 480;
         if (canvas) {
-          canvas.width = width;
-          canvas.height = height;
+          if (canvas.width !== width || canvas.height !== height) {
+            canvas.width = width;
+            canvas.height = height;
+          }
           drawHands(canvas, frame.leftLandmarks, frame.rightLandmarks, traceRef.current);
         }
 
@@ -80,8 +82,8 @@ export function useLandmarkSession(sampleFps: number) {
 
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: 960, max: 1280 },
-          height: { ideal: 720, max: 720 },
+          width: { ideal: 640, max: 960 },
+          height: { ideal: 480, max: 720 },
           facingMode: "user",
           frameRate: { ideal: 30, max: 60 },
         },
