@@ -13,7 +13,7 @@ HIDDEN_DIM = 128
 EMBEDDING_DIM = 64
 NUM_CLASSES = 26
 LETTER_LABELS = tuple("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-MODEL_VERSION = "visionbridge-letter-base-v2"
+MODEL_VERSION = "visionbridge-letter-base-v3"
 
 
 class VisionBridgeLetterBaseModel(nn.Module):
@@ -46,7 +46,7 @@ class VisionBridgeLetterBaseModel(nn.Module):
         self.encoder = nn.Sequential(
             nn.LayerNorm(self.input_dim),
             nn.Linear(self.input_dim, self.hidden_dim),
-            nn.GELU(),
+            nn.GELU(approximate="tanh"),
             nn.Dropout(self.dropout),
             nn.Linear(self.hidden_dim, self.embedding_dim),
             nn.LayerNorm(self.embedding_dim),
