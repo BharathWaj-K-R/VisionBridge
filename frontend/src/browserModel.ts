@@ -260,6 +260,7 @@ export class BrowserLetterAdapter {
 
     let bestLetter = "?";
     let bestScore = -Infinity;
+    let bestIndex = -1;
     const scores: number[] = [];
 
     for (const [letter, prototype] of this.prototypes) {
@@ -269,6 +270,7 @@ export class BrowserLetterAdapter {
       if (score > bestScore) {
         bestScore = score;
         bestLetter = letter;
+        bestIndex = scores.length - 1;
       }
     }
 
@@ -278,7 +280,7 @@ export class BrowserLetterAdapter {
     for (let i = 0; i < scores.length; i += 1) {
       const value = Math.exp((scores[i] - maxScore) * 10);
       denominator += value;
-      if (i === 0) numerator = value;
+      if (i === bestIndex) numerator = value;
     }
 
     const confidence = numerator / Math.max(denominator, 1e-12);
