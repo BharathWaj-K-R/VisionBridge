@@ -1,28 +1,29 @@
-"""Model-readiness behavior must be explicit rather than serving random logits."""
-
+"""Model readiness tests for the active ISL letter pipeline."""
 import pytest
 
-from app.services import inference_service
+from app.services import letter_fewshot
 
 
-def test_missing_checkpoint_is_reported_as_unavailable(monkeypatch, tmp_path):
-    previous_model = inference_service._base_model
-    previous_vocab = inference_service._id_to_token
-    monkeypatch.setattr(inference_service.settings, "BASE_MODEL_PATH", str(tmp_path / "missing.pt"))
-    monkeypatch.setattr(inference_service, "_base_model", None)
-    monkeypatch.setattr(inference_service, "_id_to_token", {})
+def test_missing_letter_checkpoint_is_reported_as_unavailable(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        letter_fewshot.settings,
+        "LETTER_BASE_MODEL_PATH",
+        str(tmp_path / "missing.pt"),
+    )
 
-    try:
-        status = inference_service.model_status()
-        assert status == {
-            "available": False,
-            "status": "unavailable",
-            "modality": "hand-aware",
-        }
-        with pytest.raises(inference_service.ModelUnavailableError):
-            inference_service.get_base_model()
-    finally:
-        # The module keeps a process-wide model cache; leave it exactly as it
-        # was so this focused test cannot affect later integration tests.
-        inference_service._base_model = previous_model
-        inference_service._id_to_token = previous_vocab
+    status = letter_fewshot.letter_model_status()
+
+    assert status["available"] is False
+    assert status["status"] == "letter_base_model_missing"
+    assert "letter base" in status["modality"]
+
+
+def test_invalid_letter_checkpoint_is_reported_as_unavailable(monkeypatch, tmp_path):
+    path = tmp_path / "broken.pt"
+    path.write_bytes(b"not-a-checkpoint")
+    monkeypatch.setattr(letter_fewshot.settings, "LETTER_BASE_MODEL_PATH", str(path))
+
+    status = letter_fewshot.letter_model_status()
+
+    assert status["available"] is False
+    assert status["status"] == "letter_base_model_invalid"
