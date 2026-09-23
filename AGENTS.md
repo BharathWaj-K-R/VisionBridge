@@ -677,3 +677,62 @@ Runtime / deployment:
 
 Loose-end rule for this redesign:
 The only external execution dependency is the Colab base-model training run and installation of its resulting checkpoint. The repository now contains the model contract, dataset preparation, training CLI, training notebook, runtime adapter, API wiring, checkpoint compatibility checks, and regression tests. No hidden training step remains.
+
+
+---
+
+# 2026-09-23 — Final base + few-shot adapter verification
+
+PR #5 was merged into `main` as:
+```text
+cbefdaf1a5a1d3a16d4558dc4b537bd66801b6d7
+```
+
+The final code change was CI-verified on GitHub Actions run #155 from commit `6da8ec46eca157859e114caf9b50dfda0b86f049`:
+```text
+backend: 72 passed, 1 skipped
+Python compile: PASS
+frontend TypeScript check: PASS
+frontend Vite production build: PASS
+production artifact verification: PASS
+```
+
+The active architecture is now:
+```text
+MediaPipe hands
+ -> normalized 126D vector
+ -> frozen 26-class letter base model
+ -> 64D embedding
+ -> few-shot signer adapter
+ -> letter + confidence
+```
+
+Training boundary:
+```text
+BASE MODEL: must be trained once on real ISL A-Z landmark data
+FEW-SHOT ADAPTER: fitted at runtime from a few signer examples; no offline training required
+LEGACY SENTENCE CTC MODEL: not required for the current product
+```
+
+The remaining external action is therefore exactly one reproducible Colab job:
+```text
+notebooks/train_letter_base_colab.ipynb
+```
+
+That job must produce:
+```text
+backend/app/models/weights/letter_base_model.pt
+```
+
+The checkpoint must be validated on its held-out test split before it is treated as a usable base model. Real signer accuracy must then be measured on held-out examples after few-shot calibration.
+
+No other hidden model-training step exists in the active letter architecture.
+
+Final status:
+```text
+ARCHITECTURE: FIXED AND CI VERIFIED
+CODE PATH: FIXED AND CI VERIFIED
+BASE CHECKPOINT: NOT YET TRAINED
+FEW-SHOT ADAPTER: FIXED
+REAL-WORLD ACCURACY: NOT VERIFIED
+```
