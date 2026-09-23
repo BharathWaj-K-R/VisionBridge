@@ -247,7 +247,7 @@ There is no hidden offline adapter-training step. New validated base checkpoints
 Keep this distinction explicit:
 
 ~~~text
-BASE MODEL: trained once offline
+BASE MODEL: trainable, versioned, and replaceable offline
 SIGNER ADAPTER: fitted from a few runtime examples
 ~~~
 
@@ -570,7 +570,7 @@ Production HttpOnly authentication: NOT VERIFIED
 Known successful code verification:
 
 ~~~text
-GitHub Actions run #155
+GitHub Actions run #163
 backend: 72 passed, 1 skipped
 Python compilation: PASS
 frontend TypeScript check: PASS
