@@ -1,3 +1,4 @@
+from pathlib import Path
 import math
 import time
 
@@ -14,7 +15,9 @@ from app.schemas.schemas import (
     LetterCalibrationResult,
     LetterPredictionRequest,
     LetterPredictionResult,
+    LetterRecognitionEvent,
 )
+from app.models.letter_model import build_browser_payload
 from app.services.letter_fewshot import (
     COMBINED_HAND_DIM,
     _sha256,
@@ -47,7 +50,6 @@ def _validate_vector(values: list[float]) -> None:
 @router.get("/status")
 def status():
     return letter_model_status()
-
 
 
 
@@ -134,22 +136,21 @@ def get_letter_adapter(
 
 @router.post("/event")
 def log_letter_event(
-    payload: dict,
+    payload: LetterRecognitionEvent,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     if payload.get("user_id") != current_user.id:
         raise HTTPException(status_code=403, detail="user_id does not match the authenticated user")
 
-    try:
-        adapter_id = int(payload["adapter_id"])
-        predicted_letter = str(payload["predicted_letter"])
-        confidence = float(payload["confidence"])
-        latency_ms = float(payload["latency_ms"])
-    except (KeyError, TypeError, ValueError) as exc:
-        raise HTTPException(status_code=422, detail="Invalid recognition event") from exc
+    if payload.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="user_id does not match the authenticated user")
 
-    if len(predicted_letter) != 1 or (predicted_letter != "?" and predicted_letter not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"):
+    adapter_id = payload.adapter_id
+    predicted_letter = payload.predicted_letter.upper()
+    confidence = payload.confidence
+    latency_ms = payload.latency_ms
+    if predicted_letter != "?" and predicted_letter not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
         raise HTTPException(status_code=422, detail="Invalid predicted letter")
     if not math.isfinite(confidence) or not 0 <= confidence <= 1:
         raise HTTPException(status_code=422, detail="Invalid confidence")
