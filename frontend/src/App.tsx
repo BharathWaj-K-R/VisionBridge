@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { api, clearToken, getToken, setToken, type LetterSample } from "./api";
 import { BrowserLetterAdapter } from "./browserModel";
@@ -73,8 +73,8 @@ function Recognize() {
   const [userId, setUserId] = useState<number>();
   const [adapters, setAdapters] = useState<any[]>([]);
   const [adapterId, setAdapterId] = useState<number | undefined>();
-  const adapterRef = React.useRef<BrowserLetterAdapter | null>(null);
-  const lastEventRef = React.useRef({ letter: "", time: 0 });
+  const adapterRef = useRef<BrowserLetterAdapter | null>(null);
+  const lastEventRef = useRef({ letter: "", time: 0 });
 
   useEffect(() => {
     api.me().then((u) => setUserId(u.id));
