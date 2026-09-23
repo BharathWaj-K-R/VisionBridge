@@ -92,7 +92,7 @@ Run:
 notebooks/train_letter_base_colab.ipynb
 ~~~
 
-The notebook downloads the RealSign dataset, extracts the two-hand landmarks, prepares train/validation/test features, and automatically iterates base-model training. After each epoch it measures accuracy for every A-Z class on the full validation split. Training stops when every letter reaches the configured target, or when the maximum epoch cap is reached. The best checkpoint is always saved and the held-out test split is measured separately.
+The notebook downloads the RealSign dataset, extracts the two-hand landmarks, builds a stratified 80/20 train-validation split from the dataset's training + validation pools, and automatically iterates base-model training. After each epoch it measures accuracy for every A-Z class on the full validation split. Training can run for up to 500 epochs and stops when every letter reaches the configured target. The dataset's original testing split is kept untouched and measured separately. The best checkpoint is always saved.
 
 Equivalent CLI training command:
 
@@ -100,7 +100,7 @@ Equivalent CLI training command:
 PYTHONPATH=backend python -m app.training.letter_base \
   --data-dir /content/visionbridge_letter_data \
   --output backend/app/models/weights/letter_base_model.pt \
-  --epochs 300 \
+  --epochs 500 \
   --target-class-accuracy 1.0
 ~~~
 
