@@ -134,7 +134,7 @@ def get_letter_adapter(
 
 
 
-@router.post("/event")
+@router.post("/event", dependencies=[Depends(_rate_limit)])
 def log_letter_event(
     payload: LetterRecognitionEvent,
     db: Session = Depends(get_db),
