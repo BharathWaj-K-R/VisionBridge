@@ -81,3 +81,34 @@ class AblationRow(BaseModel):
     config_name: str
     accuracy: float
     calibration_seconds: float | None = None
+
+
+class LetterCalibrationSample(BaseModel):
+    letter: str = Field(min_length=1, max_length=1, pattern=r"^[A-Za-z]$")
+    hand_keypoints: list[float] = Field(min_length=126, max_length=126)
+
+
+class LetterCalibrationRequest(BaseModel):
+    user_id: int = Field(gt=0)
+    calibration_seconds: float = Field(default=1, ge=0)
+    samples: list[LetterCalibrationSample] = Field(min_length=2)
+
+
+class LetterCalibrationResult(BaseModel):
+    adapter_id: int
+    letters: list[str]
+    shots: dict[str, int]
+    param_count: int
+
+
+class LetterPredictionRequest(BaseModel):
+    user_id: int = Field(gt=0)
+    adapter_id: int = Field(gt=0)
+    hand_keypoints: list[float] = Field(min_length=126, max_length=126)
+
+
+class LetterPredictionResult(BaseModel):
+    predicted_letter: str
+    confidence: float
+    latency_ms: float
+    adapter_id: int
