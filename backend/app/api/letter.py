@@ -17,6 +17,7 @@ from app.schemas.schemas import (
 )
 from app.services.letter_fewshot import (
     COMBINED_HAND_DIM,
+    _sha256,
     fit_prototype_adapter,
     get_letter_base_model,
     letter_model_status,
@@ -47,6 +48,21 @@ def _validate_vector(values: list[float]) -> None:
 def status():
     return letter_model_status()
 
+
+
+
+@router.get("/model")
+def browser_model(
+    current_user: User = Depends(get_current_user),
+):
+    target = Path(settings.LETTER_BASE_MODEL_PATH)
+    try:
+        base_model = get_letter_base_model()
+        return build_browser_payload(base_model, _sha256(target))
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail="Letter base model is not trained yet") from exc
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=503, detail="Letter base model is unavailable") from exc
 
 @router.post("/calibrate", response_model=LetterCalibrationResult, dependencies=[Depends(_rate_limit)])
 def calibrate_letters(
@@ -90,6 +106,76 @@ def calibrate_letters(
         param_count=fitted["param_count"],
     )
 
+
+
+
+@router.get("/adapters/{adapter_id}")
+def get_letter_adapter(
+    adapter_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    row = (
+        db.query(SignerAdapter)
+        .filter(SignerAdapter.id == adapter_id, SignerAdapter.owner_id == current_user.id)
+        .first()
+    )
+    if not row or not Path(row.weights_path).name.startswith("letter_adapter_"):
+        raise HTTPException(status_code=404, detail="Adapter not found")
+
+    try:
+        return load_prototype_adapter(row.weights_path, settings.LETTER_BASE_MODEL_PATH)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail="Letter model or adapter is unavailable") from exc
+    except (OSError, ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=409, detail="Adapter requires recalibration for the current model") from exc
+
+
+
+@router.post("/event")
+def log_letter_event(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if payload.get("user_id") != current_user.id:
+        raise HTTPException(status_code=403, detail="user_id does not match the authenticated user")
+
+    try:
+        adapter_id = int(payload["adapter_id"])
+        predicted_letter = str(payload["predicted_letter"])
+        confidence = float(payload["confidence"])
+        latency_ms = float(payload["latency_ms"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail="Invalid recognition event") from exc
+
+    if len(predicted_letter) != 1 or (predicted_letter != "?" and predicted_letter not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"):
+        raise HTTPException(status_code=422, detail="Invalid predicted letter")
+    if not math.isfinite(confidence) or not 0 <= confidence <= 1:
+        raise HTTPException(status_code=422, detail="Invalid confidence")
+    if not math.isfinite(latency_ms) or latency_ms < 0:
+        raise HTTPException(status_code=422, detail="Invalid latency")
+
+    adapter = (
+        db.query(SignerAdapter)
+        .filter(SignerAdapter.id == adapter_id, SignerAdapter.owner_id == current_user.id)
+        .first()
+    )
+    if not adapter or not Path(adapter.weights_path).name.startswith("letter_adapter_"):
+        raise HTTPException(status_code=404, detail="Adapter not found")
+
+    db.add(
+        TranslationLog(
+            user_id=current_user.id,
+            adapter_id=adapter_id,
+            predicted_text=predicted_letter,
+            confidence=confidence,
+            latency_ms=latency_ms,
+            used_adapter=1,
+        )
+    )
+    db.commit()
+    return {"logged": True}
 
 @router.post("/predict", response_model=LetterPredictionResult, dependencies=[Depends(_rate_limit)])
 def predict_letter_endpoint(
