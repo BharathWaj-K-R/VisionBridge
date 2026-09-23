@@ -240,3 +240,30 @@ def predict_letter(
     if best_score < MIN_SIMILARITY:
         return "?", confidence, scores
     return best_letter, confidence, scores
+
+
+def stage_adapter_delete(weights_path: str) -> Path | None:
+    adapter_root = Path(settings.ADAPTER_WEIGHTS_DIR).resolve()
+    candidate = Path(weights_path).resolve()
+    if adapter_root not in candidate.parents:
+        raise ValueError("Refusing to delete a path outside the adapter weight directory")
+    if not candidate.exists():
+        return None
+    tombstone = candidate.with_name(".{}.{}.deleting".format(candidate.name, uuid.uuid4().hex))
+    candidate.replace(tombstone)
+    return tombstone
+
+
+def restore_adapter_delete(tombstone: Path, original_path: str) -> None:
+    adapter_root = Path(settings.ADAPTER_WEIGHTS_DIR).resolve()
+    candidate = Path(original_path).resolve()
+    staged = tombstone.resolve()
+    if adapter_root not in candidate.parents or adapter_root not in staged.parents:
+        raise ValueError("Refusing to restore adapter weights outside the configured directory")
+    if staged.exists():
+        staged.replace(candidate)
+
+
+def finalize_adapter_delete(tombstone: Path | None) -> None:
+    if tombstone is not None and tombstone.exists():
+        tombstone.unlink()
