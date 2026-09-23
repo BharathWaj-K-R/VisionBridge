@@ -18,6 +18,53 @@ The project is intentionally scoped to single-letter recognition, not sentence t
 
 ---
 
+# Maintainability standard
+
+All implementation work must optimize for actual human maintainability, not the appearance of authorship.
+
+## Project-specific design
+- Prefer VisionBridge terminology such as signer, letter, landmark, calibration, prediction, adapter, checkpoint, and model version.
+- Use generic names only when they genuinely describe the responsibility.
+- Keep domain logic near the domain that owns it.
+
+## Abstraction
+- Use the smallest abstraction that solves a real problem.
+- Do not create factories, wrappers, interfaces, hooks, services, or utility modules without a concrete responsibility.
+- Reuse code only when the shared behavior is meaningful and stable.
+
+## Control flow
+- Prefer early returns, named intermediate values, explicit calculations, and straightforward branches.
+- Split large functions when the split creates a real responsibility boundary.
+- Do not split code to satisfy an arbitrary line count.
+
+## Comments
+- Explain why a decision exists, not what obvious syntax does.
+- Remove comments that merely narrate the code.
+- Preserve comments that explain model contracts, failure modes, compatibility, or performance trade-offs.
+
+## Consistency
+- Preserve established naming and API conventions unless a name is genuinely misleading.
+- Keep formatting, error handling, and component patterns consistent across the repository.
+- Do not introduce artificial quirks, obsolete patterns, or inconsistent style.
+
+## Cleanup
+- Remove abandoned prototypes, duplicate implementations, commented-out code, and obsolete architecture.
+- Keep tests, training scripts, reproducible notebooks, and deployment files when they support the active product.
+- Do not fabricate history, metrics, authorship, or verification evidence.
+
+## Review questions
+Before finishing a major refactor:
+
+    What does this file do?
+    Why does it exist?
+    What depends on it?
+    What does it return?
+    Is the abstraction useful?
+    Is the naming meaningful?
+    Is the resulting code easier to test and debug?
+
+The desired result is clear, project-specific, focused software with real tests and honest documentation.
+
 # 1. Engineering rules
 
 Every meaningful change must be traceable in this file or in the repository's normal documentation.
