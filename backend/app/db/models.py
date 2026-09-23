@@ -1,7 +1,4 @@
-"""
-ORM models: kept intentionally minimal for the hackathon scope.
-No RBAC, no model-versioning tables, no audit tables — those are future work.
-"""
+"""Database models for users, signer adapters, and prediction history."""
 import datetime as dt
 
 from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String
@@ -11,23 +8,23 @@ from app.db.session import Base
 
 
 class User(Base):
-    """A signer using the system. JWT auth only kicks in if the demo needs
-    multiple simultaneous users; a single hardcoded demo user is fine otherwise."""
+    """A VisionBridge account used to store signer-specific adapters and history."""
 
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
-    created_at = Column(DateTime, default=lambda: dt.datetime.now(dt.timezone.utc))
+    created_at = Column(
+        DateTime,
+        default=lambda: dt.datetime.now(dt.timezone.utc),
+    )
 
     adapters = relationship("SignerAdapter", back_populates="owner")
 
 
 class SignerAdapter(Base):
-    """Metadata for one signer's calibrated BridgeAdapter weights.
-    The actual weight tensors are stored on disk under ADAPTER_WEIGHTS_DIR;
-    this row just tracks which file belongs to which user and how it did."""
+    """Metadata for one signer's calibrated letter prototypes."""
 
     __tablename__ = "signer_adapters"
 
@@ -36,15 +33,17 @@ class SignerAdapter(Base):
     weights_path = Column(String, nullable=False)
     calibration_seconds = Column(Float, nullable=False)
     param_count = Column(Integer, nullable=True)
-    accuracy_gain_pct = Column(Float, nullable=True)  # measured vs base-only, on held-out clips
-    created_at = Column(DateTime, default=lambda: dt.datetime.now(dt.timezone.utc))
+    accuracy_gain_pct = Column(Float, nullable=True)
+    created_at = Column(
+        DateTime,
+        default=lambda: dt.datetime.now(dt.timezone.utc),
+    )
 
     owner = relationship("User", back_populates="adapters")
 
 
 class TranslationLog(Base):
-    """Lightweight log of translation requests, useful for the demo/ablation
-    numbers (latency, confidence) without building a full analytics stack."""
+    """A persisted letter prediction used by dashboard and history views."""
 
     __tablename__ = "translation_logs"
 
@@ -54,5 +53,8 @@ class TranslationLog(Base):
     predicted_text = Column(String, nullable=False)
     confidence = Column(Float, nullable=True)
     latency_ms = Column(Float, nullable=True)
-    used_adapter = Column(Integer, default=0)  # 0/1 bool for sqlite simplicity
-    created_at = Column(DateTime, default=lambda: dt.datetime.now(dt.timezone.utc))
+    used_adapter = Column(Integer, default=0)
+    created_at = Column(
+        DateTime,
+        default=lambda: dt.datetime.now(dt.timezone.utc),
+    )
