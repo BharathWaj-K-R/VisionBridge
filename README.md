@@ -2,83 +2,126 @@
 
 **Few-shot signer-adaptive Indian Sign Language letter recognition.**
 
-VisionBridge has been deliberately downscoped from continuous sentence translation to a small, demonstrable fingerspelling product:
+VisionBridge's active product is a two-stage fingerspelling recognizer:
 
-```text
+~~~text
 Browser camera
   -> MediaPipe hand landmarks
-  -> 21-point left + 21-point right hand vectors
-  -> wrist/scale normalization
-  -> signer-specific few-shot prototypes
-  -> cosine similarity
+  -> normalized 126D two-hand vector
+  -> frozen 26-class ISL letter base model
+  -> 64D signer-independent embedding
+  -> few-shot signer adapter
   -> one predicted letter + confidence
-```
+~~~
 
-## Why the scope changed
+## Base model + few-shot adapter
 
-The previous project used a four-stream temporal CTC model for sentence-level recognition. That path required a fresh hand-aware training run and real-data semantic validation. The current product does not depend on that checkpoint.
+### Base model
 
-The active letter adapter is a **prototype-based few-shot signer adapter**. The signer supplies a few live examples for each letter they want to recognize. VisionBridge stores one normalized prototype per calibrated letter and compares new hand shapes against those prototypes.
+The base model is a small MLP trained once on general ISL A-Z data.
 
-This keeps the core research/demo idea — signer adaptation from very little data — while removing sentence decoding, pose, face, CTC, and large model training from the critical demo path.
-
-## Feature contract
-
-| Input | Size |
+| Contract | Value |
 |---|---:|
-| Left hand | 21 × 3 = 63 |
-| Right hand | 21 × 3 = 63 |
-| Combined | 126 floats |
-| Output | One letter + confidence |
+| Left hand | 63 XYZ values |
+| Right hand | 63 XYZ values |
+| Combined input | 126 |
+| Embedding | 64 |
+| Output classes | 26 (A-Z) |
+| Loss | Cross-entropy |
 
-Each hand is translated so the wrist is the origin and scaled by the maximum wrist-relative landmark distance. Missing hands are represented as zeros.
+The base model is frozen after training.
 
-## Product flow
+### Few-shot signer adapter
 
-1. Sign in.
-2. Open **Calibrate**.
-3. Start the camera and capture three examples for each letter you want to recognize.
-4. Calibrate at least two letters.
-5. Fit the signer adapter.
-6. Open **Recognize** and test unseen hand shapes live.
+The signer adapter operates on the frozen model's 64D embedding. The signer captures a few examples for each letter they want to recognize. The adapter stores a normalized prototype for each calibrated letter and predicts by cosine similarity.
 
-The frontend runs the same prototype logic locally when `VITE_LOCAL_MODE=true`, so the demo does not require a trained checkpoint or external database.
+The adapter is bound to the exact base-model checkpoint by SHA-256. Replacing the base checkpoint invalidates old signer adapters instead of silently mixing incompatible representations.
+
+## Do I need to train anything?
+
+**Yes, exactly one offline training job: the base model.**
+
+You do **not** need to train the few-shot adapter offline.
+
+The lifecycle is:
+
+~~~text
+1. Prepare ISL alphabet landmarks
+2. Train base model once
+3. Validate base model on its held-out test split
+4. Install the small base checkpoint
+5. New signer captures 3 examples/letter
+6. Fit signer adapter at runtime
+7. Recognize unseen examples with the frozen base + adapter
+~~~
+
+The previous continuous sentence-level CTC model is no longer part of the critical path.
+
+## Dataset
+
+The default training source is the public RealSign Indian Sign Language alphabet dataset. Its repository documents 26 ISL alphabet classes and separate training, testing, and validation folders.
+
+RealSign ISL alphabet dataset: https://github.com/RealSign62/RealSign-Indian-Sign-Language-Dataset
+
+The repository preparation script converts those images into the same normalized 126-value hand contract used by the live application.
 
 ## Active API
 
-```text
+~~~text
+GET  /api/v1/letter/status
 POST /api/v1/letter/calibrate
 POST /api/v1/letter/predict
-```
+~~~
 
-Both endpoints require authentication, validate the 126-value hand contract, preserve signer ownership checks, and use the existing rate-limiting pattern.
+The active endpoints validate the hand contract, require authentication, enforce adapter ownership, rate-limit the expensive operations, and bind adapters to the base-model checksum.
 
-## Legacy code
+## Training notebook
 
-The original sentence-level training, CTC, and multimodal translation modules remain in the repository as legacy/regression material. They are not part of the active letter-recognition UI.
+Run:
 
-## Development
+~~~text
+notebooks/train_letter_base_colab.ipynb
+~~~
 
-### Backend
+The notebook downloads the RealSign dataset, extracts the two-hand landmarks, prepares train/validation/test features, trains the base model, prints measured validation/test accuracy, and verifies the generated checkpoint.
 
-```bash
-cd backend
-python -m venv .venv
-pip install -r requirements.txt
-PYTHONPATH=. python -m pytest tests -q
-```
+Equivalent CLI training command:
 
-### Frontend
+~~~bash
+PYTHONPATH=backend python -m app.training.letter_base \
+  --data-dir /content/visionbridge_letter_data \
+  --output backend/app/models/weights/letter_base_model.pt
+~~~
 
-```bash
-cd frontend
-npm install
-npm run check
-npm run build
-```
+After the training run, commit the generated small checkpoint:
+
+~~~text
+backend/app/models/weights/letter_base_model.pt
+~~~
+
+The file is intentionally allowed by .gitignore because the production API needs the trained base model locally.
+
+## Frontend
+
+The active UI is:
+
+~~~text
+/dashboard   status and recent letter events
+/calibration capture few-shot signer examples
+/translate   live letter recognition
+/history     letter prediction history
+/settings    signer adapter lifecycle
+~~~
+
+The old sentence translation screens are no longer the active product flow.
 
 ## Verification boundary
 
-The new letter path is covered by the repository regression suite and frontend CI build checks. Recognition accuracy is **not** claimed here because no held-out signer benchmark was run as part of this time-constrained downscope.
+CI validates the code, type-checks the frontend, builds the production artifact, and exercises the backend regression suite. These checks do not establish real-world recognition accuracy.
 
-The production Render configuration intentionally keeps `VITE_LOCAL_MODE=true` until the project has a validated trained model, durable persistence, and production-grade authentication.
+Two separate measurements matter:
+
+1. Base-model accuracy on the held-out dataset test split.
+2. Few-shot signer accuracy on held-out examples from a signer not used during adapter calibration.
+
+No accuracy percentage is claimed here until those runs produce actual measurements.
