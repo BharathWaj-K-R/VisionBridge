@@ -75,8 +75,11 @@ The repository preparation script converts those images into the same normalized
 
 ~~~text
 GET  /api/v1/letter/status
+GET  /api/v1/letter/model
+GET  /api/v1/letter/adapters/{id}
 POST /api/v1/letter/calibrate
 POST /api/v1/letter/predict
+POST /api/v1/letter/event
 ~~~
 
 The active endpoints validate the hand contract, require authentication, enforce adapter ownership, rate-limit the expensive operations, and bind adapters to the base-model checksum.
@@ -165,7 +168,7 @@ VITE_LOCAL_MODE=false
 VITE_API_BASE_URL=http://127.0.0.1:8000/api/v1
 ~~~
 
-The browser fetches the current model once, fetches the selected signer adapter once, and performs frame-by-frame prediction locally.
+The browser fetches the current model once, fetches the selected signer adapter once, and performs frame-by-frame prediction locally. The backend prediction endpoint remains available for diagnostics and fallback.
 
 ## Frontend
 
