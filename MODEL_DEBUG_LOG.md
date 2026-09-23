@@ -268,6 +268,40 @@ Do not tune confidence thresholds before verifying feature and embedding correct
 
 ---
 
+# Real-time latency contract
+
+The active real-time hot path is:
+
+    camera
+     -> MediaPipe Hands
+     -> normalized 126D vector
+     -> browser model
+     -> browser adapter
+     -> prediction
+
+Do not put FastAPI inference inside the per-frame hot path.
+
+Measure these separately:
+
+    hand-tracker latency
+    feature-normalization latency
+    browser model latency
+    adapter similarity latency
+    UI update cadence
+    end-to-end prediction latency
+
+A network request is acceptable for:
+
+    initial model load
+    adapter load
+    asynchronous history/event persistence
+
+A network request is not acceptable for every camera frame.
+
+The hand tracing overlay must remain lightweight: 21-point skeleton + short wrist trail, with no canvas resize on every frame.
+
+---
+
 # 10. Current training state
 
 Known source status:
@@ -382,10 +416,10 @@ Do not change several variables simultaneously during diagnosis.
 A checkpoint is accepted only when:
 
     architecture matches
-    input_dim = 126
-    embedding_dim = 64
-    num_classes = 26
-    labels = A-Z
+    input_dim matches active feature contract
+    embedding_dim matches checkpoint metadata
+    num_classes matches checkpoint vocabulary
+    labels match checkpoint vocabulary
     state_dict loads strictly
     test result is recorded
 
@@ -410,7 +444,7 @@ There is no second hidden offline ML training task.
 Intended lifecycle:
 
     train or upgrade the base
-     -> freeze base
+     -> keep the current model replaceable
      -> calibrate signer with a few shots
      -> evaluate held-out signer examples
      -> deploy/use
