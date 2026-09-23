@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { api, clearToken, getToken, setToken, type LetterSample } from "./api";
+import { BrowserLetterAdapter } from "./browserModel";
 import { useLandmarkSession } from "./useLandmarkSession";
 
 const navItems = [
@@ -63,35 +64,176 @@ function Dashboard() {
 }
 
 function Recognize() {
-  const session = useLandmarkSession(10); const [prediction, setPrediction] = useState("—"); const [confidence, setConfidence] = useState(0); const [latency, setLatency] = useState<number | null>(null); const [error, setError] = useState(""); const [sending, setSending] = useState(false); const [userId, setUserId] = useState<number>(); const [adapters, setAdapters] = useState<any[]>([]); const [adapterId, setAdapterId] = useState<number | undefined>();
-  useEffect(() => { api.me().then((u) => setUserId(u.id)); api.letterAdapters().then((items) => { setAdapters(items); if (items[0]) setAdapterId(items[0].id); }).catch(() => setAdapters([])); }, []);
+  const session = useLandmarkSession(15);
+  const [prediction, setPrediction] = useState("—");
+  const [confidence, setConfidence] = useState(0);
+  const [latency, setLatency] = useState<number | null>(null);
+  const [error, setError] = useState("");
+  const [fastReady, setFastReady] = useState(false);
+  const [userId, setUserId] = useState<number>();
+  const [adapters, setAdapters] = useState<any[]>([]);
+  const [adapterId, setAdapterId] = useState<number | undefined>();
+  const adapterRef = React.useRef<BrowserLetterAdapter | null>(null);
+  const lastEventRef = React.useRef({ letter: "", time: 0 });
+
   useEffect(() => {
-    const timer = window.setInterval(async () => {
-      if (sending || !userId || !adapterId) return;
-      const frame = session.snapshot().at(-1);
-      if (!frame || (!frame.leftVisible && !frame.rightVisible)) return;
-      setSending(true);
-      try {
-        const result = await api.letterPredict(userId, adapterId, [...frame.leftHand, ...frame.rightHand]);
-        setPrediction(result.predicted_letter);
-        setConfidence(result.confidence || 0);
-        setLatency(result.latency_ms);
+    api.me().then((u) => setUserId(u.id));
+    api.letterAdapters().then((items) => {
+      setAdapters(items);
+      if (items[0]) setAdapterId(items[0].id);
+    }).catch(() => setAdapters([]));
+  }, []);
+
+  useEffect(() => {
+    if (!adapterId) {
+      adapterRef.current = null;
+      setFastReady(false);
+      return;
+    }
+
+    let cancelled = false;
+    setFastReady(false);
+
+    if (import.meta.env.VITE_LOCAL_MODE !== "false") {
+      adapterRef.current = null;
+      return () => { cancelled = true; };
+    }
+
+    api.letterBrowserModel()
+      .then((model) => api.letterAdapterPayload(adapterId).then((payload) => ({ model, payload })))
+      .then(({ model, payload }) => {
+        if (cancelled) return;
+        adapterRef.current = new BrowserLetterAdapter(model, payload);
+        setFastReady(true);
         setError("");
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        adapterRef.current = null;
+        setFastReady(false);
+        setError(err instanceof Error ? err.message : "Fast model could not be loaded");
+      });
+
+    return () => {
+      cancelled = true;
+      adapterRef.current = null;
+    };
+  }, [adapterId]);
+
+  useEffect(() => {
+    const intervalMs = import.meta.env.VITE_LOCAL_MODE !== "false" ? 200 : 33;
+    const timer = window.setInterval(() => {
+      const frame = session.latestFrame();
+      if (!userId || !adapterId || !frame || (!frame.leftVisible && !frame.rightVisible)) return;
+
+      const raw = [...frame.leftHand, ...frame.rightHand];
+      if (import.meta.env.VITE_LOCAL_MODE !== "false") {
+        api.letterPredict(userId, adapterId, raw).then((result) => {
+          setPrediction(result.predicted_letter);
+          setConfidence(result.confidence || 0);
+          setLatency(result.latency_ms);
+          setError("");
+        }).catch((err) => setError(err instanceof Error ? err.message : "Recognition failed"));
+        return;
+      }
+
+      const adapter = adapterRef.current;
+      if (!adapter) return;
+
+      try {
+        const result = adapter.predict(raw);
+        setPrediction(result.predicted_letter);
+        setConfidence(result.confidence);
+        setLatency(result.inference_ms);
+        setError("");
+
+        const now = performance.now();
+        const previous = lastEventRef.current;
+        if (result.predicted_letter !== previous.letter || now - previous.time >= 1000) {
+          lastEventRef.current = { letter: result.predicted_letter, time: now };
+          void api.logLetterEvent({
+            user_id: userId,
+            adapter_id: adapterId,
+            predicted_letter: result.predicted_letter,
+            confidence: result.confidence,
+            latency_ms: result.inference_ms,
+          });
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Recognition failed");
-      } finally {
-        setSending(false);
       }
-    }, 700);
+    }, intervalMs);
+
     return () => window.clearInterval(timer);
-  }, [adapterId, sending, session, userId]);
-  return <Page title="Recognize" subtitle="Live fingerspelling recognition using your signer-specific few-shot adapter."><div className="translate-grid"><section className="panel camera-panel"><div className="camera-shell"><video ref={session.videoRef} muted playsInline /><canvas ref={session.canvasRef} className="skeleton-overlay" /><div className="camera-meta"><span>{session.status}</span><span>{session.fps} fps</span><span>{latency ? Math.round(latency) + " ms" : "—"}</span></div></div><div className="button-row"><button className="primary-btn" onClick={() => session.start().catch(() => undefined)} disabled={session.running}>{session.running ? "Running" : "Start camera"}</button><button className="ghost-btn" onClick={session.stop} disabled={!session.running}>Stop</button></div><div className="selector-row"><label>Signer adapter<select value={adapterId ?? ""} onChange={e => setAdapterId(e.target.value ? Number(e.target.value) : undefined)}><option value="">Choose an adapter</option>{adapters.map((a) => <option key={a.id} value={a.id}>Adapter #{a.id}{a.letters ? " · " + a.letters.join("") : ""}</option>)}</select></label></div>{error && <div className="alert error">{error}</div>}<div className="hand-legend"><span><i className="legend-mark" /> Left hand</span><span><i className="legend-mark second" /> Right hand</span><span className="muted">126 normalized XYZ features</span></div></section><section className="panel output-panel"><div className="panel-head"><div><div className="eyebrow">LETTER</div><h2>Prediction</h2></div><span className="confidence">{Math.round(confidence * 100)}%</span></div><div className="translation-text">{prediction}</div><div className="progress"><span style={{ width: Math.round(confidence * 100) + "%" }} /></div><div className="alert">{adapterId ? (sending ? "Recognizing…" : "Show one calibrated letter at a time.") : "Calibrate at least two letters first."}</div></section></div></Page>;
+  }, [adapterId, session, userId]);
+
+  const localMode = import.meta.env.VITE_LOCAL_MODE !== "false";
+
+  return <Page title="Recognize" subtitle="Real-time signer-adaptive letter recognition with on-device inference and live hand tracing.">
+    <div className="translate-grid">
+      <section className="panel camera-panel">
+        <div className="camera-shell">
+          <video ref={session.videoRef} muted playsInline />
+          <canvas ref={session.canvasRef} className="skeleton-overlay" />
+          <div className="camera-meta">
+            <span>{session.status}</span>
+            <span>{session.fps} fps</span>
+            <span>{latency != null ? latency.toFixed(2) + " ms" : "—"}</span>
+          </div>
+          <div className="trace-badge">LIVE HAND TRACE</div>
+        </div>
+
+        <div className="button-row">
+          <button className="primary-btn" onClick={() => session.start().catch(() => undefined)} disabled={session.running}>
+            {session.running ? "Running" : "Start camera"}
+          </button>
+          <button className="ghost-btn" onClick={session.stop} disabled={!session.running}>Stop</button>
+        </div>
+
+        <div className="selector-row">
+          <label>Signer adapter
+            <select value={adapterId ?? ""} onChange={(e) => setAdapterId(e.target.value ? Number(e.target.value) : undefined)}>
+              <option value="">Choose an adapter</option>
+              {adapters.map((a) => <option key={a.id} value={a.id}>Adapter #{a.id}{a.letters ? " · " + a.letters.join("") : ""}</option>)}
+            </select>
+          </label>
+        </div>
+
+        {error && <div className="alert error">{error}</div>}
+
+        <div className="hand-legend">
+          <span><i className="legend-mark" /> Left hand + trace</span>
+          <span><i className="legend-mark second" /> Right hand + trace</span>
+          <span className="muted">{localMode ? "Demo inference" : fastReady ? "On-device model inference" : "Loading model…"}</span>
+        </div>
+      </section>
+
+      <section className="panel output-panel">
+        <div className="panel-head">
+          <div><div className="eyebrow">LETTER</div><h2>Prediction</h2></div>
+          <span className="confidence">{Math.round(confidence * 100)}%</span>
+        </div>
+        <div className="translation-text">{prediction}</div>
+        <div className="progress"><span style={{ width: Math.round(confidence * 100) + "%" }} /></div>
+        <div className="alert">
+          {adapterId
+            ? localMode
+              ? "Fast demo mode. Switch to real mode after installing the trained base model."
+              : fastReady
+                ? "Prediction runs locally in the browser. History is logged asynchronously."
+                : "Loading the current model and signer adapter…"
+            : "Calibrate at least two letters first."}
+        </div>
+        <div className="output-meta"><span>Inference: {latency != null ? latency.toFixed(2) + " ms" : "—"}</span><span>Tracker: MediaPipe Hands</span></div>
+      </section>
+    </div>
+  </Page>;
 }
 
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
 function Calibration() {
-  const session = useLandmarkSession(10); const [selectedLetter, setSelectedLetter] = useState("A"); const [samples, setSamples] = useState<Record<string, number[][]>>({}); const [userId, setUserId] = useState<number>(); const [busy, setBusy] = useState(false); const [message, setMessage] = useState("Capture three examples for each letter you want to recognize."); const [startedAt, setStartedAt] = useState<number | null>(null);
+  const session = useLandmarkSession(15); const [selectedLetter, setSelectedLetter] = useState("A"); const [samples, setSamples] = useState<Record<string, number[][]>>({}); const [userId, setUserId] = useState<number>(); const [busy, setBusy] = useState(false); const [message, setMessage] = useState("Capture three examples for each letter you want to recognize."); const [startedAt, setStartedAt] = useState<number | null>(null);
   useEffect(() => { api.me().then((u) => setUserId(u.id)); }, []);
   const selectedSamples = samples[selectedLetter] || [];
   const calibratedLetters = useMemo(() => LETTERS.filter((letter) => (samples[letter] || []).length > 0), [samples]);
