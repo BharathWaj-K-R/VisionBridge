@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user
 from app.db.models import SignerAdapter, TranslationLog, User
 from app.db.session import get_db
-from app.services.inference_service import model_status
+from app.services.letter_fewshot import letter_model_status
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -42,7 +42,7 @@ def dashboard(
 
     return {
         "user": {"id": current_user.id, "username": current_user.username},
-        "model": model_status(),
+        "model": letter_model_status(),
         "adapter": (
             {
                 "id": adapter.id,
