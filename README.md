@@ -25,8 +25,8 @@ The base model is a small MLP trained once on general ISL A-Z data.
 | Left hand | 63 XYZ values |
 | Right hand | 63 XYZ values |
 | Combined input | 126 |
-| Embedding | 64 |
-| Output classes | 26 (A-Z) |
+| Default embedding | 64 |
+| Default output classes | 26 (A-Z) |
 | Loss | Cross-entropy |
 
 The base model is dynamic after training.
@@ -35,7 +35,7 @@ The base model is dynamic after training.
 
 The default model uses 126 input features, a 128-unit hidden layer, a 64D embedding, and 26 A-Z outputs. These are defaults, not immutable architecture limits.
 
-Hidden width, embedding width, dropout, and output vocabulary are stored in the checkpoint and can scale with future datasets and model iterations. The backend hot-reloads a changed checkpoint, while existing adapters record the model version and checkpoint hash and require recalibration when the embedding space changes.
+Hidden width, embedding width, dropout, and output vocabulary are stored in the checkpoint and can scale with future datasets and model iterations. No network width or weight set is treated as permanently fixed. The backend hot-reloads a changed checkpoint, while existing adapters record the model version and checkpoint hash and require recalibration when the embedding space changes.
 
 ## Few-shot signer adapter
 
@@ -61,7 +61,7 @@ The lifecycle is:
 7. Recognize unseen examples with the current validated base + adapter
 ~~~
 
-The previous continuous sentence-level CTC model is no longer part of the critical path.
+The previous continuous sentence-level architecture is no longer part of the critical path.
 
 ## Dataset
 
