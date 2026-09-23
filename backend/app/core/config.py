@@ -16,7 +16,7 @@ class Settings:
     SECRET_KEY=os.getenv("SECRET_KEY","dev-secret-change-me")
     ACCESS_TOKEN_EXPIRE_MINUTES=int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES","60"))
     JWT_ALGORITHM="HS256"
-    ALLOWED_ORIGINS=[origin.strip() for origin in os.getenv("ALLOWED_ORIGINS","http://localhost:5500,http://127.0.0.1:5500").split(",") if origin.strip()]
+    ALLOWED_ORIGINS=[origin.strip() for origin in os.getenv("ALLOWED_ORIGINS","http://localhost:5173,http://127.0.0.1:5173,http://localhost:5500,http://127.0.0.1:5500").split(",") if origin.strip()]
     BASE_MODEL_PATH=os.getenv("BASE_MODEL_PATH",str(BACKEND_DIR / "app/models/weights/base_model.pt"))
     LETTER_BASE_MODEL_PATH=os.getenv("LETTER_BASE_MODEL_PATH",str(BACKEND_DIR / "app/models/weights/letter_base_model.pt"))
     ADAPTER_WEIGHTS_DIR=os.getenv("ADAPTER_WEIGHTS_DIR",str(BACKEND_DIR / "app/models/weights/adapters"))
