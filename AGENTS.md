@@ -511,3 +511,65 @@ that the code reads it.
 Not resolved here, deliberately: whether/when to actually flip it to
 `false` is still gated on the three items listed in the render.yaml
 comment, none of which changed this session.
+
+---
+
+# 2026-09-23 — Letter-only fingerspelling downscope — plan
+
+## Decision
+
+Scope is reduced from continuous sentence-level ISL recognition to **single-letter fingerspelling recognition** with a signer-specific few-shot adapter. This is a deliberate product simplification driven by limited time.
+
+Removed from the product path:
+- pose and face inputs;
+- CTC sequence decoding and character tokenizer;
+- sentence-level translation;
+- sentence-level calibration;
+- dependency on a newly trained sentence checkpoint for the demo;
+- sentence-history and sentence-evaluation UI as primary product surfaces.
+
+Kept:
+- MediaPipe hand landmark extraction;
+- both hand streams where available;
+- the existing React/Vite frontend and FastAPI backend;
+- account and adapter ownership patterns;
+- rate-limiting and request validation patterns;
+- history logging;
+- the per-signer adaptation concept.
+
+## New feature contract
+
+```text
+left hand:  21 x (x,y,z) = 63
+right hand: 21 x (x,y,z) = 63
+combined hand vector: 126 floats
+output: one letter label + confidence
+```
+
+Each hand is normalized around its wrist and scale-normalized before matching. Missing hands are zero-filled. The adapter stores one prototype per calibrated letter, computed from a small number of real signer examples. Prediction uses cosine similarity against the signer prototypes.
+
+This downscope deliberately uses a **prototype few-shot adapter** rather than the legacy neural BridgeAdapterStack. No trained base checkpoint is required for the letter demo.
+
+## Dataset decision
+
+No external training dataset is introduced in this downscope. The demo learns its letter prototypes directly from live signer calibration examples, which avoids the sentence-level ISL-CSLTR dataset mismatch and avoids spending the remaining project time on a new training pipeline.
+
+## Runtime decision
+
+The deployed product remains a hand-only letter recognizer. Legacy sentence endpoints and training artifacts remain in the repository for regression/history safety, but they are not part of the active product flow.
+
+Status before implementation:
+```text
+LETTER ADAPTER: NOT IMPLEMENTED
+LETTER API: NOT IMPLEMENTED
+LETTER FRONTEND: NOT IMPLEMENTED
+```
+
+Next implementation target:
+```text
+hand landmarks
+ -> 126D normalized vector
+ -> few-shot signer prototypes
+ -> cosine similarity
+ -> predicted letter
+```

@@ -28,7 +28,7 @@ export function useLandmarkSession(sampleFps: number) {
   const start = useCallback(async () => {
     if (activeRef.current) return;
     try {
-      setStatus("Loading landmark engine…");
+      setStatus("Loading hand tracker…");
       const holistic = await createHolistic((results) => {
         const video = videoRef.current;
         const canvas = canvasRef.current;
@@ -46,6 +46,7 @@ export function useLandmarkSession(sampleFps: number) {
         if (now - lastSampleRef.current < interval) return;
         lastSampleRef.current = now;
         framesRef.current.push(frameFromResults(results));
+        if (framesRef.current.length > 60) framesRef.current.shift();
       });
 
       const stream = await navigator.mediaDevices.getUserMedia({

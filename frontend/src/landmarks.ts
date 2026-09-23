@@ -1,7 +1,5 @@
-export const POSE_DIM = 132;
-export const FACE_DIM = 1404;
 export const HAND_DIM = 63;
-export const FRAME_WINDOW = 50;
+export const COMBINED_HAND_DIM = 126;
 
 export const HAND_CONNECTIONS = [
   [0, 1], [1, 2], [2, 3], [3, 4],
@@ -13,60 +11,67 @@ export const HAND_CONNECTIONS = [
 ];
 
 export type LandmarkFrame = {
-  pose: number[];
-  face: number[];
   leftHand: number[];
   rightHand: number[];
   leftVisible: boolean;
   rightVisible: boolean;
 };
 
-export function loadMediaPipeHolistic(): Promise<any> {
-  return new Promise((resolve, reject) => {
-    const existing = document.querySelector('script[data-vb-mediapipe="holistic"]') as HTMLScriptElement | null;
-    if (existing) {
-      if ((window as any).Holistic) return resolve((window as any).Holistic);
-      existing.addEventListener("load", () => resolve((window as any).Holistic));
-      existing.addEventListener("error", () => reject(new Error("MediaPipe Holistic failed to load")));
-      return;
-    }
-    const script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/npm/@mediapipe/holistic/holistic.js";
-    script.crossOrigin = "anonymous";
-    script.dataset.vbMediapipe = "holistic";
-    script.onload = () => {
-      const Holistic = (window as any).Holistic;
-      if (!Holistic) reject(new Error("MediaPipe Holistic global is unavailable"));
-      else resolve(Holistic);
-    };
-    script.onerror = () => reject(new Error("Failed to load MediaPipe Holistic"));
-    document.head.appendChild(script);
-  });
-}
-
 function finite(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
-export function flattenLandmarks(landmarks: any[] | undefined, dimensions: number, visibility: boolean): number[] {
+export function flattenHandLandmarks(landmarks: any[] | undefined): number[] {
   const values: number[] = [];
   for (const landmark of landmarks || []) {
     values.push(finite(landmark.x), finite(landmark.y), finite(landmark.z));
-    if (visibility) values.push(finite(landmark.visibility));
   }
-  while (values.length < dimensions) values.push(0);
-  return values.slice(0, dimensions);
+  while (values.length < HAND_DIM) values.push(0);
+  return values.slice(0, HAND_DIM);
 }
 
 export function frameFromResults(results: any): LandmarkFrame {
   return {
-    pose: flattenLandmarks(results.poseLandmarks, POSE_DIM, true),
-    face: flattenLandmarks(results.faceLandmarks, FACE_DIM, false),
-    leftHand: flattenLandmarks(results.leftHandLandmarks, HAND_DIM, false),
-    rightHand: flattenLandmarks(results.rightHandLandmarks, HAND_DIM, false),
+    leftHand: flattenHandLandmarks(results.leftHandLandmarks),
+    rightHand: flattenHandLandmarks(results.rightHandLandmarks),
     leftVisible: Boolean(results.leftHandLandmarks?.length),
     rightVisible: Boolean(results.rightHandLandmarks?.length),
   };
+}
+
+function normalizeSingleHand(values: number[]): number[] {
+  if (values.length !== HAND_DIM) throw new Error("Expected 63 hand features");
+  let active = false;
+  for (const value of values) {
+    if (value !== 0) { active = true; break; }
+  }
+  if (!active) return new Array(HAND_DIM).fill(0);
+
+  const wrist = [values[0], values[1], values[2]];
+  const centered: number[] = [];
+  let scale = 0;
+  for (let index = 0; index < 21; index += 1) {
+    const offset = index * 3;
+    const x = values[offset] - wrist[0];
+    const y = values[offset + 1] - wrist[1];
+    const z = values[offset + 2] - wrist[2];
+    centered.push(x, y, z);
+    scale = Math.max(scale, Math.hypot(x, y, z));
+  }
+  if (scale < 1e-6) return new Array(HAND_DIM).fill(0);
+  return centered.map((value) => value / scale);
+}
+
+export function normalizeHandPair(values: number[]): number[] {
+  if (values.length !== COMBINED_HAND_DIM) throw new Error("Expected 126 combined hand features");
+  return normalizeSingleHandPair(values);
+}
+
+function normalizeSingleHandPair(values: number[]): number[] {
+  return [
+    ...normalizeSingleHand(values.slice(0, HAND_DIM)),
+    ...normalizeSingleHand(values.slice(HAND_DIM)),
+  ];
 }
 
 export function drawHands(
@@ -107,12 +112,35 @@ export function drawHands(
   draw(right, "RIGHT", Math.max(12, width - 54));
 }
 
+export function loadMediaPipeHolistic(): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector('script[data-vb-mediapipe="holistic"]') as HTMLScriptElement | null;
+    if (existing) {
+      if ((window as any).Holistic) return resolve((window as any).Holistic);
+      existing.addEventListener("load", () => resolve((window as any).Holistic));
+      existing.addEventListener("error", () => reject(new Error("MediaPipe Holistic failed to load")));
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/@mediapipe/holistic/holistic.js";
+    script.crossOrigin = "anonymous";
+    script.dataset.vbMediapipe = "holistic";
+    script.onload = () => {
+      const Holistic = (window as any).Holistic;
+      if (!Holistic) reject(new Error("MediaPipe Holistic global is unavailable"));
+      else resolve(Holistic);
+    };
+    script.onerror = () => reject(new Error("Failed to load MediaPipe Holistic"));
+    document.head.appendChild(script);
+  });
+}
+
 export async function createHolistic(
   onResults: (results: any) => void,
 ): Promise<any> {
   const Holistic = await loadMediaPipeHolistic();
   const holistic = new Holistic({
-    locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/@mediapipe/holistic/${file}`,
+    locateFile: (file: string) => "https://cdn.jsdelivr.net/npm/@mediapipe/holistic/" + file,
   });
   holistic.setOptions({
     modelComplexity: 1,
