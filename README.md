@@ -18,7 +18,7 @@ Browser camera
 
 ### Base model
 
-The base model is a small MLP trained once on general ISL A-Z data.
+The base model is a configurable MLP trained on general ISL A-Z data and can be retrained or scaled as new data becomes available.
 
 | Contract | Value |
 |---|---:|
@@ -29,7 +29,7 @@ The base model is a small MLP trained once on general ISL A-Z data.
 | Default output classes | 26 (A-Z) |
 | Loss | Cross-entropy |
 
-The base model is dynamic after training.
+The base model remains trainable, versioned, hot-reloadable, and replaceable after each validated training cycle.
 
 ### Dynamic scaling
 
@@ -39,13 +39,13 @@ Hidden width, embedding width, dropout, and output vocabulary are stored in the 
 
 ## Few-shot signer adapter
 
-The signer adapter operates on the current model's 64D embedding. The signer captures a few examples for each letter they want to recognize. The adapter stores a normalized prototype for each calibrated letter and predicts by cosine similarity.
+The signer adapter operates on the current model's configured embedding. The signer captures a few examples for each letter they want to recognize. The adapter stores a normalized prototype for each calibrated letter and predicts by cosine similarity.
 
-The adapter is bound to the exact base-model checkpoint by SHA-256. Replacing the base checkpoint invalidates old signer adapters instead of silently mixing incompatible representations.
+The adapter records the exact base-model version and checkpoint SHA-256. Replacing the base checkpoint requires recalibration rather than silently mixing incompatible representations.
 
 ## Do I need to train anything?
 
-**Yes, exactly one offline training job: the base model.**
+**Yes, an initial base-model training job is required. Future model upgrades use the same training pipeline; no separate offline adapter-training job is required.**
 
 You do **not** need to train the few-shot adapter offline.
 
@@ -53,7 +53,7 @@ The lifecycle is:
 
 ~~~text
 1. Prepare ISL alphabet landmarks
-2. Train base model once
+2. Train or upgrade base model
 3. Validate base model on its held-out test split
 4. Install the small base checkpoint
 5. New signer captures 3 examples/letter
