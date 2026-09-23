@@ -69,7 +69,7 @@ The default training source is the public RealSign Indian Sign Language alphabet
 
 RealSign ISL alphabet dataset: https://github.com/RealSign62/RealSign-Indian-Sign-Language-Dataset
 
-The repository preparation script uses MediaPipe Tasks Hand Landmarker in image mode and converts its 21-point hand results into the same normalized 126-value hand contract used by the live application.
+The repository preparation script uses the MediaPipe Tasks Hand Landmarker in image mode and converts its 21-point results into the normalized 126-value hand contract used by the live application. The training notebook downloads the RealSign Git LFS archive through the media endpoint because the normal GitHub file endpoint returns the LFS pointer.
 
 ## Active API
 
