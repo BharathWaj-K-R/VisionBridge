@@ -1,145 +1,445 @@
-# VisionBridge Base-Model Debug Log
+# VisionBridge Model Debug Log
 
-## 2026-08-25 — Root cause found
+This file records model-specific failures, fixes, experiments, validation evidence, and unresolved ML blockers for the active letter-recognition architecture.
 
-### Symptom
+ACTIVE PIPELINE
 
-The committed `base_model.pt` loaded successfully and produced finite logits, but both known/training and unseen real ISL videos decoded to CTC blank:
+    MediaPipe Hands
+     -> normalized 126D two-hand landmarks
+     -> frozen VisionBridgeLetterBaseModel
+     -> 64D embedding
+     -> few-shot signer adapter
+     -> A-Z letter + confidence
 
-```text
-PREDICTED: (no sign detected)
-BLANK RATIO: 1.0000
-NON-BLANK FRAMES: 0
-LOGITS FINITE: True
-```
-
-The same behavior was observed on a known `fever (2).MP4` sample whose ground truth was `i am suffering from fever`.
-
-### Root cause
-
-The Colab training notebook used `Path(video).stem` as the UID for processed pose/face files. The Kaggle ISL-CSLTR dataset stores clips inside sentence-label directories and reuses filenames such as `fever (2).MP4` across different directories.
-
-Therefore different physical videos could map to the same processed paths:
-
-```text
-pose/fever (2).npy
-face/fever (2).npy
-```
-
-Later extractions overwrote earlier features, while the CSV could still contain multiple rows using the same UID but different text labels. This silently paired the wrong keypoints with the wrong translation targets and could produce a model that optimizes CTC loss without learning a valid sign-to-text mapping.
-
-The bug was confirmed from the actual notebook code and the runtime dataset layout observed in Colab.
-
-### Fix implemented
-
-1. `notebooks/train_base_model_colab.ipynb` was rebuilt to derive a globally unique UID from sentence label, filename stem, and a SHA-1 hash of the video's relative path.
-2. The notebook rebuilds a clean private runtime feature directory.
-3. The notebook explicitly checks UID collisions before extraction.
-4. `backend/app/training/isltranslate.py` rejects duplicate UIDs and unusable targets.
-5. Regression coverage was added for UID integrity.
-6. The training notebook added semantic acceptance before checkpoint publication.
-
-### Status
-
-**VERIFIED root cause:** dataset UID collision / feature overwrite in the previous Colab preparation path.
-
-**VERIFIED code fix:** collision-safe UID generation + duplicate UID guard are present on `main`.
-
-**NOT YET VERIFIED:** a production-quality trained checkpoint.
+This is the only active ML architecture described here.
 
 ---
 
-## 2026-08-28 — Hand-aware training-path audit
+# 1. Active model contract
 
-The hand-aware migration was inspected and concrete test/verification regressions were corrected. The old pose+face checkpoint remains intentionally rejected.
+    Input:          126 normalized landmark values
+    Embedding:      64 dimensions
+    Output classes: 26 (A-Z)
+    Loss:           CrossEntropyLoss
+    Base model:     VisionBridgeLetterBaseModel
+    Adapter:        frozen-base-embedding-prototype
 
-Static fixes included the hand-aware padding-mask test, semantic-gate threshold defaults, richer CTC diagnostics, and frontend CI typecheck/build gates.
+Expected checkpoint:
 
-The overfit gate now reports first-step gradients, parameter updates, blank/space ratios, and target-character probability peaks so a real GPU run can distinguish optimizer failure, feature/representation failure, and CTC decoding/alignment problems.
+    backend/app/models/weights/letter_base_model.pt
 
-**RUNTIME STATUS:** real-data hand-aware extraction and semantic overfit were not available in this environment.
+The base model is trained once and then frozen.
+
+The few-shot adapter is fitted from signer calibration examples. It does not require a separate offline training job.
 
 ---
 
-## 2026-09-06 — CTC model stabilization fix
+# 2. Landmark and normalization contract
 
-### Problem
+Each sample contains:
 
-The previous hand-aware model used four independent Transformer stream encoders followed by gated fusion, temporal convolution, and a shared Transformer. That design was valid structurally but remained unproven against the observed CTC blank/space collapse.
+    left hand:  63 values
+    right hand: 63 values
+    total:     126 values
 
-### Fix
+Preprocessing:
 
-`backend/app/models/base_model.py` was migrated to `hand-aware-gru-ctc-v2`:
+    MediaPipe Hands
+     -> handedness-aware left/right placement
+     -> wrist-relative coordinates
+     -> scale normalization
+     -> missing-hand zero fill
+     -> 126D vector
 
-```text
-pose / face / left hand / right hand
-        |
-per-stream LayerNorm + projection
-        |
-frame-to-frame motion projection
-        |
-learned gated multimodal fusion
-        |
-temporal depthwise + pointwise convolution
-        |
-packed bidirectional GRU
-        |
-character CTC head
-```
+Training and runtime must use the same representation.
 
-The change deliberately reduces optimization complexity while preserving the four-stream hand-aware contract. It also adds per-frame input normalization, explicit motion features, packed sequence handling, and a negative initial CTC blank bias so the model is less likely to start in an all-blank regime.
+Any preprocessing change requires:
 
-The legacy checkpoint is still rejected because its state dictionary does not contain the hand-aware stream parameters and is incompatible with the new architecture.
+    dataset regression
+     -> base-model validation
+     -> adapter validation
 
-### Adapter integration fix
+Do not compare a checkpoint trained with one feature contract against inference features from another contract.
 
-`backend/app/models/bridge_adapter.py` previously assumed `base_model.shared_encoder.layers`, which is a Transformer API. The new base model uses a GRU, so that assumption would break adapter calibration/runtime even when the base model itself was correct.
+---
 
-The adapter now supports both forms:
+# 3. Dataset integrity lesson
 
-```text
-Transformer -> run encoder layers, then adapters
-GRU         -> run recurrent encoder, then adapter stack
-```
+A previous VisionBridge training path exposed a general dataset-preparation failure mode: identifiers derived only from filenames can collide when different physical samples reuse the same filename.
 
-The adapter test was updated to determine the temporal layer count from `num_layers` when the encoder is recurrent.
+Failure pattern:
 
-### Training-gate fix
+    two physical samples
+     -> same identifier
+     -> same processed output path
+     -> later sample overwrites earlier sample
+     -> labels and features become misaligned
+     -> training metrics become misleading
 
-The first semantic gate is now a true single-sample capacity probe by default:
+The active letter preparation path therefore requires:
 
-```text
-samples = 1
-learning rate = 1e-3
-weight decay = 0
-```
+    globally unique sample identifiers
+    duplicate-ID detection
+    clean runtime feature output
+    explicit train/validation/test artifacts
 
-This isolates whether the new model can actually learn one real sample before multi-sample/generalization acceptance is attempted later in the pipeline.
+This lesson remains active because it protects the new letter training pipeline.
 
-The canonical Colab notebook was updated to use the same settings.
+---
 
-### Verification
+# 4. Base model implementation
 
-GitHub Actions showed the frontend regression job passing on the earlier diagnostic commit. The backend job exposed the Transformer-specific adapter test regression, which was then fixed.
+Current model:
 
-The latest backend workflow for the adapter fix was still running at the time of this diary update, so the following remain **NOT VERIFIED** until the job completes:
+    VisionBridgeLetterBaseModel
 
-```text
-backend pytest
-frontend build on latest commit
-real ISL extraction
-single-sample hand-aware semantic overfit
-full training
-real-video validation
-```
+Architecture:
 
-### Release rule
+    LayerNorm(126)
+     -> Linear(126 -> 128)
+     -> GELU
+     -> Dropout(0.10)
+     -> Linear(128 -> 64)
+     -> LayerNorm(64)
+     -> GELU
+     -> Linear(64 -> 26)
 
-Do not publish or deploy a newly trained checkpoint until:
+The model must expose a 64D embedding and 26-class logits.
 
-```text
-single-sample semantic gate PASS
-        -> full training
-        -> train/held-out acceptance PASS
-        -> multi-video real validation PASS
-```
+The base model must remain frozen during signer adaptation.
+
+---
+
+# 5. Few-shot adapter implementation
+
+The active adapter operates in base-model embedding space:
+
+    126D landmarks
+     -> base model
+     -> 64D embedding
+     -> normalization
+     -> per-letter prototype
+     -> cosine similarity
+     -> confidence
+     -> A-Z or ?
+
+Current calibration behavior:
+
+    3 shots per selected letter
+    one normalized prototype per letter
+    base checkpoint SHA-256 stored with adapter
+    adapter rejected when checkpoint hash does not match
+    minimum similarity threshold = 0.35
+
+This is a prototype-based few-shot adapter.
+
+Do not describe it as a separately trained neural adapter.
+
+---
+
+# 6. Debugging rules
+
+When a model failure occurs, capture evidence before changing architecture.
+
+For every training or debugging run record:
+
+    dataset source
+    dataset version/reference
+    class count
+    sample count
+    feature shape
+    missing-hand distribution
+    NaN/Inf count
+    class distribution
+    random seed
+    hyperparameters
+    epoch count
+    best validation metric
+    held-out test metric
+    prediction distribution
+    checkpoint path
+    checkpoint version/hash
+
+For numerical failures also record:
+
+    first loss
+    last valid loss
+    gradient finite status
+    parameter-update status
+    logit finite status
+    embedding finite status
+
+For recognition failures also record:
+
+    predicted letter
+    expected letter
+    confidence
+    similarity scores
+    calibration letters
+    shot count
+    base checkpoint hash
+
+Do not diagnose a model from a single successful prediction.
+
+---
+
+# 7. Base-model validation gate
+
+A newly trained base checkpoint is not accepted until all of the following are checked:
+
+    A-Z labels are correct
+    126D inputs are valid
+    embedding size is 64
+    logits have shape [batch, 26]
+    loss is finite
+    gradients are finite
+    parameters update during training
+    validation performance improves
+    predictions are not collapsed
+    held-out test performance is measured
+    checkpoint reload succeeds
+    checkpoint metadata is correct
+
+A low loss with collapsed predictions is a failure, not a success.
+
+---
+
+# 8. Few-shot adapter validation gate
+
+After base-model validation:
+
+    select calibration letters
+    capture signer examples
+    fit prototypes
+    save adapter
+    reload adapter
+    validate base checkpoint hash
+    predict held-out signer samples
+
+The adapter must be evaluated on examples that were not used to create its prototypes.
+
+Report at minimum:
+
+    calibration shot count
+    calibrated letters
+    held-out sample count
+    correct predictions
+    accuracy
+    unknown/rejected count
+    mean confidence
+    per-letter failures
+
+Do not claim signer adaptation works solely because calibration completes without an exception.
+
+---
+
+# 9. Real-time debugging gate
+
+When browser inference is enabled, trace the complete path:
+
+    camera frame
+     -> MediaPipe Hands
+     -> handedness
+     -> normalization
+     -> 126D vector
+     -> API payload
+     -> base checkpoint
+     -> 64D embedding
+     -> adapter lookup
+     -> similarity scores
+     -> letter
+     -> confidence
+
+For a failing prediction, determine the first stage where values become invalid or semantically wrong.
+
+Useful evidence:
+
+    hands detected: yes/no
+    left landmarks: present/absent
+    right landmarks: present/absent
+    feature norm
+    embedding norm
+    top prototype scores
+    similarity gap
+    confidence
+    latency
+
+Do not tune confidence thresholds before verifying feature and embedding correctness.
+
+---
+
+# 10. Current training state
+
+Known source status:
+
+    Base model code:                 CI VERIFIED
+    Dataset preparation code:        CI VERIFIED
+    Training CLI:                    CI VERIFIED
+    Colab notebook:                  STATIC VERIFIED
+    Few-shot adapter code:           CI VERIFIED
+    Checkpoint compatibility:        CI VERIFIED
+    Real base checkpoint:            NOT VERIFIED
+    Base held-out accuracy:          NOT VERIFIED
+    Signer held-out accuracy:        NOT VERIFIED
+    Browser real-model inference:    NOT VERIFIED
+
+Known successful code verification:
+
+    GitHub Actions run #155
+    backend: 72 passed, 1 skipped
+    Python compilation: PASS
+    frontend TypeScript check: PASS
+    Vite production build: PASS
+    production artifact verification: PASS
+
+These results verify source behavior and regression coverage. They do not establish model accuracy.
+
+---
+
+# 11. Current ML blocker
+
+The active base model has not yet been trained and accepted from a verified real-data run.
+
+Required execution:
+
+    notebooks/train_letter_base_colab.ipynb
+
+Expected artifact:
+
+    backend/app/models/weights/letter_base_model.pt
+
+Standard training command:
+
+    PYTHONPATH=backend python -m app.training.letter_base
+      --data-dir /content/visionbridge_letter_data
+      --output backend/app/models/weights/letter_base_model.pt
+      --epochs 30
+      --batch-size 128
+      --lr 0.001
+      --patience 6
+
+After training, record:
+
+    best validation accuracy
+    held-out test accuracy
+    prediction distribution
+    checkpoint hash
+    training configuration
+    warnings or failures
+
+Do not report the model as trained until the artifact actually exists and reloads successfully.
+
+---
+
+# 12. Debugging a bad base-model result
+
+If test accuracy is poor:
+
+    1. verify labels.json and class mapping
+    2. verify train/validation/test class coverage
+    3. inspect landmark extraction failures
+    4. compare training and inference normalization
+    5. inspect missing-hand frequency
+    6. inspect class imbalance
+    7. inspect prediction collapse
+    8. inspect embedding separability
+    9. verify checkpoint metadata
+    10. only then consider architecture or hyperparameter changes
+
+If training loss does not decrease:
+
+    check feature variance
+    check labels
+    check optimizer configuration
+    check gradient flow
+    check learning rate
+    check parameter updates
+    check for NaN/Inf
+
+If validation is much worse than training:
+
+    check leakage assumptions
+    check signer/data distribution differences
+    check preprocessing consistency
+    check class imbalance
+    check overfitting
+
+If live predictions are poor after good base-model test results:
+
+    check camera landmark quality
+    check mirrored input and handedness handling
+    check live normalization
+    check base checkpoint hash
+    check calibration samples
+    check held-out signer examples
+
+Do not change several variables simultaneously during diagnosis.
+
+---
+
+# 13. Checkpoint safety
+
+A checkpoint is accepted only when:
+
+    architecture matches
+    input_dim = 126
+    embedding_dim = 64
+    num_classes = 26
+    labels = A-Z
+    state_dict loads strictly
+    test result is recorded
+
+The runtime must reject missing, malformed, incompatible, or stale checkpoints.
+
+The adapter must remain bound to the exact base checkpoint used to create its prototypes.
+
+No silent fallback to an incompatible model is permitted in real mode.
+
+---
+
+# 14. Current loose ends
+
+    BASE MODEL TRAINING              NOT VERIFIED
+    BASE HELD-OUT TEST               NOT VERIFIED
+    FEW-SHOT HELD-OUT SIGNER TEST    NOT VERIFIED
+    LIVE CAMERA REAL MODE            NOT VERIFIED
+    RENDER REAL MODE                 NOT VERIFIED
+
+There is no second hidden offline ML training task.
+
+Intended lifecycle:
+
+    train base once
+     -> freeze base
+     -> calibrate signer with a few shots
+     -> evaluate held-out signer examples
+     -> deploy/use
+
+---
+
+# 15. Debug-log update rule
+
+Every future model investigation must add a dated entry containing:
+
+    date
+    symptom
+    reproduction
+    evidence
+    root cause
+    fix
+    verification
+    remaining uncertainty
+
+Do not rewrite measured historical results.
+
+Do not insert accuracy numbers that were not produced by an actual run.
+
+Do not preserve obsolete architecture descriptions as active instructions.
+
+The active model source of truth remains:
+
+    126D hands
+     -> frozen base model
+     -> 64D embedding
+     -> few-shot signer adapter
+     -> letter
