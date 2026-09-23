@@ -338,8 +338,8 @@ Standard training flow:
 ~~~text
 dataset images
  -> MediaPipe Hands landmark extraction
- -> normalization
- -> train/validation/test arrays
+ -> pool source Training + Validation data
+ -> stratified 80/20 train/validation split
  -> iterative base-model training
  -> per-letter validation check after each epoch
  -> held-out test measurement
@@ -359,7 +359,7 @@ Standard Colab training command:
 PYTHONPATH=backend python -m app.training.letter_base \
   --data-dir /content/visionbridge_letter_data \
   --output backend/app/models/weights/letter_base_model.pt \
-  --epochs 300 \
+  --epochs 500 \
   --batch-size 128 \
   --lr 0.001 \
   --target-class-accuracy 1.0
@@ -385,6 +385,24 @@ Do not push a newly trained checkpoint merely because training completed success
 
 ---
 
+
+## Training split and stopping rule
+
+The prepared dataset uses a stratified 80/20 train-validation split built from the dataset's original Training and Validation pools. The original Testing split remains untouched for final evaluation.
+
+The trainer can run for up to 500 epochs. After each epoch it measures every A-Z class on the validation split and continues until every class reaches the configured target, or the epoch cap is reached. Learning rate is reduced when the weakest validation class stops improving.
+
+~~~text
+train: 80%
+validation: 20%
+test: original test split, untouched
+maximum epochs: 500
+default stopping target: 100% validation accuracy for every A-Z class
+~~~
+
+The target is a validation stopping criterion. It is not evidence of perfect recognition for unseen signers or live camera input.
+
+---
 # 8. Active backend contract
 
 Primary letter endpoints:
