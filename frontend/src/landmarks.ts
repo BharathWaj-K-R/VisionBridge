@@ -38,7 +38,13 @@ export function flattenHandLandmarks(landmarks: LandmarkPoint[] | undefined): nu
 }
 
 function handedLabel(entry: any): string {
-  return String(entry?.classification?.[0]?.label || entry?.label || "");
+  const label = String(entry?.classification?.[0]?.label || entry?.label || "");
+  // MediaPipe Hands assumes a mirrored selfie input for handedness. The raw
+  // browser video is unmirrored, so swap labels here while the CSS preview
+  // remains mirrored for the signer.
+  if (label === LEFT) return RIGHT;
+  if (label === RIGHT) return LEFT;
+  return label;
 }
 
 export function frameFromResults(results: any): LandmarkFrame {
