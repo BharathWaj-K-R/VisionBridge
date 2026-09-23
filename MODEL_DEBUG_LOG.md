@@ -6,12 +6,12 @@ ACTIVE PIPELINE
 
     MediaPipe Hands
      -> normalized 126D two-hand landmarks
-     -> frozen VisionBridgeLetterBaseModel
+     -> dynamic VisionBridgeLetterBaseModel
      -> 64D embedding
      -> few-shot signer adapter
      -> A-Z letter + confidence
 
-This is the only active ML architecture described here.
+This is the only active ML architecture described here. Model weights are versioned and replaceable; no component is treated as permanently immutable.
 
 ---
 
@@ -22,13 +22,13 @@ This is the only active ML architecture described here.
     Output classes: 26 (A-Z)
     Loss:           CrossEntropyLoss
     Base model:     VisionBridgeLetterBaseModel
-    Adapter:        frozen-base-embedding-prototype
+    Adapter:        dynamic-base-embedding-prototype
 
 Expected checkpoint:
 
     backend/app/models/weights/letter_base_model.pt
 
-The base model is trained once and then frozen.
+The base model remains trainable, versioned, and replaceable after each validated training cycle.
 
 The few-shot adapter is fitted from signer calibration examples. It does not require a separate offline training job.
 
@@ -106,7 +106,7 @@ Architecture:
 
 The model must expose a 64D embedding and 26-class logits.
 
-The base model must remain frozen during signer adaptation.
+The base model remains replaceable during signer adaptation, and a changed model triggers adapter recalibration.
 
 ---
 
@@ -409,7 +409,7 @@ There is no second hidden offline ML training task.
 
 Intended lifecycle:
 
-    train base once
+    train or upgrade the base
      -> freeze base
      -> calibrate signer with a few shots
      -> evaluate held-out signer examples
@@ -439,7 +439,7 @@ Do not preserve obsolete architecture descriptions as active instructions.
 The active model source of truth remains:
 
     126D hands
-     -> frozen base model
+     -> dynamic base model
      -> 64D embedding
      -> few-shot signer adapter
      -> letter
