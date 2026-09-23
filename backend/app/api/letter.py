@@ -1,4 +1,3 @@
-from pathlib import Path
 import math
 import time
 from pathlib import Path
@@ -141,9 +140,6 @@ def log_letter_event(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if payload.get("user_id") != current_user.id:
-        raise HTTPException(status_code=403, detail="user_id does not match the authenticated user")
-
     if payload.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="user_id does not match the authenticated user")
 
