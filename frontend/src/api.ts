@@ -1,3 +1,4 @@
+import { BrowserLetterAdapter, BrowserLetterModel, type BrowserAdapterPayload, type BrowserModelPayload } from "./browserModel";
 import { normalizeHandPair } from "./landmarks";
 
 export type ApiError = Error & { status?: number };
@@ -42,6 +43,7 @@ export type Token = { access_token: string; token_type: string };
 export type LetterSample = { letter: string; hand_keypoints: number[] };
 export type LetterCalibrationResult = { adapter_id: number; letters: string[]; shots: Record<string, number>; param_count: number };
 export type LetterPredictionResult = { predicted_letter: string; confidence: number; latency_ms: number; adapter_id: number };
+export type LetterRecognitionEvent = { user_id: number; adapter_id: number; predicted_letter: string; confidence: number; latency_ms: number; };
 
 function localUser(username?: string): User {
   const raw = localStorage.getItem(LOCAL_USER_KEY);
@@ -162,6 +164,48 @@ export const api = {
       body: JSON.stringify({ user_id: userId, samples, calibration_seconds: calibrationSeconds }),
     });
   },
+
+  letterBrowserModel: async (): Promise<BrowserLetterModel> => {
+    if (LOCAL_MODE) throw new Error("Browser model is not required in local demo mode.");
+    const payload = await request<BrowserModelPayload>("/letter/model");
+    return new BrowserLetterModel(payload);
+  },
+  letterAdapterPayload: async (adapterId: number): Promise<BrowserAdapterPayload> => {
+    if (LOCAL_MODE) {
+      const adapter = localLetterAdapters().find((item) => item.id === adapterId);
+      if (!adapter) throw new Error("Choose a calibrated signer adapter first.");
+      return {
+        version: 0,
+        method: "local-raw-prototype",
+        base_model_version: "local",
+        base_model_sha256: "local",
+        feature_dim: 126,
+        embedding_dim: 126,
+        prototypes: adapter.prototypes,
+        shots: adapter.shots || {},
+      };
+    }
+    return request<BrowserAdapterPayload>("/letter/adapters/" + adapterId);
+  },
+  logLetterEvent: async (event: LetterRecognitionEvent): Promise<void> => {
+    if (LOCAL_MODE) {
+      const history = localHistory();
+      saveLocalHistory([...history, {
+        id: Date.now(),
+        predicted_text: event.predicted_letter,
+        confidence: event.confidence,
+        latency_ms: event.latency_ms,
+        used_adapter: 1,
+        created_at: new Date().toISOString(),
+      }]);
+      return;
+    }
+    await request<{ logged: boolean }>("/letter/event", {
+      method: "POST",
+      body: JSON.stringify(event),
+    });
+  },
+
   letterPredict: async (userId: number, adapterId: number, handKeypoints: number[]): Promise<LetterPredictionResult> => {
     const started = performance.now();
     if (LOCAL_MODE) {
