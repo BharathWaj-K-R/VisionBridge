@@ -37,7 +37,7 @@ services:
       # Keep this true until ALL of the following are true, then flip it:
       #   1. backend/app/models/weights/letter_base_model.pt is a real, retrained
       #      A-Z letter checkpoint (see AGENTS.md; the active /letter API depends
-      #      on this frozen base before few-shot signer adapters can be fitted);
+      #      on this current model before few-shot signer adapters can be fitted);
       #   2. the database is durable, not the ephemeral SQLite noted below;
       #   3. auth tokens are HttpOnly, not the current localStorage bearer token.
       # Flipping this to false before then would point the real live frontend at
