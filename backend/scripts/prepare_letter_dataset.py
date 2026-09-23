@@ -7,6 +7,8 @@ import urllib.request
 from pathlib import Path
 
 import mediapipe as mp
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
 import numpy as np
 
 from app.services.letter_fewshot import normalize_hand_pair
@@ -52,18 +54,18 @@ def ensure_hand_model(model_path: Path) -> Path:
 
 
 def create_hand_landmarker(model_path: Path):
-    base_options = mp.tasks.BaseOptions(
+    base_options = python.BaseOptions(
         model_asset_path=str(ensure_hand_model(model_path))
     )
-    options = mp.tasks.vision.HandLandmarkerOptions(
+    options = vision.HandLandmarkerOptions(
         base_options=base_options,
-        running_mode=mp.tasks.vision.RunningMode.IMAGE,
+        running_mode=vision.RunningMode.IMAGE,
         num_hands=2,
         min_hand_detection_confidence=0.5,
         min_hand_presence_confidence=0.5,
         min_tracking_confidence=0.5,
     )
-    return mp.tasks.vision.HandLandmarker.create_from_options(options)
+    return vision.HandLandmarker.create_from_options(options)
 
 
 def extract_landmarks(image_path: Path, landmarker) -> np.ndarray | None:
