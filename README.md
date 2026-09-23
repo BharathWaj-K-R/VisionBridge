@@ -8,7 +8,7 @@ VisionBridge's active product is a two-stage fingerspelling recognizer:
 Browser camera
   -> MediaPipe hand landmarks
   -> normalized 126D two-hand vector
-  -> frozen 26-class ISL letter base model
+  -> dynamic 26-class ISL letter base model
   -> 64D signer-independent embedding
   -> few-shot signer adapter
   -> one predicted letter + confidence
@@ -29,11 +29,17 @@ The base model is a small MLP trained once on general ISL A-Z data.
 | Output classes | 26 (A-Z) |
 | Loss | Cross-entropy |
 
-The base model is frozen after training.
+The base model is dynamic after training.
 
-### Few-shot signer adapter
+### Dynamic scaling
 
-The signer adapter operates on the frozen model's 64D embedding. The signer captures a few examples for each letter they want to recognize. The adapter stores a normalized prototype for each calibrated letter and predicts by cosine similarity.
+The default model uses 126 input features, a 128-unit hidden layer, a 64D embedding, and 26 A-Z outputs. These are defaults, not immutable architecture limits.
+
+Hidden width, embedding width, dropout, and output vocabulary are stored in the checkpoint and can scale with future datasets and model iterations. The backend hot-reloads a changed checkpoint, while existing adapters record the model version and checkpoint hash and require recalibration when the embedding space changes.
+
+## Few-shot signer adapter
+
+The signer adapter operates on the current model's 64D embedding. The signer captures a few examples for each letter they want to recognize. The adapter stores a normalized prototype for each calibrated letter and predicts by cosine similarity.
 
 The adapter is bound to the exact base-model checkpoint by SHA-256. Replacing the base checkpoint invalidates old signer adapters instead of silently mixing incompatible representations.
 
@@ -52,7 +58,7 @@ The lifecycle is:
 4. Install the small base checkpoint
 5. New signer captures 3 examples/letter
 6. Fit signer adapter at runtime
-7. Recognize unseen examples with the frozen base + adapter
+7. Recognize unseen examples with the current validated base + adapter
 ~~~
 
 The previous continuous sentence-level CTC model is no longer part of the critical path.
