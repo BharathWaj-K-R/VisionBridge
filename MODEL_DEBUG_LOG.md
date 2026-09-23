@@ -95,16 +95,16 @@ Current model:
 
 Architecture:
 
-    LayerNorm(126)
-     -> Linear(126 -> 128)
+    LayerNorm(input_dim)
+     -> Linear(input_dim -> hidden_dim)
      -> GELU
-     -> Dropout(0.10)
-     -> Linear(128 -> 64)
-     -> LayerNorm(64)
+     -> Dropout(dropout)
+     -> Linear(hidden_dim -> embedding_dim)
+     -> LayerNorm(embedding_dim)
      -> GELU
-     -> Linear(64 -> 26)
+     -> Linear(embedding_dim -> num_classes)
 
-The model must expose a 64D embedding and 26-class logits.
+The model must expose the embedding width and class vocabulary declared by its checkpoint.
 
 The base model remains replaceable during signer adaptation, and a changed model triggers adapter recalibration.
 
@@ -189,8 +189,8 @@ A newly trained base checkpoint is not accepted until all of the following are c
 
     A-Z labels are correct
     126D inputs are valid
-    embedding size is 64
-    logits have shape [batch, 26]
+    embedding size matches checkpoint metadata
+    logits have shape [batch, configured class count]
     loss is finite
     gradients are finite
     parameters update during training
@@ -399,7 +399,7 @@ No silent fallback to an incompatible model is permitted in real mode.
 
 # 14. Current loose ends
 
-    BASE MODEL TRAINING              NOT VERIFIED
+    BASE MODEL TRAINING / UPGRADE     NOT VERIFIED
     BASE HELD-OUT TEST               NOT VERIFIED
     FEW-SHOT HELD-OUT SIGNER TEST    NOT VERIFIED
     LIVE CAMERA REAL MODE            NOT VERIFIED
