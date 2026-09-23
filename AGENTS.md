@@ -302,7 +302,7 @@ SIGNER ADAPTER: fitted from a few runtime examples
 
 # 6. Dataset preparation and training
 
-The default training source is the RealSign Indian Sign Language alphabet dataset.
+The default training source is the RealSign Indian Sign Language alphabet dataset. Dataset preprocessing uses the supported MediaPipe Tasks Hand Landmarker API rather than the removed legacy mp.solutions API.
 
 Dataset preparation converts alphabet images into the same normalized 126D landmark representation used at runtime.
 
@@ -337,7 +337,7 @@ Standard training flow:
 
 ~~~text
 dataset images
- -> MediaPipe Hands landmark extraction
+ -> MediaPipe Tasks Hand Landmarker extraction
  -> pool source Training + Validation data
  -> stratified 80/20 train/validation split
  -> iterative base-model training
@@ -723,7 +723,7 @@ The active product was narrowed to single-letter ISL fingerspelling recognition.
 The current architecture was established as:
 
 ~~~text
-MediaPipe Hands
+MediaPipe Tasks Hand Landmarker
  -> normalized 126D hand vector
  -> dynamic 26-class base model
  -> 64D embedding
@@ -880,3 +880,7 @@ Default stopping target:
 The training loop has a maximum epoch cap so an impossible target cannot create an endless Colab session. A checkpoint is still saved when the cap is reached, and the held-out test result is reported separately.
 
 This target is a validation criterion, not a guarantee of perfect recognition for unseen signers or live camera input.
+
+## 2026-09-23 — MediaPipe training compatibility fix
+
+MediaPipe 0.10.31 and newer no longer expose the legacy Python Solutions surface used by older examples. The training path now uses mp.tasks.vision.HandLandmarker with the versioned Google-hosted hand_landmarker.task model bundle. The Colab notebook installs only mediapipe==0.10.35, downloads the hand model automatically, validates that the Tasks landmarker can initialize, and passes the model path to dataset preparation. Production backend dependencies are not installed in the Colab training environment.
