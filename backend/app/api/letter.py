@@ -34,7 +34,6 @@ settings = get_settings()
 _letter_limiter = SlidingWindowRateLimiter(limit=settings.TRANSLATE_RATE_LIMIT_PER_MINUTE)
 _rate_limit = make_rate_limit_dependency(_letter_limiter)
 
-
 def _validate_vector(values: list[float]) -> None:
     if len(values) != COMBINED_HAND_DIM:
         raise HTTPException(
@@ -46,12 +45,9 @@ def _validate_vector(values: list[float]) -> None:
     if all(value == 0 for value in values):
         raise HTTPException(status_code=422, detail="At least one hand landmark must be visible")
 
-
 @router.get("/status")
-def status():
+def status() -> dict[str, str | bool]:
     return letter_model_status()
-
-
 
 @router.get("/model")
 def browser_model(
@@ -108,9 +104,6 @@ def calibrate_letters(
         param_count=fitted["param_count"],
     )
 
-
-
-
 @router.get("/adapters/{adapter_id}")
 def get_letter_adapter(
     adapter_id: int,
@@ -131,8 +124,6 @@ def get_letter_adapter(
         raise HTTPException(status_code=503, detail="Letter model or adapter is unavailable") from exc
     except (OSError, ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=409, detail="Adapter requires recalibration for the current model") from exc
-
-
 
 @router.post("/event", dependencies=[Depends(_rate_limit)])
 def log_letter_event(
