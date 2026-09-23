@@ -112,3 +112,11 @@ class LetterPredictionResult(BaseModel):
     confidence: float
     latency_ms: float
     adapter_id: int
+
+
+class LetterRecognitionEvent(BaseModel):
+    user_id: int = Field(gt=0)
+    adapter_id: int = Field(gt=0)
+    predicted_letter: str = Field(min_length=1, max_length=1, pattern=r"^(?:[A-Za-z]|\?)$")
+    confidence: float = Field(ge=0, le=1)
+    latency_ms: float = Field(ge=0)
