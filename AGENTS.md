@@ -573,3 +573,56 @@ hand landmarks
  -> cosine similarity
  -> predicted letter
 ```
+
+
+---
+
+# 2026-09-23 — Letter-only downscope implemented and merged
+
+Implementation status:
+```text
+LETTER ADAPTER: CODE FIXED
+LETTER API: CODE FIXED
+LETTER FRONTEND: CODE FIXED
+LEGACY SENTENCE PATH: RETAINED OUTSIDE ACTIVE PRODUCT FLOW
+```
+
+The active product now uses a 126-value normalized two-hand vector and a prototype-based signer adapter. A signer captures three examples per selected letter; the adapter stores one prototype per letter and predicts by cosine similarity. No new trained model checkpoint or external dataset is required for the active demo path.
+
+Verified through GitHub Actions run #152 on commit `eba52255d2a812078d8e642ffcd5a4c13eaebabc`:
+- backend: **71 passed, 1 skipped** in 6.22s;
+- frontend TypeScript check: **passed**;
+- Vite production build: **passed**;
+- production artifact verification: **passed**.
+
+The diff reviewed before merge contained exactly these intended files:
+```text
+AGENTS.md
+backend/app/api/letter.py
+backend/app/main.py
+backend/app/schemas/schemas.py
+backend/app/services/letter_fewshot.py
+backend/tests/test_letter_fewshot.py
+frontend/src/App.tsx
+frontend/src/api.ts
+frontend/src/landmarks.ts
+frontend/src/useLandmarkSession.ts
+```
+
+The downscope landed on main via merge commit:
+```text
+66e9bc1bdf58eafffa78c1493a0b90bc7dec0073
+```
+
+Remaining evidence boundaries:
+- no held-out signer accuracy benchmark was run;
+- no browser camera runtime was independently verified in this environment;
+- the legacy sentence model remains untrained/unaccepted;
+- Render remains intentionally in local/demo mode.
+
+Status:
+```text
+DOWN-SCOPE IMPLEMENTATION: FIXED AND CI VERIFIED
+REAL-WORLD LETTER ACCURACY: NOT VERIFIED
+PRODUCTION READINESS: NOT CLAIMED
+```

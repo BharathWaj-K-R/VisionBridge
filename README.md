@@ -1,77 +1,61 @@
 # VisionBridge
 
-**Hand-aware, few-shot signer-adaptive continuous Indian Sign Language recognition workspace.**
+**Few-shot signer-adaptive Indian Sign Language letter recognition.**
 
-VisionBridge is being rebuilt around one coherent stack:
+VisionBridge has been deliberately downscoped from continuous sentence translation to a small, demonstrable fingerspelling product:
 
 ```text
-Browser React/Vite app
-  -> MediaPipe Holistic
-  -> pose + face + left-hand + right-hand landmarks
-  -> FastAPI API
-  -> hand-aware PyTorch temporal model
-  -> CTC decoding
-  -> optional BridgeAdapter personalization
+Browser camera
+  -> MediaPipe hand landmarks
+  -> 21-point left + 21-point right hand vectors
+  -> wrist/scale normalization
+  -> signer-specific few-shot prototypes
+  -> cosine similarity
+  -> one predicted letter + confidence
 ```
 
-## Stack
+## Why the scope changed
 
-| Layer | Choice |
-|---|---|
-| Web app | React + Vite + TypeScript |
-| Landmark extraction | MediaPipe Holistic |
-| API | FastAPI |
-| Persistence | SQLAlchemy / SQLite for demo; managed DB required for durable production |
-| ML | PyTorch temporal Transformer + local temporal convolution |
-| Training | Colab + Lightning notebooks |
-| Deployment | Render |
+The previous project used a four-stream temporal CTC model for sentence-level recognition. That path required a fresh hand-aware training run and real-data semantic validation. The current product does not depend on that checkpoint.
 
-## Model contract
+The active letter adapter is a **prototype-based few-shot signer adapter**. The signer supplies a few live examples for each letter they want to recognize. VisionBridge stores one normalized prototype per calibrated letter and compares new hand shapes against those prototypes.
 
-| Stream | Features/frame |
+This keeps the core research/demo idea — signer adaptation from very little data — while removing sentence decoding, pose, face, CTC, and large model training from the critical demo path.
+
+## Feature contract
+
+| Input | Size |
 |---|---:|
-| Pose | 132 = 33 × (x,y,z,visibility) |
-| Face | 1404 = 468 × (x,y,z) |
-| Left hand | 63 = 21 × (x,y,z) |
-| Right hand | 63 = 21 × (x,y,z) |
-| CTC blank | 0 |
-| Vocabulary | 49 in current tokenizer |
-| Maximum sequence | 1024 frames |
+| Left hand | 21 × 3 = 63 |
+| Right hand | 21 × 3 = 63 |
+| Combined | 126 floats |
+| Output | One letter + confidence |
 
-Hands are first-class model inputs. Every training and inference sample is expected to contain synchronized pose, face, left-hand, and right-hand streams. Missing hands can be represented by zero-filled 63D frames during dataset compatibility handling, but the new production API requires both hand streams explicitly.
+Each hand is translated so the wrist is the origin and scaled by the maximum wrist-relative landmark distance. Missing hands are represented as zeros.
 
-## Web experience
+## Product flow
 
-The browser application uses a monochrome, minimal design system and real data flows. The live translation surface displays the camera feed with a 21-point skeleton overlay for both hands and sends synchronized landmark windows to the FastAPI translation endpoint.
+1. Sign in.
+2. Open **Calibrate**.
+3. Start the camera and capture three examples for each letter you want to recognize.
+4. Calibrate at least two letters.
+5. Fit the signer adapter.
+6. Open **Recognize** and test unseen hand shapes live.
 
-Routes:
+The frontend runs the same prototype logic locally when `VITE_LOCAL_MODE=true`, so the demo does not require a trained checkpoint or external database.
+
+## Active API
 
 ```text
-/dashboard
-/translate
-/calibration
-/history
-/evaluation
-/settings
+POST /api/v1/letter/calibrate
+POST /api/v1/letter/predict
 ```
 
-Authentication uses the existing FastAPI bearer-token flow. The web client reads `VITE_API_BASE_URL` at build time.
+Both endpoints require authentication, validate the 126-value hand contract, preserve signer ownership checks, and use the existing rate-limiting pattern.
 
-## Training
+## Legacy code
 
-Canonical notebooks:
-
-- `notebooks/train_base_model_colab.ipynb`
-- `notebooks/train_base_model_lightning.ipynb`
-- `notebooks/validate_base_model_colab.ipynb`
-
-The Colab flow must be run on a fresh GPU runtime. It reconstructs real dataset features, validates all four modalities, runs a semantic CTC overfit gate, performs training only after that gate passes, and must not push a checkpoint that is blank/space/trivial output.
-
-## Important model-history status
-
-A previous checkpoint was observed to produce a literal space token on 100% of frames for both train and validation examples. The earlier acceptance test incorrectly treated any non-blank output as success. The acceptance gate was hardened to reject empty, whitespace-only, space-collapsed, low-diversity, and high-CER predictions.
-
-A fresh hand-aware training run is therefore required before the new checkpoint can be considered usable. The old pose+face checkpoint is not a valid substitute for the new hand-aware architecture.
+The original sentence-level training, CTC, and multimodal translation modules remain in the repository as legacy/regression material. They are not part of the active letter-recognition UI.
 
 ## Development
 
@@ -80,9 +64,8 @@ A fresh hand-aware training run is therefore required before the new checkpoint 
 ```bash
 cd backend
 python -m venv .venv
-# activate using your platform's standard command
 pip install -r requirements.txt
-uvicorn app.main:app --reload
+PYTHONPATH=. python -m pytest tests -q
 ```
 
 ### Frontend
@@ -90,27 +73,12 @@ uvicorn app.main:app --reload
 ```bash
 cd frontend
 npm install
-npm run dev
-```
-
-Production build:
-
-```bash
+npm run check
 npm run build
 ```
 
-Set:
+## Verification boundary
 
-```text
-VITE_API_BASE_URL=https://<your-backend>/api/v1
-```
+The new letter path is covered by the repository regression suite and frontend CI build checks. Recognition accuracy is **not** claimed here because no held-out signer benchmark was run as part of this time-constrained downscope.
 
-## Deployment
-
-`render.yaml` builds the React app into `frontend/dist` and rewrites SPA routes to `/index.html`. The backend readiness endpoint is `/api/v1/ready`.
-
-SQLite on Render free service remains disposable local state. Use an external managed database before claiming durable production persistence.
-
-## Verification policy
-
-A feature is not considered complete until the relevant UI/API/model path is integrated and runtime-tested. Model quality is explicitly **not verified** until a fresh real-data training + semantic validation run passes. CI results are only reported when an actual workflow run is available.
+The production Render configuration intentionally keeps `VITE_LOCAL_MODE=true` until the project has a validated trained model, durable persistence, and production-grade authentication.
