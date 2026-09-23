@@ -168,6 +168,7 @@ def train_model(
     best_key = (-1.0, -1.0)
     best_state = None
     best_epoch = 0
+    best_per_letter: dict[str, float] = {}
     reached_target = False
 
     print(
@@ -227,6 +228,7 @@ def train_model(
         if score_key > best_key:
             best_key = score_key
             best_epoch = epoch
+            best_per_letter = dict(per_letter)
             best_state = {
                 key: value.detach().cpu().clone()
                 for key, value in model.state_dict().items()
@@ -264,13 +266,13 @@ def train_model(
     if not reached_target:
         missing = [
             letter
-            for letter, score in test_per_letter.items()
+            for letter, score in best_per_letter.items()
             if score < target_class_accuracy
         ]
         print(
             "TARGET NOT REACHED within the epoch cap. "
             f"Best checkpoint was saved. "
-            f"Test letters below target: {', '.join(missing)}"
+            f"Validation letters below target: {', '.join(missing)}"
         )
 
     return {
@@ -278,6 +280,7 @@ def train_model(
         "best_epoch": best_epoch,
         "validation_accuracy": best_key[1],
         "worst_validation_accuracy": best_key[0],
+        "validation_per_letter": best_per_letter,
         "test_accuracy": test_acc,
         "test_per_letter": test_per_letter,
         "test_counts": test_counts,
