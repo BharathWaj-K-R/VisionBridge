@@ -95,7 +95,7 @@ Training: Python CLI + Colab notebook
 
 ## Input representation
 
-Each camera frame is reduced to a fixed two-hand representation:
+The active camera contract uses a 126D two-hand representation. The feature contract is explicit so a future sensor/landmark representation can be introduced as a versioned model contract rather than silently changing existing checkpoints.
 
 ~~~text
 Left hand:  21 landmarks x (x,y,z) = 63 values
@@ -112,7 +112,7 @@ Rules:
 - preprocessing used for training must match preprocessing used at inference;
 - handedness handling must remain consistent between dataset preparation and runtime.
 
-Do not silently change the 126D contract.
+Do not silently change the active 126D contract. Model versions may introduce a new input contract explicitly.
 
 ## Output representation
 
@@ -139,26 +139,29 @@ The active base model class is:
 VisionBridgeLetterBaseModel
 ~~~
 
-Contract:
+Default contract:
 
 ~~~text
 Input:        126
+Hidden:       128
 Embedding:     64
 Classes:       26 (A-Z)
 Objective:     cross-entropy
+
+The checkpoint may scale hidden width, embedding width, and class vocabulary.
 ~~~
 
 Current model structure:
 
 ~~~text
-LayerNorm(126)
- -> Linear(126 -> 128)
+LayerNorm(input_dim)
+ -> Linear(input_dim -> hidden_dim)
  -> GELU
- -> Dropout(0.10)
- -> Linear(128 -> 64)
- -> LayerNorm(64)
+ -> Dropout(dropout)
+ -> Linear(hidden_dim -> embedding_dim)
+ -> LayerNorm(embedding_dim)
  -> GELU
- -> Linear(64 -> 26)
+ -> Linear(embedding_dim -> num_classes)
 ~~~
 
 The base model is trainable, versioned, and replaceable. It can be retrained or upgraded as new data becomes available.
@@ -173,10 +176,12 @@ The checkpoint contract includes:
 
 ~~~text
 model_version
-input_dim = 126
-embedding_dim = 64
-num_classes = 26
-A-Z labels
+input_dim
+hidden_dim
+embedding_dim
+num_classes
+labels
+ dropout
 state_dict
 ~~~
 
@@ -213,7 +218,7 @@ Current adapter properties:
 
 ~~~text
 method: dynamic-base-embedding-prototype
-embedding dimension: 64
+embedding dimension: checkpoint-defined
 minimum similarity threshold: 0.35
 confidence: softmax over cosine scores
 base-checkpoint binding: SHA-256
