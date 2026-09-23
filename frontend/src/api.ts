@@ -63,6 +63,8 @@ function localHistory(): any[] {
   try { return JSON.parse(localStorage.getItem(LOCAL_HISTORY_KEY) || "[]") as any[]; } catch { return []; }
 }
 function saveLocalHistory(items: any[]): void { localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(items.slice(-100))); }
+let browserModelPromise: Promise<BrowserLetterModel> | null = null;
+
 
 function localFit(samples: LetterSample[]) {
   const grouped: Record<string, number[][]> = {};
@@ -167,8 +169,15 @@ export const api = {
 
   letterBrowserModel: async (): Promise<BrowserLetterModel> => {
     if (LOCAL_MODE) throw new Error("Browser model is not required in local demo mode.");
-    const payload = await request<BrowserModelPayload>("/letter/model");
-    return new BrowserLetterModel(payload);
+    if (!browserModelPromise) {
+      browserModelPromise = request<BrowserModelPayload>("/letter/model")
+        .then((payload) => new BrowserLetterModel(payload))
+        .catch((error) => {
+          browserModelPromise = null;
+          throw error;
+        });
+    }
+    return browserModelPromise;
   },
   letterAdapterPayload: async (adapterId: number): Promise<BrowserAdapterPayload> => {
     if (LOCAL_MODE) {
