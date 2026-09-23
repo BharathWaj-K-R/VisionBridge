@@ -1,4 +1,5 @@
 import math
+import time
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -17,6 +18,8 @@ from app.schemas.schemas import (
 from app.services.letter_fewshot import (
     COMBINED_HAND_DIM,
     fit_prototype_adapter,
+    get_letter_base_model,
+    letter_model_status,
     load_prototype_adapter,
     predict_letter,
     save_prototype_adapter,
@@ -36,6 +39,13 @@ def _validate_vector(values: list[float]) -> None:
         )
     if not all(math.isfinite(value) for value in values):
         raise HTTPException(status_code=422, detail="hand_keypoints contain a non-finite value")
+    if all(value == 0 for value in values):
+        raise HTTPException(status_code=422, detail="At least one hand landmark must be visible")
+
+
+@router.get("/status")
+def status():
+    return letter_model_status()
 
 
 @router.post("/calibrate", response_model=LetterCalibrationResult, dependencies=[Depends(_rate_limit)])
@@ -50,12 +60,18 @@ def calibrate_letters(
         _validate_vector(sample.hand_keypoints)
 
     try:
+        base_model = get_letter_base_model()
         fitted = fit_prototype_adapter(
-            [(sample.letter, sample.hand_keypoints) for sample in payload.samples]
+            base_model,
+            [(sample.letter, sample.hand_keypoints) for sample in payload.samples],
         )
         weights_path = save_prototype_adapter(fitted["payload"])
-    except (OSError, ValueError) as exc:
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail="Letter base model is not trained yet") from exc
+    except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except (OSError, RuntimeError) as exc:
+        raise HTTPException(status_code=503, detail="Letter base model is unavailable") from exc
 
     row = SignerAdapter(
         owner_id=current_user.id,
@@ -91,16 +107,27 @@ def predict_letter_endpoint(
     if row.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Adapter does not belong to the authenticated user")
 
+    started = time.perf_counter()
     try:
-        adapter = load_prototype_adapter(row.weights_path)
-        letter, confidence, _ = predict_letter(adapter, payload.hand_keypoints)
-    except (OSError, ValueError) as exc:
-        raise HTTPException(status_code=503, detail="Letter adapter is unavailable") from exc
+        base_model = get_letter_base_model()
+        adapter = load_prototype_adapter(row.weights_path, settings.LETTER_BASE_MODEL_PATH)
+        letter, confidence, _ = predict_letter(
+            base_model,
+            adapter,
+            payload.hand_keypoints,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail="Letter base model or adapter is unavailable") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail="Letter base model or adapter is incompatible") from exc
+    except (OSError, RuntimeError) as exc:
+        raise HTTPException(status_code=503, detail="Letter recognition is unavailable") from exc
 
+    latency_ms = (time.perf_counter() - started) * 1000
     result = LetterPredictionResult(
         predicted_letter=letter,
         confidence=confidence,
-        latency_ms=0.0,
+        latency_ms=latency_ms,
         adapter_id=row.id,
     )
     db.add(
@@ -109,7 +136,7 @@ def predict_letter_endpoint(
             adapter_id=row.id,
             predicted_text=letter,
             confidence=confidence,
-            latency_ms=0.0,
+            latency_ms=latency_ms,
             used_adapter=1,
         )
     )
