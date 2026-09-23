@@ -749,3 +749,45 @@ real data
 ~~~
 
 The repository must never claim a successful real-world model result without the corresponding evidence.
+
+
+## 2026-09-23 — Low-latency browser inference and hand tracing
+
+The real-time product path was optimized around local inference:
+
+~~~text
+camera
+ -> MediaPipe Hands only
+ -> 21-point hand tracing + wrist trail
+ -> normalized 126D vector
+ -> browser-loaded base model
+ -> browser few-shot adapter
+ -> letter + confidence
+~~~
+
+The backend is no longer required for every prediction frame. It is used for model/adapter loading, calibration persistence, and throttled asynchronous recognition-event logging.
+
+The previous Holistic browser pipeline was removed from the active camera path.
+
+Performance decisions:
+
+~~~text
+MediaPipe Hands modelComplexity=0
+camera target=640x480, max=960x720
+single in-flight hand-tracking call
+canvas size changes only when video dimensions change
+model weights loaded once per session
+adapter loaded once per selected adapter
+no blocking network request per frame
+prediction loop targets ~30 Hz
+~~~
+
+Status:
+
+~~~text
+HOT-PATH CODE: CODE FIXED
+HAND TRACING: CODE FIXED
+DYNAMIC BROWSER MODEL: CODE FIXED
+ASYNC HISTORY: CODE FIXED
+REAL DEVICE LATENCY: NOT VERIFIED
+~~~
