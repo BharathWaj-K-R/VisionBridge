@@ -1033,3 +1033,17 @@ Source search confirmed no remaining frontend /evaluation route references.
 
 Per the authoritative restart protocol, iteration 17 is failed and its
 downstream evidence is invalidated. Iteration 18 restarts from Step 1.
+
+
+## 2026-09-24 — Protocol iteration 18 failure
+
+The camera lifecycle audit found a race in which an in-flight MediaPipe result
+could arrive after stop() and repopulate the latest frame, allowing the separate
+recognition timer to keep processing despite the stopped camera state.
+
+Commit 0f6bcfecf1cfa2498c5ab3f87a7c17b650184f62 adds start-generation and active
+state guards to the result callback and stale error path.
+
+The repaired guards were source-verified. Per the authoritative restart
+protocol, iteration 18 is failed and downstream evidence is invalidated.
+Iteration 19 restarts from Step 1.
