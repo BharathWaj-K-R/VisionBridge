@@ -687,7 +687,7 @@ Do not extend the above evidence into claims about model quality or real-world r
 ~~~text
 A  Train base model on real ISL A-Z data             NOT VERIFIED
 B  Record held-out base test performance             BLOCKED until A
-C  Validate few-shot adaptation on held-out signer   REQUIRED / BLOCKED until A+B+signer metadata
+C  Validate few-shot adaptation on held-out signer   REQUIRED / BLOCKED until A+B+verified signer metadata
 D  Verify browser camera + real inference            NOT VERIFIED
 E  Verify live Render real-mode flow                 BLOCKED until A-D
 F  Durable production database                     NOT IMPLEMENTED
@@ -786,10 +786,10 @@ The adapter is deliberately prototype-based. It does not require a second offlin
 Status:
 
 ~~~text
-BASE MODEL CODE: CI VERIFIED
-FEW-SHOT ADAPTER: CI VERIFIED
-API: CI VERIFIED
-FRONTEND: CI VERIFIED
+BASE MODEL CODE: HISTORICAL CI VERIFIED
+FEW-SHOT ADAPTER: HISTORICAL CI VERIFIED
+API: HISTORICAL CI VERIFIED
+FRONTEND: HISTORICAL CI VERIFIED
 ~~~
 
 ## 2026-09-23 — Active-state handoff
@@ -1161,13 +1161,32 @@ Verification boundary:
     held-out signer evaluation              REQUIRED / BLOCKED BY SIGNER METADATA
     browser camera runtime                  NOT VERIFIED
     live Render verification                NOT VERIFIED
+
+### 2026-09-24 — Restart #2: cache and runtime-contract hardening
+
+8cdfc91dc5db88a4ce922190205ecefe06f3c475 — fix: invalidate model cache on weight changes
+2ab3542925a1e5de407842cd185f977e13d98f11 — docs: remove stale MediaPipe runtime wording
+b9ebeddfca3a230c524e4c0f8171f61e669cd001 — fix: enforce browser adapter metadata parity
+75397a24d7b8d1c53b66fc4d82efdd54f6827289 — test: enforce adapter preprocessing compatibility
+
+Restart findings corrected:
+    checkpoint cache could miss a same-metadata content change       FIXED
+    README described the legacy MediaPipe Hands runtime              FIXED
+    browser adapter ignored preprocessing/runtime metadata           FIXED
+
+Restart status:
+    source re-audit                         STATIC VERIFIED
+    current CI workflow                    DISABLED / NOT RUN
+    full local suite                       NOT VERIFIED
+    real-data training                     NOT VERIFIED
+    signer-independent evaluation          REQUIRED / BLOCKED BY SIGNER METADATA
 ## Current correction state
 
     training/browser landmark mismatch      CORRECTED
     legacy browser MediaPipe path           REMOVED
     handedness one-sided swap               REMOVED
     preprocessing drift                     GUARDED
-    checkpoint/adapter contract drift       GUARDED
+    checkpoint/adapter contract drift       ENFORCED
     train/validation duplicate leakage      PREVENTED
     evaluation visibility                   IMPROVED
     dependency drift                        REDUCED
