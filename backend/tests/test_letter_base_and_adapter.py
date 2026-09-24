@@ -3,6 +3,7 @@ import pytest
 import torch
 
 from app.models.letter_model import LANDMARK_RUNTIME, PREPROCESSING_VERSION, VisionBridgeLetterBaseModel, build_browser_payload, build_checkpoint, save_checkpoint, load_checkpoint
+from app.schemas.schemas import LetterCalibrationRequest
 from app.services import letter_fewshot
 from scripts import prepare_letter_dataset
 
@@ -259,3 +260,21 @@ def test_adapter_does_not_persist_raw_calibration_landmarks(tmp_path, monkeypatc
     )
 
     assert "calibration_samples" not in fitted["payload"]
+
+
+def test_calibration_request_requires_three_examples_per_letter():
+    samples = [
+        {"letter": "A", "hand_keypoints": _pair(1)},
+        {"letter": "A", "hand_keypoints": _pair(2)},
+        {"letter": "B", "hand_keypoints": _pair(3)},
+        {"letter": "B", "hand_keypoints": _pair(4)},
+        {"letter": "B", "hand_keypoints": _pair(5)},
+    ]
+
+    with pytest.raises(ValueError, match="at least 3 examples"):
+        LetterCalibrationRequest(user_id=1, samples=samples)
+
+    valid_samples = samples + [{"letter": "A", "hand_keypoints": _pair(6)}]
+    request = LetterCalibrationRequest(user_id=1, samples=valid_samples)
+
+    assert len(request.samples) == 6
