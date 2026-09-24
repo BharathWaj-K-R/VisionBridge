@@ -45,7 +45,7 @@ Each sample contains:
 Preprocessing:
 
     MediaPipe Tasks Hand Landmarker 0.10.35
-     -> handedness-aware left/right placement
+     -> raw Tasks handedness left/right placement
      -> wrist-relative coordinates
      -> scale normalization
      -> missing-hand zero fill
