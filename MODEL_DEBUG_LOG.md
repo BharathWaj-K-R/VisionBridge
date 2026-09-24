@@ -140,6 +140,17 @@ FULL RESTART COMPLETED:
 FINAL STATUS:
     Strict model-contract and calibration-data minimization gates are corrected; real-data, signer-holdout, browser, and deployment evidence remain unverified or blocked.
 
+
+---
+
+# 0F. 2026-09-24 — Ledger completeness correction
+
+Additional commits from the preceding rate-limit hardening cycle:
+    5ac7147b80dc06dbd0b0d8a4e35002084c74f6d6 — prune stale rate limit buckets
+    0a01b326006917aa997baff2fe35449efe7c766d — cover stale rate limit bucket cleanup
+
+These changes were already implemented; this entry closes the documentation ledger gap identified during re-audit.
+
 # 1. Active model contract
 
     Input:          126 normalized landmark values
