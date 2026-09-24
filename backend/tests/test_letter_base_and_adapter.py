@@ -78,6 +78,8 @@ def test_few_shot_adapter_tracks_current_base_version(tmp_path, monkeypatch):
     pred, conf, scores = letter_fewshot.predict_letter(model, loaded, _pair(1))
 
     assert loaded["method"] == "dynamic-base-embedding-prototype"
+    assert loaded["preprocessing_version"] == PREPROCESSING_VERSION
+    assert loaded["landmark_runtime"] == LANDMARK_RUNTIME
     assert loaded["embedding_dim"] == 80
     assert loaded["base_model_version"] != ""
     assert pred == "A"
