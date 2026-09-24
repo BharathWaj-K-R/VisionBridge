@@ -197,6 +197,18 @@ def make_train_validation_split(
     train_indices: list[int] = []
     validation_indices: list[int] = []
 
+    hash_labels: dict[str, int] = {}
+    for index, sample in enumerate(samples):
+        image_hash = sample["image_sha256"]
+        label_index = int(labels[index])
+        previous = hash_labels.get(image_hash)
+        if previous is not None and previous != label_index:
+            raise ValueError(
+                "Exact duplicate image hash appears under multiple labels: "
+                f"{image_hash}"
+            )
+        hash_labels[image_hash] = label_index
+
     for label_index, letter in enumerate(LABELS):
         indices = np.flatnonzero(labels == label_index)
 
