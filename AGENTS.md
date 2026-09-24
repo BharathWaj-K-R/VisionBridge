@@ -1520,6 +1520,31 @@ Iteration 8 outcome:
     RESULT: FAILED
     RESTART REQUIRED: YES
     downstream evidence invalidated: YES
+
+### 2026-09-24 — Authoritative-protocol execution iteration 9 (FAILED)
+
+10f43df2da8560e702cd746f4ec70951bc7f4628 — fix: reject cross-label duplicate images
+dd6754abd0c531531d71609660b90037782bcce0 — fix: fail evaluation on missing classes
+834f9da377a139513a5b349b5be24bf8deaf2aba — test: cover cross-label duplicate rejection
+083600751ee9d29b8eff4f6640dfe1164147cf8c — test: cover evaluator class coverage
+bb76c3e6a980eeaa00da69be466e17ddd3bead16 — docs: document V3 checkpoint migration
+
+Iteration 9 finding:
+    The newly added V3 checkpoint migration utility existed without a documented execution path.
+
+Fix:
+    README now documents migration, validation scope, and the canonical installation path.
+
+Artifact verification:
+    supplied V3 checkpoint inspected locally
+    source SHA-256 = 2b42639e0ffb3c40112bf931f434f6adf5b578fce21399ba53795d3fba0529a4
+    migrated envelope verified locally
+    learned tensors unchanged
+
+Iteration 9 outcome:
+    RESULT: FAILED
+    RESTART REQUIRED: YES
+    downstream evidence invalidated: YES
 ## Current correction state
 
     training/browser landmark mismatch      CORRECTED
