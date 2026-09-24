@@ -141,6 +141,52 @@ error.
 Signer-independent evaluation is a required release gate. Missing signer
 metadata is a blocker, not permission to remove or bypass the gate.
 
+
+# Authoritative execution contract
+
+The uploaded **ITERATIVE FULL-RESTART PROJECT REPAIR PROTOCOL** is the
+authoritative execution contract for repository repair and release validation.
+It takes precedence over convenience, previous partial results, or time-saving
+shortcuts.
+
+Mandatory nine-step sequence:
+
+~~~text
+STEP 1  INVENTORY THE WRECKAGE
+STEP 2  REPRODUCE THE FAILURE
+STEP 3  ISOLATE THE FRACTURE
+STEP 4  TRACE THE DATA FLOW
+STEP 5  IMPLEMENT THE MISSING PIECES
+STEP 6  FIX THE DEFECTS
+STEP 7  VERIFY RELENTLESSLY
+STEP 8  CLEAN THE RESIDUE
+STEP 9  DOCUMENT THE TRANSFORMATION
+~~~
+
+The protocol requires a full restart whenever any bug, regression, failed test,
+failed build, dependency issue, integration problem, data-flow inconsistency,
+model mismatch, API mismatch, documentation inconsistency, incomplete
+functionality, or evidence error is discovered.
+
+~~~text
+STOP
+-> REPRODUCE
+-> ISOLATE
+-> TRACE
+-> FIX
+-> VERIFY
+-> INVALIDATE DOWNSTREAM RESULTS
+-> RESTART FROM STEP 1
+~~~
+
+A repair is not complete merely because the immediate failure disappears.
+Completion requires one entire clean iteration from Step 1 through Step 9 with
+no newly discovered unresolved defect or regression. The protocol explicitly
+forbids reusing questionable downstream outputs after an upstream defect.
+
+Signer-independent evaluation remains a mandatory release gate. Missing signer
+metadata is a blocker, not a reason to bypass the gate.
+
 # 2. Current product mission
 
 VisionBridge recognizes one ISL fingerspelled letter at a time.
@@ -1268,6 +1314,26 @@ Final audit status:
     model-quality evidence                  NOT VERIFIED
     current CI checks                       NONE
     binary V3 checkpoint in repository       PENDING
+
+
+### 2026-09-24 — Adopt uploaded execution contract
+
+Adopted the uploaded ITERATIVE FULL-RESTART PROJECT REPAIR PROTOCOL as the
+authoritative repository execution contract. It requires Steps 1-9 to be
+treated as complete iterations and requires a full restart after every newly
+discovered defect or invalidating error.
+
+Source basis:
+    uploaded protocol lines 9-26
+    uploaded protocol lines 90-140
+    uploaded protocol lines 404-463
+    uploaded protocol lines 546-566
+    uploaded protocol lines 655-688
+    uploaded protocol lines 703-737
+
+Implementation status:
+    contract adopted                     ENFORCED
+    signer-independent evaluation        REQUIRED / BLOCKED BY VERIFIED SIGNER METADATA
 
 ## Current correction state
 
