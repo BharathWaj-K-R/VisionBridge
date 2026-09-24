@@ -11,7 +11,7 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
-from app.models.letter_model import INPUT_DIM, VisionBridgeLetterBaseModel, save_checkpoint
+from app.models.letter_model import INPUT_DIM, LETTER_LABELS, NUM_CLASSES, VisionBridgeLetterBaseModel, save_checkpoint
 
 
 def seed_everything(seed: int) -> None:
@@ -114,8 +114,8 @@ def train_model(
             (root / "labels.json").read_text(encoding="utf-8")
         )["labels"]
     )
-    if not labels:
-        raise ValueError("Dataset must define at least one class label")
+    if labels != list(LETTER_LABELS) or len(labels) != NUM_CLASSES:
+        raise ValueError("Dataset must define the active A-Z label vocabulary")
 
     train = DataLoader(
         TensorDataset(*load_split(root, "train")),
