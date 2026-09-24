@@ -1662,3 +1662,24 @@ Iteration 12 outcome:
     RESULT: FAILED
     RESTART REQUIRED: YES
     downstream evidence invalidated: YES
+
+
+### 2026-09-24 — Authoritative-protocol execution iteration 13 (FAILED)
+
+80b6800ab042ecca6b126a66d44b3820407b9791 — fix: preserve deterministic adapter test fixtures
+c8896374e6acd771ed0b156d4c1d1fbf7e8cc59f — fix: keep local payload typing while enforcing runtime metadata
+75992bcad7775cb0c4d3e657978d3d5b27ea7c55 — docs: align Vite publish comment with Render layout
+
+Findings corrected:
+    adapter regression fixture changed to non-deterministic exemplars      FIXED
+    browser compatibility type change conflicted with local demo payload    FIXED
+    stale Vite/Render publish-layout documentation                            FIXED
+
+Iteration 13 outcome:
+    RESULT: FAILED
+    RESTART REQUIRED: YES
+    downstream evidence invalidated: YES
+
+Trigger for iteration 14:
+    protocol requires a full restart after the documentation residue was
+    discovered during Step 8/verification.
