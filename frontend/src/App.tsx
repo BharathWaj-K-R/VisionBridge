@@ -305,7 +305,6 @@ export default function App() {
     <Route path="/calibration" element={<Calibration />} />
     <Route path="/history" element={<History />} />
     <Route path="/settings" element={<Settings />} />
-    <Route path="/evaluation" element={<Navigate to="/dashboard" replace />} />
     <Route path="*" element={<Navigate to="/dashboard" replace />} />
   </Routes></Shell>;
 }
