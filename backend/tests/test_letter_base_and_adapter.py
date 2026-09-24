@@ -108,7 +108,7 @@ def test_few_shot_adapter_tracks_current_base_version(tmp_path, monkeypatch):
 
     fitted = letter_fewshot.fit_prototype_adapter(
         model,
-        [("A", _pair(1)), ("A", _pair(1)), ("B", _pair(2)), ("B", _pair(2))],
+        [("A", _pair(1)), ("A", _pair(2)), ("A", _pair(3)), ("B", _pair(4)), ("B", _pair(5)), ("B", _pair(6))],
     )
     adapter_path = letter_fewshot.save_prototype_adapter(fitted["payload"])
     loaded = letter_fewshot.load_prototype_adapter(adapter_path, base)
@@ -147,7 +147,7 @@ def test_adapter_rejects_after_base_change(tmp_path, monkeypatch):
 
     fitted = letter_fewshot.fit_prototype_adapter(
         model,
-        [("A", _pair(1)), ("B", _pair(2))],
+        [("A", _pair(1)), ("A", _pair(2)), ("A", _pair(3)), ("B", _pair(4)), ("B", _pair(5)), ("B", _pair(6))],
     )
     path = letter_fewshot.save_prototype_adapter(fitted["payload"])
 
@@ -190,7 +190,7 @@ def test_adapter_rejects_incompatible_preprocessing_metadata(tmp_path, monkeypat
 
     fitted = letter_fewshot.fit_prototype_adapter(
         model,
-        [("A", _pair(1)), ("B", _pair(2))],
+        [("A", _pair(1)), ("A", _pair(2)), ("A", _pair(3)), ("B", _pair(4)), ("B", _pair(5)), ("B", _pair(6))],
     )
     fitted["payload"]["preprocessing_version"] = "wrong-contract"
     path = letter_fewshot.save_prototype_adapter(fitted["payload"])
@@ -230,7 +230,7 @@ def test_adapter_rejects_missing_runtime_contract_metadata(tmp_path, monkeypatch
 
     fitted = letter_fewshot.fit_prototype_adapter(
         model,
-        [("A", _pair(1)), ("B", _pair(2))],
+        [("A", _pair(1)), ("A", _pair(2)), ("A", _pair(3)), ("B", _pair(4)), ("B", _pair(5)), ("B", _pair(6))],
     )
     fitted["payload"].pop(field)
     path = letter_fewshot.save_prototype_adapter(fitted["payload"])
@@ -257,7 +257,7 @@ def test_adapter_does_not_persist_raw_calibration_landmarks(tmp_path, monkeypatc
 
     fitted = letter_fewshot.fit_prototype_adapter(
         model,
-        [("A", _pair(1)), ("B", _pair(2))],
+        [("A", _pair(1)), ("A", _pair(2)), ("A", _pair(3)), ("B", _pair(4)), ("B", _pair(5)), ("B", _pair(6))],
     )
 
     assert "calibration_samples" not in fitted["payload"]
