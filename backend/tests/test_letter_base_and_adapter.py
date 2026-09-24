@@ -235,3 +235,27 @@ def test_adapter_rejects_missing_runtime_contract_metadata(tmp_path, monkeypatch
 
     with pytest.raises(ValueError, match="landmark runtime|preprocessing"):
         letter_fewshot.load_prototype_adapter(path, base)
+
+
+def test_adapter_does_not_persist_raw_calibration_landmarks(tmp_path, monkeypatch):
+    model = VisionBridgeLetterBaseModel()
+    base = tmp_path / "base.pt"
+    save_checkpoint(model, base)
+
+    monkeypatch.setattr(
+        letter_fewshot.settings,
+        "LETTER_BASE_MODEL_PATH",
+        str(base),
+    )
+    monkeypatch.setattr(
+        letter_fewshot.settings,
+        "ADAPTER_WEIGHTS_DIR",
+        str(tmp_path / "adapters"),
+    )
+
+    fitted = letter_fewshot.fit_prototype_adapter(
+        model,
+        [("A", _pair(1)), ("B", _pair(2))],
+    )
+
+    assert "calibration_samples" not in fitted["payload"]
