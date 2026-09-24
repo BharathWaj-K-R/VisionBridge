@@ -34,6 +34,8 @@ class SlidingWindowRateLimiter:
         self.window_seconds = window_seconds
         self._hits: dict[str, deque[float]] = defaultdict(deque)
         self._lock = threading.Lock()
+        self._last_cleanup = 0.0
+        self._cleanup_interval = min(window_seconds, 30.0)
 
     def check(self, key: str) -> tuple[bool, float]:
         """Returns (allowed, retry_after_seconds). Records the hit only if allowed."""
@@ -43,6 +45,17 @@ class SlidingWindowRateLimiter:
             hits = self._hits[key]
             while hits and hits[0] < cutoff:
                 hits.popleft()
+
+            if now - self._last_cleanup >= self._cleanup_interval:
+                stale = [
+                    client_key
+                    for client_key, client_hits in self._hits.items()
+                    if not client_hits or client_hits[-1] < cutoff
+                ]
+                for client_key in stale:
+                    self._hits.pop(client_key, None)
+                self._last_cleanup = now
+                hits = self._hits[key]
             if len(hits) >= self.limit:
                 retry_after = hits[0] + self.window_seconds - now
                 return False, max(retry_after, 0.0)
@@ -69,9 +82,11 @@ def _client_key(request: Request) -> str:
 
 
 def make_rate_limit_dependency(limiter: SlidingWindowRateLimiter):
-    """Builds a FastAPI dependency bound to a specific limiter instance —
-    lets /translate and /calibration each have their own limit/window
-    without sharing counters."""
+    """Build a FastAPI dependency bound to one limiter instance.
+
+    The letter recognition and calibration routes use separate limiter
+    instances so their counters and configured limits stay independent.
+    """
 
     def _dependency(request: Request) -> None:
         allowed, retry_after = limiter.check(_client_key(request))
