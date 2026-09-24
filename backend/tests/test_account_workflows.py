@@ -157,3 +157,59 @@ def test_calibration_commit_failure_removes_new_adapter_file(monkeypatch, tmp_pa
 
     assert db.rolled_back is True
     assert not weights_path.exists()
+
+
+def test_adapter_delete_restores_staged_file_when_history_update_fails(monkeypatch, tmp_path):
+    from app.api import users as users_api
+    from app.db.models import SignerAdapter, TranslationLog
+
+    class User:
+        id = 7
+
+    original = tmp_path / "letter_adapter_failure.json"
+    original.write_text("adapter", encoding="utf-8")
+
+    class BrokenQuery:
+        def filter(self, *_args, **_kwargs):
+            return self
+
+        def first(self):
+            return type("Adapter", (), {
+                "id": 11,
+                "owner_id": 7,
+                "weights_path": str(original),
+            })()
+
+        def update(self, *_args, **_kwargs):
+            raise RuntimeError("simulated history update failure")
+
+    class BrokenDB:
+        def __init__(self):
+            self.rolled_back = False
+
+        def query(self, *_args):
+            return BrokenQuery()
+
+        def rollback(self):
+            self.rolled_back = True
+
+        def delete(self, *_args):
+            raise AssertionError("adapter delete must not run after history update failure")
+
+        def commit(self):
+            raise AssertionError("commit must not run after history update failure")
+
+    monkeypatch.setattr(users_api, "stage_adapter_delete", lambda path: original.with_name(".staged.deleting"))
+    monkeypatch.setattr(users_api, "restore_adapter_delete", lambda tombstone, path: Path(path).write_text("adapter", encoding="utf-8"))
+    monkeypatch.setattr(users_api, "finalize_adapter_delete", lambda _tombstone: None)
+
+    db = BrokenDB()
+    try:
+        users_api.delete_my_adapter(11, db=db, current_user=User())
+    except Exception as exc:
+        assert getattr(exc, "status_code", None) == 500
+    else:
+        raise AssertionError("expected adapter deletion failure")
+
+    assert db.rolled_back is True
+    assert original.exists()
