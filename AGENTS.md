@@ -1708,3 +1708,29 @@ Iteration 14 outcome:
     RESULT: FAILED
     RESTART REQUIRED: YES
     downstream evidence invalidated: YES
+
+
+### 2026-09-24 — Authoritative-protocol execution iteration 15 (FAILED)
+
+2c9dcbef59c50867a63d6cc7b90bc2ef261bffd5 — fix: clean adapter file after calibration commit failure
+3f59709b11eb5c07302ab5b2dc6624490a8338eb — test: cover calibration rollback cleanup
+
+Finding:
+    calibration persisted the adapter JSON before the database commit, so a
+    commit failure could leave an orphaned adapter file with no database owner.
+
+Reproduction:
+    simulated the write-then-failing-commit path and confirmed the file
+    remained orphaned before the repair.
+
+Fix:
+    on calibration commit failure, rollback the DB session and remove the newly
+    created adapter file; cleanup failure is surfaced as an explicit 500 state.
+
+Verification:
+    current source contains the cleanup path and its dedicated regression test.
+
+Iteration 15 outcome:
+    RESULT: FAILED
+    RESTART REQUIRED: YES
+    downstream evidence invalidated: YES
