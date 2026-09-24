@@ -163,9 +163,9 @@ def load_prototype_adapter(weights_path: str, base_model_path: str | Path) -> di
         or payload.get("feature_dim") != COMBINED_HAND_DIM
     ):
         raise ValueError("Invalid VisionBridge letter adapter")
-    if payload.get("preprocessing_version") not in (None, PREPROCESSING_VERSION):
+    if payload.get("preprocessing_version") != PREPROCESSING_VERSION:
         raise ValueError("Letter adapter preprocessing version is incompatible")
-    if payload.get("landmark_runtime") not in (None, LANDMARK_RUNTIME):
+    if payload.get("landmark_runtime") != LANDMARK_RUNTIME:
         raise ValueError("Letter adapter landmark runtime is incompatible")
 
     base_path = Path(base_model_path)
