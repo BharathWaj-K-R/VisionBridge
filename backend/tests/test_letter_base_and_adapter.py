@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import torch
 
-from app.models.letter_model import VisionBridgeLetterBaseModel, build_browser_payload, save_checkpoint, load_checkpoint
+from app.models.letter_model import LANDMARK_RUNTIME, PREPROCESSING_VERSION, VisionBridgeLetterBaseModel, build_browser_payload, build_checkpoint, save_checkpoint, load_checkpoint
 from app.services import letter_fewshot
 
 
@@ -11,6 +11,13 @@ def _pair(seed):
     points = rng.normal(0, 0.02, (21, 3)).astype(np.float32)
     points[0] = 0
     return points.reshape(-1).tolist() + points.reshape(-1).tolist()
+
+
+def test_checkpoint_records_preprocessing_contract():
+    model = VisionBridgeLetterBaseModel()
+    payload = build_checkpoint(model)
+    assert payload["preprocessing_version"] == PREPROCESSING_VERSION
+    assert payload["landmark_runtime"] == LANDMARK_RUNTIME
 
 
 def test_base_model_contract():
