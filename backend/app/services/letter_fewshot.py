@@ -12,7 +12,7 @@ import numpy as np
 import torch
 
 from app.core.config import get_settings
-from app.models.letter_model import MODEL_VERSION, VisionBridgeLetterBaseModel, load_checkpoint
+from app.models.letter_model import LANDMARK_RUNTIME, MODEL_VERSION, PREPROCESSING_VERSION, VisionBridgeLetterBaseModel, load_checkpoint
 
 HAND_LANDMARKS = 21
 HAND_COORDS = 3
@@ -121,6 +121,8 @@ def fit_prototype_adapter(
         "method": "dynamic-base-embedding-prototype",
         "base_model_version": MODEL_VERSION,
         "base_model_sha256": _sha256(base_path),
+        "preprocessing_version": PREPROCESSING_VERSION,
+        "landmark_runtime": LANDMARK_RUNTIME,
         "feature_dim": COMBINED_HAND_DIM,
         "embedding_dim": base_model.embedding_dim,
         "prototypes": {key: value.tolist() for key, value in prototypes.items()},
@@ -179,6 +181,10 @@ def load_prototype_adapter(weights_path: str, base_model_path: str | Path) -> di
     payload = json.loads(candidate.read_text(encoding="utf-8"))
     if payload.get("version") != 4 or payload.get("feature_dim") != COMBINED_HAND_DIM:
         raise ValueError("Invalid VisionBridge letter adapter")
+    if payload.get("preprocessing_version") not in (None, PREPROCESSING_VERSION):
+        raise ValueError("Letter adapter preprocessing version is incompatible")
+    if payload.get("landmark_runtime") not in (None, LANDMARK_RUNTIME):
+        raise ValueError("Letter adapter landmark runtime is incompatible")
 
     base_path = Path(base_model_path)
     if not base_path.is_file():
@@ -205,6 +211,8 @@ def load_prototype_adapter(weights_path: str, base_model_path: str | Path) -> di
         payload = dict(payload)
         payload["base_model_version"] = MODEL_VERSION
         payload["base_model_sha256"] = current_hash
+        payload["preprocessing_version"] = PREPROCESSING_VERSION
+        payload["landmark_runtime"] = LANDMARK_RUNTIME
         payload["embedding_dim"] = base_model.embedding_dim
         payload["base_model_labels"] = list(base_model.labels)
         payload["prototypes"] = prototypes
