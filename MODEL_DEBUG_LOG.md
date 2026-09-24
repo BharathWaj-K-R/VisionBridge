@@ -273,6 +273,34 @@ PROTOCOL RESULT:
     RESTART REQUIRED: YES
     downstream evidence invalidated: YES
 
+
+---
+
+# 14. 2026-09-24 — Authoritative-protocol execution iteration 4 (FAILED)
+
+FAILED STEP: Step 4 / Step 6 camera runtime data-flow audit
+
+Problem:
+    Async camera startup could outlive an explicit stop/unmount during getUserMedia() or video.play().
+
+Root cause:
+    Startup had no generation-based cancellation boundary after every externally awaiting operation.
+
+Fix:
+    Add startingRef guard.
+    Add startGenerationRef token.
+    Check generation before getUserMedia, after getUserMedia, and after video.play().
+    Explicitly stop acquired stream tracks and close the tracker on failed/cancelled startup.
+
+Verification:
+    current source inspection confirms the generation checks and cleanup path.
+    real browser lifecycle execution remains NOT VERIFIED.
+
+PROTOCOL RESULT:
+    RESULT: FAILED
+    RESTART REQUIRED: YES
+    downstream evidence invalidated: YES
+
 # 1. Active model contract
 
     Input:          126 normalized landmark values
