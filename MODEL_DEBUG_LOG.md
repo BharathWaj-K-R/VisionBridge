@@ -994,3 +994,17 @@ Commit 6f987c20f5af1512a37fefd01a1e2a64e565b984 corrected the fixture.
 
 Iteration 14 is failed under the authoritative restart protocol and its
 downstream evidence is invalidated. Iteration 15 restarts from Step 1.
+
+
+## 2026-09-24 — Protocol iteration 15 failure
+
+Iteration 15 reproduced a real persistence inconsistency in calibration:
+the adapter file was written before the database transaction committed, so a
+database failure could leave an orphaned adapter JSON.
+
+Commit 2c9dcbef59c50867a63d6cc7b90bc2ef261bffd5 adds rollback cleanup and
+commit 3f59709b11eb5c07302ab5b2dc6624490a8338eb adds regression coverage.
+
+The fix was source-verified. Per the authoritative restart protocol, iteration
+15 is failed and downstream evidence is invalidated. Iteration 16 restarts
+from Step 1.
