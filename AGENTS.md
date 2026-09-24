@@ -1805,3 +1805,25 @@ Iteration 18 outcome:
     RESULT: FAILED
     RESTART REQUIRED: YES
     downstream evidence invalidated: YES
+
+
+### 2026-09-24 — Authoritative-protocol execution iteration 19 (FAILED)
+
+05f2bfdb036eba741ad669e69a1b22ed0caa19d9 — test: use explicit imports in account regressions
+
+Finding:
+    the newly added adapter/persistence regression tests used dynamic __import__()
+    expressions for ordinary project modules, reducing readability and violating
+    the repository's maintainability standard.
+
+Fix:
+    replaced dynamic imports with explicit pathlib/config/security imports.
+
+Verification:
+    source verification confirms the test file contains explicit imports and no
+    remaining __import__ usage.
+
+Iteration 19 outcome:
+    RESULT: FAILED
+    RESTART REQUIRED: YES
+    downstream evidence invalidated: YES
