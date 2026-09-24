@@ -358,3 +358,27 @@ def test_legacy_v3_checkpoint_migrates_without_weight_changes(tmp_path):
 
     for key, value in legacy["state_dict"].items():
         assert torch.equal(value, migrated["state_dict"][key])
+
+
+def test_train_validation_split_rejects_same_image_under_multiple_labels():
+    features = np.zeros((52, 126), dtype=np.float32)
+    labels = np.repeat(np.arange(26), 2)
+    samples = []
+    for index, letter in enumerate("ABCDEFGHIJKLMNOPQRSTUVWXYZ"):
+        samples.extend(
+            [
+                {"source_path": f"{letter}/a.jpg", "source_split": "training", "letter": letter, "image_sha256": f"hash-{index}"},
+                {"source_path": f"{letter}/b.jpg", "source_split": "training", "letter": letter, "image_sha256": f"unique-{index}"},
+            ]
+        )
+
+    samples[-1]["image_sha256"] = "hash-0"
+
+    with pytest.raises(ValueError, match="multiple labels"):
+        prepare_letter_dataset.make_train_validation_split(
+            features,
+            labels,
+            samples,
+            validation_ratio=0.2,
+            seed=42,
+        )
