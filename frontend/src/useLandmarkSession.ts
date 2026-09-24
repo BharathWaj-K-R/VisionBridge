@@ -14,6 +14,7 @@ export function useLandmarkSession(sampleFps: number) {
   const handsRef = useRef<any>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const activeRef = useRef(false);
+  const startingRef = useRef(false);
   const lastSampleRef = useRef(0);
   const framesRef = useRef<LandmarkFrame[]>([]);
   const latestFrameRef = useRef<LandmarkFrame | null>(null);
@@ -40,11 +41,15 @@ export function useLandmarkSession(sampleFps: number) {
   }, []);
 
   const start = useCallback(async () => {
-    if (activeRef.current) return;
+    if (activeRef.current || startingRef.current) return;
+    startingRef.current = true;
+
+    let hands: Awaited<ReturnType<typeof createHands>> | null = null;
+    let stream: MediaStream | null = null;
 
     try {
       setStatus("Loading hand tracker…");
-      const hands = await createHands((results) => {
+      hands = await createHands((results) => {
         const video = videoRef.current;
         const canvas = canvasRef.current;
         if (!video) return;
@@ -82,7 +87,7 @@ export function useLandmarkSession(sampleFps: number) {
 
       handsRef.current = hands;
 
-      const stream = await navigator.mediaDevices.getUserMedia({
+      stream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 640, max: 960 },
           height: { ideal: 480, max: 720 },
@@ -130,9 +135,13 @@ export function useLandmarkSession(sampleFps: number) {
 
       requestAnimationFrame(loop);
     } catch (error) {
+      stream?.getTracks().forEach((track) => track.stop());
+      hands?.close?.();
       stop();
       setStatus(error instanceof Error ? error.message : "Camera start failed");
       throw error;
+    } finally {
+      startingRef.current = false;
     }
   }, [sampleFps, stop]);
 
