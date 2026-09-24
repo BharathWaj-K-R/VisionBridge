@@ -1761,3 +1761,24 @@ Iteration 16 outcome:
     RESULT: FAILED
     RESTART REQUIRED: YES
     downstream evidence invalidated: YES
+
+
+### 2026-09-24 — Authoritative-protocol execution iteration 17 (FAILED)
+
+f6829ce0a0ed175f4cd4a2e9afbbd1036ce9b0f6 — cleanup: remove retired evaluation route
+
+Finding:
+    the React application still exposed /evaluation as a silent redirect even
+    though the old evaluation screen was removed and evaluation is now a
+    training/CLI concern.
+
+Fix:
+    removed the retired /evaluation route.
+
+Verification:
+    source search shows no remaining frontend /evaluation route references.
+
+Iteration 17 outcome:
+    RESULT: FAILED
+    RESTART REQUIRED: YES
+    downstream evidence invalidated: YES
