@@ -1115,3 +1115,41 @@ Iteration 21 result:
     no restart-triggering defect discovered
     downstream model-quality and deployment claims remain explicitly
     unverified or blocked.
+
+## 2026-09-24 — Protocol iterations 22–23 — Stitch frontend integration
+
+The uploaded Stitch ZIP was inspected as the design source. The active UI now
+uses the ZIP's monochrome editorial/technical visual language while preserving
+the real VisionBridge flows: live camera recognition, few-shot signer
+calibration, letter history, signer profiles, and local/real runtime behavior.
+
+Commits:
+- 82061f6f2ca667150ef4ef9917a4ad2e75280235
+- cd31610e8fa2175ad56d04fed5aa987fafdf4d3f
+- 1c791853de886a956b4a4ab567d54ecea066d926
+
+A genuine integration defect was found after the first frontend styling pass:
+the font @import was appended after existing CSS rules. This was corrected by
+moving the import to the top of the stylesheet, and the protocol required a
+full restart before acceptance.
+
+A separate camera-permission warning raised by an initial audit probe was
+investigated and proven to be a false positive because the header was on the
+backend API response rather than the static frontend document. The temporary
+change was reverted completely.
+
+Clean source-level checks after restart:
+- no retired architecture files
+- active routes remain dashboard, translate, calibration, history, settings
+- no retired /evaluation route
+- Stitch live-recognition and calibration markers are present
+- no copied demo metrics such as 98.4%/92.4% or fictitious device telemetry
+- @mediapipe/tasks-vision remains locked to 0.10.35
+- package.json and package-lock dependency versions match
+- strict model-loader input/vocabulary checks remain present
+- frontend App.tsx and stylesheet delimiter balance checks pass
+- stylesheet font import is first rule
+- no current CI workflow is present
+
+Runtime verification remains blocked by the environment/network boundary, so
+no Vite build or live browser result is claimed.
