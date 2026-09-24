@@ -1075,3 +1075,43 @@ a0c19d6837dd8d907e801eee585c6fc4c1262a25 adds regression coverage.
 
 Per the authoritative restart protocol, iteration 20 is failed and downstream
 evidence is invalidated. Iteration 21 restarts from Step 1.
+
+
+## 2026-09-24 — Protocol iteration 21 clean pass
+
+Iteration 21 restarted from Step 1 after the iteration 20 transaction defect.
+The complete corrected repository was re-audited before accepting any
+downstream evidence.
+
+Static verification:
+- retired architecture references absent
+- no placeholder TODO/FIXME/NotImplementedError code
+- no retired /evaluation route
+- no legacy MediaPipe Hands references
+- Render publishes frontend/dist and health-checks /api/v1/health
+- current main branch has no active CI workflow/statuses
+
+Targeted runtime verification:
+- strict checkpoint migration and load: PASS
+- 126 -> 128 -> 64 -> 26 model contract: PASS
+- migrated learned tensors unchanged: PASS
+- browser/Python numerical inference parity: PASS
+- 126D normalization parity: PASS
+- adapter deletion with retained prediction history: PASS
+- calibration database-failure cleanup: PASS
+- tracker failure recovery and stale callback rejection: PASS
+
+Current release boundary:
+- repository base checkpoint installation: PENDING
+- uploaded checkpoint accuracy: NOT VERIFIED
+- signer-independent held-out evaluation: BLOCKED pending verified signer metadata
+- browser real-model device flow: NOT VERIFIED
+- live Render deployment: NOT VERIFIED
+- durable production database: NOT IMPLEMENTED
+- real-mode auth token hardening: PENDING
+
+Iteration 21 result:
+    CLEAN REPAIR PASS
+    no restart-triggering defect discovered
+    downstream model-quality and deployment claims remain explicitly
+    unverified or blocked.
