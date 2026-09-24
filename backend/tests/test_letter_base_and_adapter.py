@@ -4,7 +4,7 @@ import torch
 
 from app.models.letter_model import LANDMARK_RUNTIME, PREPROCESSING_VERSION, VisionBridgeLetterBaseModel, build_browser_payload, build_checkpoint, save_checkpoint, load_checkpoint
 from app.services import letter_fewshot
-from app.scripts import prepare_letter_dataset
+from scripts import prepare_letter_dataset
 
 
 def _pair(seed):
