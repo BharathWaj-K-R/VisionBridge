@@ -195,3 +195,43 @@ def test_adapter_rejects_incompatible_preprocessing_metadata(tmp_path, monkeypat
 
     with pytest.raises(ValueError, match="preprocessing"):
         letter_fewshot.load_prototype_adapter(path, base)
+
+
+@pytest.mark.parametrize("field", ["preprocessing_version", "landmark_runtime"])
+def test_checkpoint_rejects_missing_runtime_contract_metadata(tmp_path, field):
+    path = tmp_path / "base.pt"
+    save_checkpoint(VisionBridgeLetterBaseModel(), path)
+    payload = torch.load(path, map_location="cpu", weights_only=True)
+    payload.pop(field)
+    torch.save(payload, path)
+
+    with pytest.raises(ValueError, match="Unsupported letter base-model"):
+        load_checkpoint(path)
+
+
+@pytest.mark.parametrize("field", ["preprocessing_version", "landmark_runtime"])
+def test_adapter_rejects_missing_runtime_contract_metadata(tmp_path, monkeypatch, field):
+    model = VisionBridgeLetterBaseModel()
+    base = tmp_path / "base.pt"
+    save_checkpoint(model, base)
+
+    monkeypatch.setattr(
+        letter_fewshot.settings,
+        "LETTER_BASE_MODEL_PATH",
+        str(base),
+    )
+    monkeypatch.setattr(
+        letter_fewshot.settings,
+        "ADAPTER_WEIGHTS_DIR",
+        str(tmp_path / "adapters"),
+    )
+
+    fitted = letter_fewshot.fit_prototype_adapter(
+        model,
+        [("A", _pair(1)), ("B", _pair(2))],
+    )
+    fitted["payload"].pop(field)
+    path = letter_fewshot.save_prototype_adapter(fitted["payload"])
+
+    with pytest.raises(ValueError, match="landmark runtime|preprocessing"):
+        letter_fewshot.load_prototype_adapter(path, base)
