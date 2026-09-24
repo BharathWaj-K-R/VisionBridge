@@ -1395,6 +1395,39 @@ Iteration 2 outcome:
     RESULT: FAILED
     RESTART REQUIRED: YES
     downstream results invalidated: YES
+
+### 2026-09-24 — Authoritative-protocol execution iteration 3 (FAILED)
+
+3b482edc6b265a54615b6541c61c141ca32d5a29 — fix: enforce active V3 model contract
+347ecae3fc300d03f831d1a094e20328ff3f56dc — fix: enforce A-Z training vocabulary
+6d9bd09422de34bfd2cbea2a37bf0242993ae714 — fix: prevent test leakage and split collapse
+2c303b1a37d454cb4a41eb385061cebb29583c9d — fix: enforce training asset integrity
+67efc9f9d72116a9e5c4e1055a558bba5d19847 — fix: verify notebook hand model asset
+72e3b5746904ecf9ccc86e046170a38e2d222dfa — test: cover active model contract and split safety
+2b8179382ba14f68c9db8da1282dc4dd735544a1 — fix: align local calibration shot contract
+7d4015e30469d4857b9f34aff62a0bc73ed16087 — feat: add V3 checkpoint migration utility
+98f56829f208d753b928862bc0dce7fdbd49217d — test: verify V3 checkpoint migration
+
+Reproduction:
+    Current strict loader rejected the supplied V3 checkpoint because its envelope lacked preprocessing_version and landmark_runtime.
+    Direct artifact inspection confirmed the model weights are structurally valid, finite, and exactly V3.
+
+Root cause:
+    Supplied checkpoint was created before the current metadata-bound checkpoint contract existed.
+
+Resolution:
+    Added an explicit metadata migration utility that validates V3 architecture/state keys and adds only the current contract metadata.
+
+Artifact verification:
+    supplied checkpoint SHA-256        2b42639e0ffb3c40112bf931f434f6adf5b578fce21399ba53795d3fba0529a
+    migrated checkpoint               locally verified
+    tensor values                     unchanged
+    current strict loader             PASS on migrated artifact
+
+Iteration 3 outcome:
+    RESULT: FAILED
+    RESTART REQUIRED: YES
+    downstream ML/runtime evidence invalidated: YES
 ## Current correction state
 
     training/browser landmark mismatch      CORRECTED
