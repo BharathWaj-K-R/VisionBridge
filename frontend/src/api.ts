@@ -205,6 +205,8 @@ export const api = {
         base_model_sha256: "local",
         feature_dim: 126,
         embedding_dim: 126,
+        preprocessing_version: "two-hand-wrist-scale-v1",
+        landmark_runtime: "mediapipe-hand-landmarker-0.10.35",
         prototypes: adapter.prototypes,
         shots: adapter.shots || {},
       };
