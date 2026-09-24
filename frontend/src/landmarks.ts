@@ -32,6 +32,7 @@ export type LandmarkFrame = {
 
 type HandLandmarkerResultLike = {
   landmarks?: LandmarkPoint[][];
+  handedness?: Array<Array<{ categoryName?: string; category_name?: string; label?: string }>>;
   handednesses?: Array<Array<{ categoryName?: string; category_name?: string; label?: string }>>;
   multiHandLandmarks?: LandmarkPoint[][];
   multiHandedness?: Array<Array<{ categoryName?: string; category_name?: string; label?: string }>>;
@@ -67,11 +68,13 @@ export function frameFromResults(results: HandLandmarkerResultLike): LandmarkFra
     : Array.isArray(results?.multiHandLandmarks)
       ? results.multiHandLandmarks
       : [];
-  const handedness = Array.isArray(results?.handednesses)
-    ? results.handednesses
-    : Array.isArray(results?.multiHandedness)
-      ? results.multiHandedness
-      : [];
+  const handedness = Array.isArray(results?.handedness)
+    ? results.handedness
+    : Array.isArray(results?.handednesses)
+      ? results.handednesses
+      : Array.isArray(results?.multiHandedness)
+        ? results.multiHandedness
+        : [];
 
   const leftIndex = handedness.findIndex((entry) => handedLabel(entry?.[0]) === LEFT);
   const rightIndex = handedness.findIndex((entry) => handedLabel(entry?.[0]) === RIGHT);
