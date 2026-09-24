@@ -111,6 +111,18 @@ def fit_prototype_adapter(
     if len(grouped) < 2:
         raise ValueError("Calibrate at least two different letters before fitting an adapter")
 
+    insufficient = sorted(
+        letter
+        for letter, items in grouped.items()
+        if len(items) < 3
+    )
+    if insufficient:
+        raise ValueError(
+            "Each calibrated letter requires at least 3 examples: {}".format(
+                ", ".join(insufficient)
+            )
+        )
+
     prototypes = {
         letter: _unit(np.mean(np.stack(items, axis=0), axis=0))
         for letter, items in sorted(grouped.items())
