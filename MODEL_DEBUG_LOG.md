@@ -301,6 +301,30 @@ PROTOCOL RESULT:
     RESTART REQUIRED: YES
     downstream evidence invalidated: YES
 
+
+---
+
+# 15. 2026-09-24 — Authoritative-protocol execution iteration 5 (FAILED)
+
+FAILED STEP: Step 1 / Step 9 consistency audit
+
+Findings:
+    1. The notebook declared a fixed hand-landmarker SHA-256 but initially did not enforce it.
+    2. The active V3 model loader now fixes 126D/A-Z, while README/AGENTS still described input and vocabulary as freely scalable.
+
+Fixes:
+    Notebook now computes SHA-256 and exact size after download.
+    Documentation now states that active V3 fixes the 126D input and A-Z vocabulary; future input/vocabulary changes require a new model version and complete validation cycle.
+
+Verification:
+    notebook Cell 2 contains exact size and SHA checks
+    README and AGENTS describe the active V3 contract consistently
+
+PROTOCOL RESULT:
+    RESULT: FAILED
+    RESTART REQUIRED: YES
+    downstream evidence invalidated: YES
+
 # 1. Active model contract
 
     Input:          126 normalized landmark values
