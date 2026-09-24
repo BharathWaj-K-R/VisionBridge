@@ -49,4 +49,4 @@ app.include_router(users.router, prefix=settings.API_V1_PREFIX)
 
 @app.get("/")
 def root():
-    return {"message": "VisionBridge API — hand-only, signer-adaptive letter recognition is available at /api/v1/letter"}
+    return {"message": "VisionBridge API - hand-only, signer-adaptive letter recognition is available at /api/v1/letter"}
