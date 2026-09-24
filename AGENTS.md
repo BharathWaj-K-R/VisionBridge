@@ -1253,6 +1253,22 @@ Verification boundary:
     full local test suite                    NOT VERIFIED
     real-data training                     NOT VERIFIED
     signer-independent evaluation          REQUIRED / BLOCKED BY VERIFIED SIGNER METADATA
+
+### 2026-09-24 — Final ledger reconciliation
+
+9f4eea79b9ba7fd2a9d9d4e5285477c795f95efa — docs: document adapter data minimization
+ca9d87bc6c3f139de8d0139384cbe5cc53842665 — docs: reconcile audit ledger completeness
+966ab18ee4cdb1550d38115240b5e08be3b67c92 — docs: reconcile model audit ledger completeness
+e2df45d0b5a19302156f7e69d8dfbc7342d61393 — docs: record calibration contract restart
+a88e2176daffaf6b85884f006c407d27f59e9655 — docs: record calibration contract restart
+
+Final audit status:
+    targeted stale-reference sweep            PASS
+    signer-independent gate                  REQUIRED / BLOCKED BY VERIFIED SIGNER METADATA
+    model-quality evidence                  NOT VERIFIED
+    current CI checks                       NONE
+    binary V3 checkpoint in repository       PENDING
+
 ## Current correction state
 
     training/browser landmark mismatch      CORRECTED
@@ -1264,6 +1280,8 @@ Verification boundary:
     evaluation visibility                   IMPROVED
     dependency drift                        REDUCED
     signer-independent evaluation           REQUIRED / BLOCKED BY VERIFIED SIGNER METADATA
+    raw calibration data persistence         REMOVED
+    calibration shot-count contract          ENFORCED
     V3 binary checkpoint in repository      PENDING
     browser real-device verification        NOT VERIFIED
     live Render real-mode verification      NOT VERIFIED
