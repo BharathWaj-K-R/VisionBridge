@@ -1335,6 +1335,33 @@ Implementation status:
     contract adopted                     ENFORCED
     signer-independent evaluation        REQUIRED / BLOCKED BY VERIFIED SIGNER METADATA
 
+
+### 2026-09-24 — Authoritative-protocol execution iteration 1 (FAILED)
+
+05cda46694eddd051059552eab9169c40403c678 — test: verify camera permissions policy
+87f94197ca08e75984cebba070a161c3efc61d3c — fix: allow camera under permissions policy
+3b482edc6b265a54615b6541c61c141ca32d5a29 — fix: enforce active V3 model contract
+347ecae3fc300d03f831d1a094e20328ff3f56dc — fix: enforce A-Z training vocabulary
+6d9bd09422de34bfd2cbea2a37bf0242993ae714 — fix: prevent test leakage and split collapse
+2c303b1a37d454cb4a41eb385061cebb29583c9d — fix: enforce training asset integrity
+67efc9f9d72116a9e5c4e1055a558bba5d19847 — fix: verify notebook hand model asset
+72e3b5746904ecf9ccc86e046170a38e2d222dfa — test: cover active model contract and split safety
+2b8179382ba14f68c9db8da1282dc4dd735544a1 — fix: align local calibration shot contract
+
+Protocol failure points discovered during fresh execution:
+    runtime environment could not clone GitHub repository                 EXTERNAL EXECUTION LIMIT
+    Permissions-Policy disabled required camera access                   FIXED
+    checkpoint loader accepted wrong input/class vocabulary              FIXED
+    corrupt checkpoint tensors could pass compatibility checks            FIXED
+    train/validation split could collapse a class to one side            FIXED
+    exact train/test duplicates were only warned about                   FIXED
+    notebook asset verification was incomplete                             FIXED
+    local demo calibration bypassed backend three-shot rule               FIXED
+
+Iteration 1 outcome:
+    RESULT: FAILED
+    RESTART REQUIRED: YES
+    downstream ML/runtime results INVALIDATED
 ## Current correction state
 
     training/browser landmark mismatch      CORRECTED
