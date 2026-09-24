@@ -1927,3 +1927,50 @@ Iteration 21 outcome:
     RESTART REQUIRED: NO
     downstream repair evidence accepted only for the checks explicitly marked
     PASS above; all model-quality/deployment blockers remain invalid/unverified.
+
+### 2026-09-24 — Authoritative-protocol execution iteration 22/23 (FRONTEND DESIGN INTEGRATION)
+
+Iteration 22:
+    The Stitch frontend ZIP was used as the visual source for the active
+    VisionBridge workstation. The live recognition and few-shot calibration
+    screens were integrated into the existing React product without reviving
+    the retired sentence-translation architecture.
+
+Implementation:
+    82061f6f2ca667150ef4ef9917a4ad2e75280235 —
+        feat: integrate Stitch workstation frontend design
+    cd31610e8fa2175ad56d04fed5aa987fafdf4d3f —
+        style: apply Stitch monochrome workstation system
+    1c791853de886a956b4a4ab567d54ecea066d926 —
+        fix: load Stitch fonts before stylesheet rules
+
+Restart trigger:
+    CSS @import was initially appended after existing stylesheet rules. That
+    could prevent the Stitch typography from loading reliably. The defect was
+    corrected by moving the import to the first stylesheet rule, then the
+    verification cycle restarted from Step 1.
+
+Additional audit note:
+    A temporary verification probe treated the backend Permissions-Policy
+    response header as a frontend camera blocker. Inspection established that
+    the static frontend document, not the JSON API response, owns the camera
+    permission policy in this deployment. The unnecessary header/test change
+    was fully reverted; no product behavior from that probe remains.
+
+Iteration 23 clean result:
+    Step 1 inventory, route checks, retired-architecture checks, source
+    balance checks, Stitch UI marker checks, stale-demo-telemetry checks,
+    package/lock consistency, strict model-loader checks, and stylesheet
+    ordering checks all passed at source level.
+
+Runtime boundary:
+    Full npm/Vite build and browser camera execution remain NOT VERIFIED in
+    this environment because the local shell cannot resolve GitHub hosts and
+    the current main branch has no active CI workflow. No build-pass or live
+    browser claim is made from this source-only verification.
+
+Frontend integration result:
+    CLEAN SOURCE-LEVEL PASS
+    RESTART REQUIRED: NO
+    downstream model-quality/deployment claims remain unchanged and explicitly
+    unverified or blocked.
