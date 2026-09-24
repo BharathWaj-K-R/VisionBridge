@@ -233,17 +233,8 @@ export const api = {
       if (!adapter) throw new Error("Choose a calibrated signer adapter first.");
       const result = localPredict(adapter, handKeypoints);
       const latency = performance.now() - started;
-      const history = localHistory();
-      const row = {
-        id: Date.now(),
-        predicted_text: result.predicted_letter,
-        confidence: result.confidence,
-        latency_ms: latency,
-        used_adapter: 1,
-        created_at: new Date().toISOString(),
-      };
-      saveLocalHistory([...history, row]);
       return { ...result, latency_ms: latency, adapter_id: adapterId };
+
     }
     return request<LetterPredictionResult>("/letter/predict", {
       method: "POST",
