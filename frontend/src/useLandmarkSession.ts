@@ -139,6 +139,15 @@ export function useLandmarkSession(sampleFps: number) {
           try {
             await handsRef.current.send({ image: videoRef.current });
             frames += 1;
+          } catch (error) {
+            activeRef.current = false;
+            setRunning(false);
+            setStatus(error instanceof Error ? error.message : "Hand tracking failed");
+            streamRef.current?.getTracks().forEach((track) => track.stop());
+            streamRef.current = null;
+            handsRef.current?.close?.();
+            handsRef.current = null;
+            return;
           } finally {
             processing = false;
           }
