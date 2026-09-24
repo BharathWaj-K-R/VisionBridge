@@ -224,7 +224,7 @@ function Recognize() {
                 : "Loading the current model and signer adapter…"
             : "Calibrate at least two letters first."}
         </div>
-        <div className="output-meta"><span>Inference: {latency != null ? latency.toFixed(2) + " ms" : "—"}</span><span>Tracker: MediaPipe Hands</span></div>
+        <div className="output-meta"><span>Inference: {latency != null ? latency.toFixed(2) + " ms" : "—"}</span><span>Tracker: MediaPipe Tasks Hand Landmarker</span></div>
       </section>
     </div>
   </Page>;
