@@ -149,29 +149,6 @@ def save_prototype_adapter(payload: dict) -> str:
     return str(target)
 
 
-def _build_prototypes_from_calibration(
-    base_model: VisionBridgeLetterBaseModel,
-    samples: list[dict],
-) -> tuple[dict[str, list[float]], dict[str, int]]:
-    grouped: dict[str, list[np.ndarray]] = {}
-    for sample in samples:
-        label = str(sample.get("letter", "")).strip().upper()
-        raw = sample.get("hand_keypoints")
-        if len(label) != 1 or label not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" or not isinstance(raw, list):
-            raise ValueError("Stored calibration sample is invalid")
-        grouped.setdefault(label, []).append(embed_hand_vector(base_model, raw))
-
-    if len(grouped) < 2:
-        raise ValueError("Stored calibration data does not contain enough letters")
-
-    prototypes = {
-        letter: _unit(np.mean(np.stack(items, axis=0), axis=0)).tolist()
-        for letter, items in sorted(grouped.items())
-    }
-    shots = {letter: len(items) for letter, items in sorted(grouped.items())}
-    return prototypes, shots
-
-
 def load_prototype_adapter(weights_path: str, base_model_path: str | Path) -> dict:
     root = Path(settings.ADAPTER_WEIGHTS_DIR).resolve()
     candidate = Path(weights_path).resolve()
@@ -179,7 +156,11 @@ def load_prototype_adapter(weights_path: str, base_model_path: str | Path) -> di
         raise FileNotFoundError("Letter adapter is unavailable")
 
     payload = json.loads(candidate.read_text(encoding="utf-8"))
-    if payload.get("version") != 4 or payload.get("feature_dim") != COMBINED_HAND_DIM:
+    if (
+        payload.get("version") != 4
+        or payload.get("method") != "dynamic-base-embedding-prototype"
+        or payload.get("feature_dim") != COMBINED_HAND_DIM
+    ):
         raise ValueError("Invalid VisionBridge letter adapter")
     if payload.get("preprocessing_version") not in (None, PREPROCESSING_VERSION):
         raise ValueError("Letter adapter preprocessing version is incompatible")
@@ -191,37 +172,31 @@ def load_prototype_adapter(weights_path: str, base_model_path: str | Path) -> di
         raise FileNotFoundError("Letter base-model checkpoint is missing")
 
     base_model = load_checkpoint(base_path)
-    if payload.get("embedding_dim") != base_model.embedding_dim:
-        calibration_samples = payload.get("calibration_samples")
-        if not isinstance(calibration_samples, list):
-            raise ValueError("Letter adapter requires recalibration for the current model")
     current_hash = _sha256(base_path)
-    needs_refresh = (
-        payload.get("base_model_version") != MODEL_VERSION
-        or payload.get("base_model_sha256") != current_hash
-        or payload.get("embedding_dim") != base_model.embedding_dim
-        or payload.get("base_model_labels") != list(base_model.labels)
-    )
 
-    if needs_refresh:
-        calibration_samples = payload.get("calibration_samples")
-        if not isinstance(calibration_samples, list) or len(calibration_samples) < 2:
-            raise ValueError("Letter adapter requires recalibration for the current model")
-        prototypes, shots = _build_prototypes_from_calibration(base_model, calibration_samples)
-        payload = dict(payload)
-        payload["base_model_version"] = MODEL_VERSION
-        payload["base_model_sha256"] = current_hash
-        payload["preprocessing_version"] = PREPROCESSING_VERSION
-        payload["landmark_runtime"] = LANDMARK_RUNTIME
-        payload["embedding_dim"] = base_model.embedding_dim
-        payload["base_model_labels"] = list(base_model.labels)
-        payload["prototypes"] = prototypes
-        payload["shots"] = shots
-        candidate.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    if payload.get("base_model_version") != MODEL_VERSION:
+        raise ValueError("Letter adapter requires recalibration for the current model version")
+    if payload.get("base_model_sha256") != current_hash:
+        raise ValueError("Letter adapter requires recalibration for the current model")
+    if payload.get("embedding_dim") != base_model.embedding_dim:
+        raise ValueError("Letter adapter requires recalibration for the current embedding dimension")
+    if payload.get("base_model_labels") != list(base_model.labels):
+        raise ValueError("Letter adapter requires recalibration for the current label vocabulary")
 
     prototypes = payload.get("prototypes")
     if not isinstance(prototypes, dict) or len(prototypes) < 2:
         raise ValueError("Letter adapter must contain at least two prototypes")
+
+    for letter, values in prototypes.items():
+        if str(letter) not in base_model.labels:
+            raise ValueError("Letter adapter contains an unsupported prototype label")
+        try:
+            vector = np.asarray(values, dtype=np.float32)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Letter adapter prototype is invalid") from exc
+        if vector.shape != (base_model.embedding_dim,) or not np.isfinite(vector).all():
+            raise ValueError("Letter adapter prototype is incompatible with the current model")
+
     return payload
 
 def predict_letter(
