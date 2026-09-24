@@ -122,26 +122,35 @@ def test_few_shot_adapter_tracks_current_base_version(tmp_path, monkeypatch):
     assert scores[0][0] == "A"
 
 
-def test_adapter_auto_refreshes_after_base_change(tmp_path, monkeypatch):
+def test_adapter_rejects_after_base_change(tmp_path, monkeypatch):
     model = VisionBridgeLetterBaseModel(embedding_dim=80)
-    a = tmp_path / "a.pt"
-    b = tmp_path / "b.pt"
-    save_checkpoint(model, a)
-    changed = VisionBridgeLetterBaseModel(hidden_dim=256, embedding_dim=96)
-    save_checkpoint(changed, b)
+    base = tmp_path / "base.pt"
+    changed = tmp_path / "changed.pt"
+    save_checkpoint(model, base)
+    save_checkpoint(
+        VisionBridgeLetterBaseModel(hidden_dim=256, embedding_dim=96),
+        changed,
+    )
 
-    monkeypatch.setattr(letter_fewshot.settings, "LETTER_BASE_MODEL_PATH", str(a))
-    monkeypatch.setattr(letter_fewshot.settings, "ADAPTER_WEIGHTS_DIR", str(tmp_path / "adapters"))
+    monkeypatch.setattr(
+        letter_fewshot.settings,
+        "LETTER_BASE_MODEL_PATH",
+        str(base),
+    )
+    monkeypatch.setattr(
+        letter_fewshot.settings,
+        "ADAPTER_WEIGHTS_DIR",
+        str(tmp_path / "adapters"),
+    )
 
-    fitted = letter_fewshot.fit_prototype_adapter(model, [("A", _pair(1)), ("B", _pair(2))])
+    fitted = letter_fewshot.fit_prototype_adapter(
+        model,
+        [("A", _pair(1)), ("B", _pair(2))],
+    )
     path = letter_fewshot.save_prototype_adapter(fitted["payload"])
 
-    refreshed = letter_fewshot.load_prototype_adapter(path, b)
-
-    assert refreshed["base_model_version"] != ""
-    assert refreshed["embedding_dim"] == 96
-    assert refreshed["shots"] == {"A": 1, "B": 1}
-    assert all(len(values) == 96 for values in refreshed["prototypes"].values())
+    with pytest.raises(ValueError, match="requires recalibration"):
+        letter_fewshot.load_prototype_adapter(path, changed)
 
 def test_browser_payload_matches_checkpoint(tmp_path):
     path = tmp_path / "base.pt"
