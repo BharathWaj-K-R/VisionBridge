@@ -92,6 +92,32 @@ FULL RESTART COMPLETED:
 FINAL STATUS:
     Documentation consistency gate passes for the corrected runtime terminology; model, signer, browser, and deployment evidence remain unverified or blocked.
 
+
+---
+
+# 0D. 2026-09-24 — Restart #4
+
+FAILED STEP: post-hardening application/data/deployment audit
+ERRORS FOUND:
+    1. Render used model readiness as process health while the real checkpoint remained intentionally absent.
+    2. Dataset preparation accepted any existing hand-landmarker.task without checking the pinned asset identity.
+    3. Failed camera startup could leave tracker/stream resources alive.
+    4. Local demo storage was global rather than scoped to the active local user.
+    5. Local prediction mode persisted every poll instead of applying the same event throttling as real mode.
+CORRECTION:
+    Separate /health liveness from /ready model readiness.
+    Pin the hand-landmarker asset by size and SHA-256 in dataset preparation.
+    Register tracker and camera resources before operations that can fail so shared cleanup handles them.
+    Scope local adapters/history by local username and throttle local history events.
+FIX VERIFIED:
+    Static source re-audit confirms each corresponding correction is present.
+DOWNSTREAM RESULTS INVALIDATED:
+    No model-quality metrics depended on these application/deployment fixes.
+FULL RESTART COMPLETED:
+    Source-level repository re-audit completed after corrections.
+FINAL STATUS:
+    Corrected code paths are recorded; full runtime/build/ML/deployment evidence is still bounded by the unavailable local dependency checkout and disabled CI.
+
 # 1. Active model contract
 
     Input:          126 normalized landmark values
