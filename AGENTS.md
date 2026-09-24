@@ -1545,6 +1545,24 @@ Iteration 9 outcome:
     RESULT: FAILED
     RESTART REQUIRED: YES
     downstream evidence invalidated: YES
+
+### 2026-09-24 — Authoritative-protocol execution iteration 10 (FAILED)
+
+b5e66b699e110fbc47c10bc3b6bd956a2c2e9d81 — fix: enforce service calibration shots
+df75996691e2fd6feaaabda204684b9275975aaf — fix: fail dataset preparation on leakage
+76dd9e3d958343ef130b34c5fd7c6450bc52ebcf — test: enforce service calibration shots
+4830b6d66e5419bf4aa016a5f5e060da980f7d81 — test: cover post-split leakage contract [REVERTED]
+198a86da5454a0c08d00d85d9201d25a14c03055 — test: remove non-operative leakage check
+
+Findings corrected:
+    service helper could bypass the three-shot calibration contract     FIXED
+    CLI dataset preparation could emit post-split leakage              FIXED
+    weak regression test was introduced during the repair              REMOVED
+
+Iteration 10 outcome:
+    RESULT: FAILED
+    RESTART REQUIRED: YES
+    downstream evidence invalidated: YES
 ## Current correction state
 
     training/browser landmark mismatch      CORRECTED
