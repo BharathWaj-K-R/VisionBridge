@@ -1,6 +1,9 @@
-# Dependencies used only for offline ISL landmark extraction and base-model training.
+# Offline ISL landmark extraction and base-model training dependencies.
 # The live Render backend does not install this file.
 #
-# MediaPipe 0.10.35 uses the supported Python Tasks API. The old
-# mp.solutions.hands API is intentionally not used by the active trainer.
+# Keep these versions aligned with the reproducible training notebook and
+# the production inference runtime where practical.
+--extra-index-url https://download.pytorch.org/whl/cpu
 mediapipe==0.10.35
+numpy==2.1.3
+torch==2.9.0+cpu
