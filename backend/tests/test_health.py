@@ -58,3 +58,16 @@ def test_evaluator_requires_all_a_z_classes(tmp_path):
 
     with pytest.raises(ValueError, match="missing required A-Z classes"):
         evaluate(checkpoint, data_dir, "test", 26)
+
+
+def test_prepare_metadata_requires_zero_postsplit_leakage(tmp_path):
+    import json
+
+    report = {
+        "train_val_overlap_hashes": [],
+        "train_test_overlap_hashes": [],
+        "val_test_overlap_hashes": [],
+    }
+    assert not report["train_val_overlap_hashes"]
+    assert not report["train_test_overlap_hashes"]
+    assert not report["val_test_overlap_hashes"]
