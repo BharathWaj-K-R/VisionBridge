@@ -151,6 +151,27 @@ Additional commits from the preceding rate-limit hardening cycle:
 
 These changes were already implemented; this entry closes the documentation ledger gap identified during re-audit.
 
+
+---
+
+# 10. 2026-09-24 — Restart #6
+
+FAILED STEP: application contract audit
+ERROR FOUND:
+    The frontend enforced three calibration shots per letter, but the backend schema accepted fewer.
+ROOT CAUSE:
+    The shot-count rule existed only in the browser workflow instead of the API contract.
+CORRECTION:
+    Add a Pydantic request validator requiring at least three examples for every calibrated letter.
+FIX VERIFIED:
+    Schema regression test covers both rejection of insufficient shots and acceptance of a valid request.
+DOWNSTREAM RESULTS INVALIDATED:
+    No ML metrics depended on the request-schema correction.
+FULL RESTART COMPLETED:
+    Source-level re-audit completed after the correction.
+FINAL STATUS:
+    Calibration shot-count contract is enforced; real-data and signer-holdout evidence remain NOT VERIFIED / BLOCKED.
+
 # 1. Active model contract
 
     Input:          126 normalized landmark values
