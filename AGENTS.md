@@ -1629,3 +1629,36 @@ Trigger for iteration 12:
     three-class checkpoint and expects load_checkpoint() to accept it, while
     the active production loader intentionally requires the fixed A-Z/26-class
     vocabulary.
+
+
+### 2026-09-24 — Authoritative-protocol execution iteration 12 (FAILED)
+
+e222785beb18e8423b19128c0029e98e0dab4310 — fix: align checkpoint round trip with A-Z contract
+3ea7d41610a69ab9579b5bfd398bfc7d5451107a — fix: enforce browser model compatibility metadata
+ae632e22a35f4b9d95c5c48f1810263ba024b8b0 — fix: publish only built frontend assets
+
+Findings during iteration 12:
+    checkpoint round-trip test expected a three-class production checkpoint
+    while the active loader requires the fixed A-Z/26-class production vocabulary
+    FIXED by testing configurable width/embedding with the active A-Z vocabulary
+
+    browser model/adapter acceptance allowed missing compatibility metadata
+    FIXED by enforcing metadata and adapter method/version/label checks at runtime
+
+    Render static publishing used the frontend workspace root
+    FIXED by publishing only the Vite dist directory
+
+Verification exposed additional defects:
+    the adapter prediction fixture was changed from repeated A/B exemplars to
+    six distinct exemplars, removing the deterministic invariant that the query
+    exactly matches the A prototype
+    FIX REQUIRED
+
+    making browser compatibility fields required in the shared payload type made
+    the local-demo return object fail the TypeScript contract
+    FIX REQUIRED
+
+Iteration 12 outcome:
+    RESULT: FAILED
+    RESTART REQUIRED: YES
+    downstream evidence invalidated: YES
