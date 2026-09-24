@@ -51,6 +51,8 @@ export function flattenHandLandmarks(landmarks: LandmarkPoint[] | undefined): nu
 }
 
 function handedLabel(entry: any): string {
+  // Training and browser inference both consume the raw MediaPipe Tasks
+  // handedness result. Do not add a mirror-specific swap in only one path.
   return String(
     entry?.categoryName ??
       entry?.category_name ??
