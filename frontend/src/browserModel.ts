@@ -28,6 +28,8 @@ export type BrowserAdapterPayload = {
   version: number;
   method: string;
   base_model_version: string;
+  preprocessing_version?: string;
+  landmark_runtime?: string;
   base_model_sha256: string;
   feature_dim: number;
   embedding_dim: number;
@@ -254,6 +256,14 @@ export class BrowserLetterAdapter {
 
     if (payload.base_model_sha256 !== this.model.modelSha256) {
       throw new Error("Adapter requires recalibration for the current model");
+    }
+
+    if (payload.preprocessing_version && payload.preprocessing_version !== PREPROCESSING_VERSION) {
+      throw new Error("Adapter preprocessing is incompatible with the current model");
+    }
+
+    if (payload.landmark_runtime && payload.landmark_runtime !== LANDMARK_RUNTIME) {
+      throw new Error("Adapter landmark runtime is incompatible with the current model");
     }
 
     for (const [letter, values] of Object.entries(payload.prototypes)) {
