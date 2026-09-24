@@ -1239,6 +1239,20 @@ Verification boundary:
     signer-independent evaluation          REQUIRED / BLOCKED BY VERIFIED SIGNER METADATA
     browser camera runtime                  NOT VERIFIED
     live Render verification                NOT VERIFIED
+
+### 2026-09-24 — Restart #6: enforce calibration shot contract
+
+142dfa77397260c06ea08aff6147b0e427e1aa3f — fix: enforce three calibration shots
+069ac9cc60bae24be2da18b493728615398e0235 — test: enforce calibration shot minimum
+
+Finding corrected:
+    backend accepted fewer calibration shots than the active UI contract   FIXED
+
+Verification boundary:
+    source-level re-audit                     STATIC VERIFIED
+    full local test suite                    NOT VERIFIED
+    real-data training                     NOT VERIFIED
+    signer-independent evaluation          REQUIRED / BLOCKED BY VERIFIED SIGNER METADATA
 ## Current correction state
 
     training/browser landmark mismatch      CORRECTED
