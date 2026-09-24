@@ -35,7 +35,7 @@ The base model remains trainable, versioned, hot-reloadable, and replaceable aft
 
 The default model uses 126 input features, a 128-unit hidden layer, a 64D embedding, and 26 A-Z outputs. These are defaults, not immutable architecture limits.
 
-Hidden width, embedding width, dropout, and output vocabulary are stored in the checkpoint and can scale with future datasets and model iterations. No network width or weight set is treated as permanently fixed. The backend hot-reloads a changed checkpoint, while existing adapters record the model version and checkpoint hash and require recalibration when the embedding space changes.
+Hidden width, embedding width, and dropout are checkpoint-defined within the active V3 input/output contract. The active V3 runtime remains 126D input with the A-Z vocabulary. A future input or vocabulary change requires a new model version, updated preprocessing/runtime contracts, and a fresh validation cycle. The backend hot-reloads compatible checkpoints, while existing adapters record the model version and checkpoint hash and require recalibration when the embedding space changes.
 
 ## Few-shot signer adapter
 
