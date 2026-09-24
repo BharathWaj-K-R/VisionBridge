@@ -172,6 +172,41 @@ FULL RESTART COMPLETED:
 FINAL STATUS:
     Calibration shot-count contract is enforced; real-data and signer-holdout evidence remain NOT VERIFIED / BLOCKED.
 
+
+---
+
+# 11. 2026-09-24 — Authoritative-protocol execution iteration 1 (FAILED)
+
+STEP 1-4 execution uncovered multiple contract defects and one environment execution limit.
+
+External execution limit:
+    Local container could not clone GitHub because DNS/network access to github.com is unavailable.
+    This is an environment limitation, not evidence that the repository clone is broken.
+
+Defects fixed before restart:
+    camera permissions policy disabled getUserMedia                     FIXED
+    V3 checkpoint loader accepted wrong input/class contract             FIXED
+    non-finite checkpoint tensors were not rejected                     FIXED
+    train/validation split could leave a class on one side only         FIXED
+    train/test exact duplicates were only warned about                  FIXED
+    notebook hand-model asset check was incomplete                      FIXED
+    local demo calibration bypassed three-shot requirement               FIXED
+
+Verification boundary:
+    source-level checks                      STATIC VERIFIED
+    local full test suite                    NOT VERIFIED
+    local build                             NOT VERIFIED
+    real-data preparation                   NOT RUN
+    real-data training                      NOT RUN
+    signer-independent evaluation           REQUIRED / BLOCKED BY VERIFIED SIGNER METADATA
+    browser camera runtime                  NOT VERIFIED
+    Render runtime                          NOT VERIFIED
+
+Protocol result:
+    RESULT: FAILED
+    RESTART REQUIRED: YES
+    downstream evidence invalidated: YES
+
 # 1. Active model contract
 
     Input:          126 normalized landmark values
