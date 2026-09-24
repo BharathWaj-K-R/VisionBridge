@@ -1180,6 +1180,29 @@ Restart status:
     full local suite                       NOT VERIFIED
     real-data training                     NOT VERIFIED
     signer-independent evaluation          REQUIRED / BLOCKED BY SIGNER METADATA
+
+### 2026-09-24 — Restart #4: deployment, dataset asset, and demo-path hardening
+
+c91e1650e925414a30e8757310fa01c5926c82cf — fix: use liveness endpoint for Render health
+c8ac76a52f10329aad43308836ca60490372b2f6 — fix: pin hand landmarker asset integrity
+7d65acbf8041a8c5645ae05bbdeda9b3d2471df8 — fix: clean up failed camera startup
+abaf9ca9fd33e4c9984e48e578f975b4aaacfb16 — fix: isolate local demo data by user
+d97781d66045efc490aae7e75607956d236b54a4 — fix: throttle local prediction history semantics
+1e724495d8e478a56f8558031b0791ebfacde956 — fix: throttle local recognition history
+
+Findings corrected:
+    Render health check depended on missing model readiness       FIXED
+    cached hand-landmarker asset accepted without integrity check FIXED
+    camera startup failure could leak created tracker/stream       FIXED
+    local demo data was shared between browser users              FIXED
+    local recognition spammed history on every prediction tick    FIXED
+
+Verification boundary:
+    current CI workflow                    DISABLED / NOT RUN
+    source-level audit                     IN PROGRESS
+    full local test suite                  NOT VERIFIED
+    real-data training                     NOT VERIFIED
+    signer-independent evaluation          REQUIRED / BLOCKED BY VERIFIED SIGNER METADATA
 ## Current correction state
 
     training/browser landmark mismatch      CORRECTED
@@ -1190,7 +1213,7 @@ Restart status:
     train/validation duplicate leakage      PREVENTED
     evaluation visibility                   IMPROVED
     dependency drift                        REDUCED
-    signer-independent evaluation           REQUIRED / BLOCKED BY SIGNER METADATA
+    signer-independent evaluation           REQUIRED / BLOCKED BY VERIFIED SIGNER METADATA
     V3 binary checkpoint in repository      PENDING
     browser real-device verification        NOT VERIFIED
     live Render real-mode verification      NOT VERIFIED
