@@ -8,8 +8,8 @@ export type BrowserLayer = {
 export type BrowserModelPayload = {
   model_version: string;
   model_sha256: string;
-  preprocessing_version?: string;
-  landmark_runtime?: string;
+  preprocessing_version: string;
+  landmark_runtime: string;
   input_dim: number;
   hidden_dim: number;
   embedding_dim: number;
@@ -28,15 +28,15 @@ export type BrowserAdapterPayload = {
   version: number;
   method: string;
   base_model_version: string;
-  preprocessing_version?: string;
-  landmark_runtime?: string;
+  preprocessing_version: string;
+  landmark_runtime: string;
   base_model_sha256: string;
   feature_dim: number;
   embedding_dim: number;
   prototypes: Record<string, number[]>;
   shots: Record<string, number>;
   calibration_samples?: Array<{ letter: string; hand_keypoints: number[] }>;
-  base_model_labels?: string[];
+  base_model_labels: string[];
 };
 
 function gelu(value: number): number {
@@ -119,11 +119,17 @@ export class BrowserLetterModel {
       throw new Error("Browser model label metadata is invalid");
     }
 
-    if (payload.preprocessing_version && payload.preprocessing_version !== PREPROCESSING_VERSION) {
+    if (payload.preprocessing_version !== PREPROCESSING_VERSION) {
       throw new Error("Browser model preprocessing is incompatible");
     }
-    if (payload.landmark_runtime && payload.landmark_runtime !== LANDMARK_RUNTIME) {
+    if (payload.landmark_runtime !== LANDMARK_RUNTIME) {
       throw new Error("Browser model landmark runtime is incompatible");
+    }
+    if (
+      payload.labels.length !== 26 ||
+      payload.labels.join("") !== "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    ) {
+      throw new Error("Browser model label vocabulary is incompatible");
     }
 
     this.modelVersion = payload.model_version;
@@ -246,8 +252,13 @@ export class BrowserLetterAdapter {
   }
 
   private load(payload: BrowserAdapterPayload): void {
-    if (payload.feature_dim !== 126 || payload.embedding_dim !== this.model.embeddingDim) {
-      throw new Error("Adapter does not match the current model dimensions");
+    if (
+      payload.version !== 4 ||
+      payload.method !== "dynamic-base-embedding-prototype" ||
+      payload.feature_dim !== 126 ||
+      payload.embedding_dim !== this.model.embeddingDim
+    ) {
+      throw new Error("Adapter contract does not match the current model");
     }
 
     if (payload.base_model_version !== this.model.modelVersion) {
@@ -258,17 +269,29 @@ export class BrowserLetterAdapter {
       throw new Error("Adapter requires recalibration for the current model");
     }
 
-    if (payload.preprocessing_version && payload.preprocessing_version !== PREPROCESSING_VERSION) {
+    if (payload.preprocessing_version !== PREPROCESSING_VERSION) {
       throw new Error("Adapter preprocessing is incompatible with the current model");
     }
 
-    if (payload.landmark_runtime && payload.landmark_runtime !== LANDMARK_RUNTIME) {
+    if (payload.landmark_runtime !== LANDMARK_RUNTIME) {
       throw new Error("Adapter landmark runtime is incompatible with the current model");
     }
 
+    if (
+      payload.base_model_labels.length !== this.model.labels.length ||
+      payload.base_model_labels.some((label, index) => label !== this.model.labels[index])
+    ) {
+      throw new Error("Adapter label vocabulary is incompatible with the current model");
+    }
+
     for (const [letter, values] of Object.entries(payload.prototypes)) {
-      if (!Array.isArray(values) || values.length !== this.model.embeddingDim) {
-        throw new Error("Adapter prototype dimension is invalid");
+      if (
+        !this.model.labels.includes(letter) ||
+        !Array.isArray(values) ||
+        values.length !== this.model.embeddingDim ||
+        !values.every((value) => Number.isFinite(value))
+      ) {
+        throw new Error("Adapter prototype is invalid");
       }
       this.prototypes.set(letter, unit(Float32Array.from(values)));
     }
