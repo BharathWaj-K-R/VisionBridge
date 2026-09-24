@@ -14,6 +14,8 @@ EMBEDDING_DIM = 64
 NUM_CLASSES = 26
 LETTER_LABELS = tuple("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 MODEL_VERSION = "visionbridge-letter-base-v3"
+PREPROCESSING_VERSION = "two-hand-wrist-scale-v1"
+LANDMARK_RUNTIME = "mediapipe-hand-landmarker-0.10.35"
 
 
 class VisionBridgeLetterBaseModel(nn.Module):
@@ -68,6 +70,8 @@ class VisionBridgeLetterBaseModel(nn.Module):
 def build_checkpoint(model: VisionBridgeLetterBaseModel) -> dict:
     return {
         "model_version": MODEL_VERSION,
+        "preprocessing_version": PREPROCESSING_VERSION,
+        "landmark_runtime": LANDMARK_RUNTIME,
         "input_dim": model.input_dim,
         "hidden_dim": model.hidden_dim,
         "embedding_dim": model.embedding_dim,
@@ -98,6 +102,10 @@ def load_checkpoint(path: str | Path) -> VisionBridgeLetterBaseModel:
         raise ValueError("Letter base-model checkpoint must be a dictionary")
     if payload.get("model_version") != MODEL_VERSION:
         raise ValueError("Unsupported letter base-model version")
+    if payload.get("preprocessing_version") not in (None, PREPROCESSING_VERSION):
+        raise ValueError("Unsupported letter base-model preprocessing version")
+    if payload.get("landmark_runtime") not in (None, LANDMARK_RUNTIME):
+        raise ValueError("Unsupported letter base-model landmark runtime")
 
     try:
         labels = tuple(payload.get("labels", ()))
@@ -138,6 +146,8 @@ def build_browser_payload(model: VisionBridgeLetterBaseModel, model_sha256: str)
     return {
         "model_version": MODEL_VERSION,
         "model_sha256": model_sha256,
+        "preprocessing_version": PREPROCESSING_VERSION,
+        "landmark_runtime": LANDMARK_RUNTIME,
         "input_dim": model.input_dim,
         "hidden_dim": model.hidden_dim,
         "embedding_dim": model.embedding_dim,
