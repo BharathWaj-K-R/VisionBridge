@@ -90,3 +90,14 @@ def test_letter_routes_use_separate_calibration_and_recognition_limits():
     settings = get_settings()
     assert letter_api._calibration_limiter.limit == settings.CALIBRATION_RATE_LIMIT_PER_MINUTE
     assert letter_api._recognition_limiter.limit == settings.TRANSLATE_RATE_LIMIT_PER_MINUTE
+
+
+def test_limiter_prunes_stale_client_buckets():
+    limiter = SlidingWindowRateLimiter(limit=1, window_seconds=0.05)
+    allowed, _ = limiter.check("stale-client")
+    assert allowed
+    time.sleep(0.06)
+
+    limiter.check("fresh-client")
+
+    assert "stale-client" not in limiter._hits
