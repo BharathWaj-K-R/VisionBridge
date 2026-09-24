@@ -1198,3 +1198,10 @@ Remaining release boundary:
 - This branch is not a live Render deployment of the new commit.
 - Browser camera/model behavior and production Render E2E remain separate verification stages.
 - No claim is made that backend model quality has changed.
+
+
+## 2026-09-24 — Pipeline scope correction
+
+The GitHub Actions verification workflow added during frontend repair was removed after the repository deployment requirement was clarified: VisionBridge must not introduce a GitHub CI/CD pipeline.
+
+Verification remains documented from the already completed local/hosted check, but no workflow is retained in the repository.
