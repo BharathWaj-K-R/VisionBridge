@@ -40,7 +40,7 @@ class LetterCalibrationSample(BaseModel):
 class LetterCalibrationRequest(BaseModel):
     user_id: int = Field(gt=0)
     calibration_seconds: float = Field(default=1, ge=0)
-    samples: list[LetterCalibrationSample] = Field(min_length=2)
+    samples: list[LetterCalibrationSample] = Field(min_length=2, max_length=130)
 
     @model_validator(mode="after")
     def validate_shot_counts(self) -> "LetterCalibrationRequest":
