@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -28,6 +30,7 @@ def test_adapter_delete_preserves_history_and_clears_adapter_reference():
     import uuid
     from app.db.models import SignerAdapter, TranslationLog, User
     from app.db.session import SessionLocal
+    from app.core.config import get_settings
     from app.core.security import hash_password
 
     username = f"delete-user-{uuid.uuid4().hex[:8]}"
@@ -39,7 +42,7 @@ def test_adapter_delete_preserves_history_and_clears_adapter_reference():
 
     adapter = SignerAdapter(
         owner_id=user.id,
-        weights_path=str(__import__("pathlib").Path(__import__("app.core.config", fromlist=["get_settings"]).get_settings().ADAPTER_WEIGHTS_DIR) / "letter_adapter_test.json"),
+        weights_path=str(Path(get_settings().ADAPTER_WEIGHTS_DIR) / "letter_adapter_test.json"),
         calibration_seconds=3,
         param_count=126,
     )
