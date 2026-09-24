@@ -1,5 +1,7 @@
 from fastapi.testclient import TestClient
 
+import pytest
+
 from app.main import app
 
 client = TestClient(app)
@@ -38,3 +40,21 @@ def test_security_headers_are_present():
     assert response.headers["X-Frame-Options"] == "DENY"
     assert response.headers["Referrer-Policy"] == "no-referrer"
     assert response.headers["Permissions-Policy"] == "camera=(), microphone=(), geolocation=()"
+
+
+def test_evaluator_requires_all_a_z_classes(tmp_path):
+    import numpy as np
+    from app.models.letter_model import VisionBridgeLetterBaseModel, save_checkpoint
+    from app.training.evaluate_letter_base import evaluate
+
+    checkpoint = tmp_path / "base.pt"
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    save_checkpoint(VisionBridgeLetterBaseModel(), checkpoint)
+
+    x = np.zeros((26, 126), dtype=np.float32)
+    y = np.zeros(26, dtype=np.int64)
+    np.savez_compressed(data_dir / "test.npz", x=x, y=y)
+
+    with pytest.raises(ValueError, match="missing required A-Z classes"):
+        evaluate(checkpoint, data_dir, "test", 26)
