@@ -112,9 +112,17 @@ export function useLandmarkSession(sampleFps: number) {
         throw new Error("Camera start cancelled");
       }
 
+      const video = videoRef.current;
+      if (!video) throw new Error("Camera preview is unavailable");
+
       streamRef.current = stream;
-      videoRef.current.srcObject = stream;
-      await videoRef.current.play();
+      video.srcObject = stream;
+      await video.play();
+
+      if (startGeneration !== startGenerationRef.current || videoRef.current !== video) {
+        throw new Error("Camera start cancelled");
+      }
+
       activeRef.current = true;
       setRunning(true);
       setStatus("Live · hand tracking");
