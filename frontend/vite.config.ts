@@ -3,9 +3,8 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
-  // Relative asset URLs make the compiled bundle usable both from the
-  // correct static publish root (frontend/dist) and from /dist/index.html
-  // when an existing Render service still publishes frontend/.
+  // Relative asset URLs keep the compiled bundle self-contained when Render
+  // publishes the Vite output directory directly.
   base: './',
   build: {
     outDir: 'dist',
