@@ -1600,3 +1600,32 @@ Example:
     -> RE-AUDIT
 
 Every future repository change must update this file before the engineering cycle is considered complete.
+
+### 2026-09-24 — Authoritative-protocol execution iteration 11 (FAILED)
+
+9ea571e7426707182453f81496cd604bc86ed9aa — fix: align adapter tests with three-shot contract
+
+Finding:
+    after the service-level three-shot calibration contract was enforced,
+    several existing adapter tests still supplied only two examples per letter.
+    Those fixtures would fail before reaching the behavior each test intended to verify.
+
+Fix:
+    updated successful adapter fixtures to provide at least three examples for
+    every calibrated letter. The negative three-shot regression test remains
+    intentionally under-provisioned.
+
+Verification:
+    static fixture audit completed against the current service contract.
+
+Iteration 11 outcome:
+    RESULT: FAILED
+    RESTART REQUIRED: YES
+    downstream evidence invalidated: YES
+
+Trigger for iteration 12:
+    static re-audit found a separate checkpoint-contract contradiction:
+    test_checkpoint_round_trip_preserves_dynamic_configuration creates a
+    three-class checkpoint and expects load_checkpoint() to accept it, while
+    the active production loader intentionally requires the fixed A-Z/26-class
+    vocabulary.
