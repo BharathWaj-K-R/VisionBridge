@@ -1683,3 +1683,28 @@ Iteration 13 outcome:
 Trigger for iteration 14:
     protocol requires a full restart after the documentation residue was
     discovered during Step 8/verification.
+
+
+### 2026-09-24 — Authoritative-protocol execution iteration 14 (FAILED)
+
+8fdc265f40651b39a179b84ef43f0cd8763e8420 — fix: preserve history when deleting adapters
+ed647fce28416c6b46453541a96e2347842c8e68 — test: cover adapter deletion with history
+6f987c20f5af1512a37fefd01a1e2a64e565b984 — fix: keep adapter deletion fixture inside managed directory
+
+Finding:
+    SQLite foreign-key enforcement made adapter deletion fail when retained
+    prediction logs referenced that adapter.
+
+Fix:
+    deletion now clears TranslationLog.adapter_id before deleting the adapter,
+    preserving the historical prediction data.
+
+Verification follow-up found:
+    the new regression test initially used a weights path outside the managed
+    adapter directory, conflicting with the safe deletion guard. The fixture
+    was corrected to live inside the configured adapter directory.
+
+Iteration 14 outcome:
+    RESULT: FAILED
+    RESTART REQUIRED: YES
+    downstream evidence invalidated: YES
