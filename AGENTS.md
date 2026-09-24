@@ -1085,7 +1085,7 @@ Dataset outputs:
 41090105b6c830e83fb9eca9c976fe41a36c3589 — document unified landmark runtime and evaluation
 6ef9210366b7f2d0e528dfd3ef8a6b5a329c76bd — document ML parity and evaluation gates
 fc4c474ee919b0a60e4f2d519bb58842c6982f42 — record critical ML pipeline corrections
-bd38f90d7457801612f02d3ee654dfb5? — record uploaded checkpoint audit
+bd38f90d7457801612f02d3ee654d4f56f097069 — record uploaded checkpoint audit
 
 Note: the checkpoint-audit commit recorded the supplied V3 checkpoint structure, size, and SHA-256. The binary checkpoint itself is still not stored in this repository because the available GitHub write interface cannot upload binary model files.
 
