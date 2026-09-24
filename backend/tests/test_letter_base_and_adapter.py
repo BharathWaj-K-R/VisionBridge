@@ -382,3 +382,15 @@ def test_train_validation_split_rejects_same_image_under_multiple_labels():
             validation_ratio=0.2,
             seed=42,
         )
+
+
+def test_calibration_request_rejects_more_than_130_samples():
+    samples = [{"letter": "A", "hand_keypoints": _pair(index)} for index in range(130)]
+    samples[1]["letter"] = "B"
+    samples[2]["letter"] = "B"
+    samples[3]["letter"] = "B"
+
+    with pytest.raises(ValueError):
+        LetterCalibrationRequest(user_id=1, samples=samples + [
+            {"letter": "C", "hand_keypoints": _pair(999)}
+        ])
