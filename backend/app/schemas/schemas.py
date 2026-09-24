@@ -1,5 +1,6 @@
 """Pydantic API contracts for VisionBridge."""
 import datetime as dt
+from collections import Counter
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -40,6 +41,18 @@ class LetterCalibrationRequest(BaseModel):
     user_id: int = Field(gt=0)
     calibration_seconds: float = Field(default=1, ge=0)
     samples: list[LetterCalibrationSample] = Field(min_length=2)
+
+    @model_validator(mode="after")
+    def validate_shot_counts(self) -> "LetterCalibrationRequest":
+        counts = Counter(sample.letter.upper() for sample in self.samples)
+        insufficient = sorted(letter for letter, count in counts.items() if count < 3)
+        if insufficient:
+            raise ValueError(
+                "Each calibrated letter requires at least 3 examples: {}".format(
+                    ", ".join(insufficient)
+                )
+            )
+        return self
 
 
 class LetterCalibrationResult(BaseModel):
