@@ -15,6 +15,7 @@ export function useLandmarkSession(sampleFps: number) {
   const streamRef = useRef<MediaStream | null>(null);
   const activeRef = useRef(false);
   const startingRef = useRef(false);
+  const startGenerationRef = useRef(0);
   const lastSampleRef = useRef(0);
   const framesRef = useRef<LandmarkFrame[]>([]);
   const latestFrameRef = useRef<LandmarkFrame | null>(null);
@@ -27,6 +28,7 @@ export function useLandmarkSession(sampleFps: number) {
   const [fps, setFps] = useState(0);
 
   const stop = useCallback(() => {
+    startGenerationRef.current += 1;
     activeRef.current = false;
     setRunning(false);
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -43,6 +45,8 @@ export function useLandmarkSession(sampleFps: number) {
   const start = useCallback(async () => {
     if (activeRef.current || startingRef.current) return;
     startingRef.current = true;
+    const startGeneration = startGenerationRef.current + 1;
+    startGenerationRef.current = startGeneration;
 
     let hands: Awaited<ReturnType<typeof createHands>> | null = null;
     let stream: MediaStream | null = null;
@@ -87,6 +91,10 @@ export function useLandmarkSession(sampleFps: number) {
 
       handsRef.current = hands;
 
+      if (startGeneration !== startGenerationRef.current || !videoRef.current) {
+        throw new Error("Camera start cancelled");
+      }
+
       stream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 640, max: 960 },
@@ -97,7 +105,12 @@ export function useLandmarkSession(sampleFps: number) {
         audio: false,
       });
 
-      if (!videoRef.current) throw new Error("Camera preview is unavailable");
+      if (
+        startGeneration !== startGenerationRef.current
+        || !videoRef.current
+      ) {
+        throw new Error("Camera start cancelled");
+      }
 
       streamRef.current = stream;
       videoRef.current.srcObject = stream;
@@ -137,6 +150,11 @@ export function useLandmarkSession(sampleFps: number) {
     } catch (error) {
       stream?.getTracks().forEach((track) => track.stop());
       hands?.close?.();
+
+      if (startGeneration !== startGenerationRef.current) {
+        return;
+      }
+
       stop();
       setStatus(error instanceof Error ? error.message : "Camera start failed");
       throw error;
