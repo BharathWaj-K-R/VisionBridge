@@ -1,3 +1,5 @@
+import { FilesetResolver, HandLandmarker } from "@mediapipe/tasks-vision";
+
 export const HAND_DIM = 63;
 export const COMBINED_HAND_DIM = 126;
 
@@ -10,8 +12,12 @@ export const HAND_CONNECTIONS: ReadonlyArray<readonly [number, number]> = [
   [0, 17],
 ];
 
-const LEFT = "Left";
-const RIGHT = "Right";
+const LEFT = "left";
+const RIGHT = "right";
+const TASKS_WASM_URL =
+  "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm";
+const HAND_MODEL_URL =
+  "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
 
 export type LandmarkPoint = { x: number; y: number; z?: number };
 export type LandmarkFrame = {
@@ -22,6 +28,13 @@ export type LandmarkFrame = {
   leftLandmarks?: LandmarkPoint[];
   rightLandmarks?: LandmarkPoint[];
   timestamp: number;
+};
+
+type HandLandmarkerResultLike = {
+  landmarks?: LandmarkPoint[][];
+  handednesses?: Array<Array<{ categoryName?: string; category_name?: string; label?: string }>>;
+  multiHandLandmarks?: LandmarkPoint[][];
+  multiHandedness?: Array<Array<{ categoryName?: string; category_name?: string; label?: string }>>;
 };
 
 function finite(value: unknown): number {
@@ -38,21 +51,28 @@ export function flattenHandLandmarks(landmarks: LandmarkPoint[] | undefined): nu
 }
 
 function handedLabel(entry: any): string {
-  const label = String(entry?.classification?.[0]?.label || entry?.label || "");
-  // MediaPipe Hands assumes a mirrored selfie input for handedness. The raw
-  // browser video is unmirrored, so swap labels here while the CSS preview
-  // remains mirrored for the signer.
-  if (label === LEFT) return RIGHT;
-  if (label === RIGHT) return LEFT;
-  return label;
+  return String(
+    entry?.categoryName ??
+      entry?.category_name ??
+      entry?.label ??
+      "",
+  ).trim().toLowerCase();
 }
 
-export function frameFromResults(results: any): LandmarkFrame {
-  const multi = Array.isArray(results?.multiHandLandmarks) ? results.multiHandLandmarks : [];
-  const handedness = Array.isArray(results?.multiHandedness) ? results.multiHandedness : [];
+export function frameFromResults(results: HandLandmarkerResultLike): LandmarkFrame {
+  const multi = Array.isArray(results?.landmarks)
+    ? results.landmarks
+    : Array.isArray(results?.multiHandLandmarks)
+      ? results.multiHandLandmarks
+      : [];
+  const handedness = Array.isArray(results?.handednesses)
+    ? results.handednesses
+    : Array.isArray(results?.multiHandedness)
+      ? results.multiHandedness
+      : [];
 
-  const leftIndex = handedness.findIndex((entry: any) => handedLabel(entry) === LEFT);
-  const rightIndex = handedness.findIndex((entry: any) => handedLabel(entry) === RIGHT);
+  const leftIndex = handedness.findIndex((entry) => handedLabel(entry?.[0]) === LEFT);
+  const rightIndex = handedness.findIndex((entry) => handedLabel(entry?.[0]) === RIGHT);
 
   const leftLandmarks = leftIndex >= 0 ? multi[leftIndex] : undefined;
   const rightLandmarks = rightIndex >= 0 ? multi[rightIndex] : undefined;
@@ -132,19 +152,32 @@ function drawHand(
     const point = landmarks[index];
     if (!point) continue;
     context.beginPath();
-    context.arc(point.x * width, point.y * height, index === 0 ? jointRadius + 1.5 : jointRadius, 0, Math.PI * 2);
+    context.arc(
+      point.x * width,
+      point.y * height,
+      index === 0 ? jointRadius + 1.5 : jointRadius,
+      0,
+      Math.PI * 2,
+    );
     context.fill();
   }
 
   context.font = "700 11px Avenir Next, Helvetica, sans-serif";
-  context.fillText(label, label === "LEFT" ? 12 : Math.max(12, width - 50), 18);
+  context.fillText(
+    label,
+    label === "LEFT" ? 12 : Math.max(12, width - 50),
+    18,
+  );
 }
 
 export function drawHands(
   canvas: HTMLCanvasElement,
   left: LandmarkPoint[] | undefined,
   right: LandmarkPoint[] | undefined,
-  traces: { left: Array<[number, number]>; right: Array<[number, number]> } = { left: [], right: [] },
+  traces: {
+    left: Array<[number, number]>;
+    right: Array<[number, number]>;
+  } = { left: [], right: [] },
 ): void {
   const width = canvas.width;
   const height = canvas.height;
@@ -187,42 +220,36 @@ export function drawHands(
   drawHand(context, right, width, height, "RIGHT", 2.5, 3.0);
 }
 
-export function loadMediaPipeHands(): Promise<any> {
-  return new Promise((resolve, reject) => {
-    const existing = document.querySelector('script[data-vb-mediapipe="hands"]') as HTMLScriptElement | null;
-    if (existing) {
-      if ((window as any).Hands) return resolve((window as any).Hands);
-      existing.addEventListener("load", () => resolve((window as any).Hands));
-      existing.addEventListener("error", () => reject(new Error("MediaPipe Hands failed to load")));
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/hands.js";
-    script.crossOrigin = "anonymous";
-    script.dataset.vbMediapipe = "hands";
-    script.onload = () => {
-      const Hands = (window as any).Hands;
-      if (!Hands) reject(new Error("MediaPipe Hands global is unavailable"));
-      else resolve(Hands);
-    };
-    script.onerror = () => reject(new Error("Failed to load MediaPipe Hands"));
-    document.head.appendChild(script);
-  });
-}
-
-export async function createHands(onResults: (results: any) => void): Promise<any> {
-  const Hands = await loadMediaPipeHands();
-  const hands = new Hands({
-    locateFile: (file: string) => "https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/" + file,
-  });
-
-  hands.setOptions({
-    maxNumHands: 2,
-    modelComplexity: 0,
-    minDetectionConfidence: 0.5,
+export async function createHands(
+  onResults: (results: HandLandmarkerResultLike) => void,
+): Promise<{
+  send: (payload: { image: HTMLVideoElement }) => Promise<void>;
+  close: () => void;
+}> {
+  const vision = await FilesetResolver.forVisionTasks(TASKS_WASM_URL);
+  const handLandmarker = await HandLandmarker.createFromOptions(vision, {
+    baseOptions: {
+      modelAssetPath: HAND_MODEL_URL,
+      delegate: "GPU",
+    },
+    runningMode: "VIDEO",
+    numHands: 2,
+    minHandDetectionConfidence: 0.5,
+    minHandPresenceConfidence: 0.5,
     minTrackingConfidence: 0.5,
   });
-  hands.onResults(onResults);
-  return hands;
+
+  let lastTimestamp = -1;
+
+  return {
+    async send({ image }: { image: HTMLVideoElement }) {
+      const timestamp = Math.max(Math.round(performance.now()), lastTimestamp + 1);
+      lastTimestamp = timestamp;
+      const result = handLandmarker.detectForVideo(image, timestamp);
+      onResults(result as unknown as HandLandmarkerResultLike);
+    },
+    close() {
+      handLandmarker.close();
+    },
+  };
 }
