@@ -1047,3 +1047,16 @@ state guards to the result callback and stale error path.
 The repaired guards were source-verified. Per the authoritative restart
 protocol, iteration 18 is failed and downstream evidence is invalidated.
 Iteration 19 restarts from Step 1.
+
+
+## 2026-09-24 — Protocol iteration 19 failure
+
+The account regression tests introduced during the adapter persistence repair
+used dynamic __import__ expressions where explicit imports were available.
+
+Commit 05f2bfdb036eba741ad669e69a1b22ed0caa19d9 replaced them with ordinary
+explicit imports. Source verification confirms no __import__ remains in the
+test file.
+
+Per the authoritative restart protocol, iteration 19 is failed and downstream
+evidence is invalidated. Iteration 20 restarts from Step 1.
