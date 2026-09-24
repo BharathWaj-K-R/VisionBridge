@@ -10,7 +10,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
-from app.models.letter_model import INPUT_DIM, load_checkpoint
+from app.models.letter_model import INPUT_DIM, LANDMARK_RUNTIME, MODEL_VERSION, PREPROCESSING_VERSION, load_checkpoint
 
 
 def load_split(root: Path, name: str) -> tuple[torch.Tensor, torch.Tensor]:
@@ -115,7 +115,9 @@ def evaluate(
         "confusion_matrix": confusion.tolist(),
         "labels": list(model.labels),
         "model": {
-            "model_version": "visionbridge-letter-base-v3",
+            "model_version": MODEL_VERSION,
+            "preprocessing_version": PREPROCESSING_VERSION,
+            "landmark_runtime": LANDMARK_RUNTIME,
             "input_dim": model.input_dim,
             "hidden_dim": model.hidden_dim,
             "embedding_dim": model.embedding_dim,
