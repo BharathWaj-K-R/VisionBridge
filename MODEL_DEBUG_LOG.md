@@ -45,6 +45,32 @@ FULL RESTART COMPLETED:
 FINAL STATUS:
     Code corrections recorded. Full runtime, real-data, held-out signer, browser, and Render gates remain NOT VERIFIED or BLOCKED as documented.
 
+
+---
+
+# 0B. 2026-09-24 — Restart #2
+
+FAILED STEP: post-fix full re-audit
+ERRORS FOUND:
+    1. Base-model cache invalidation depended only on mtime, size, and inode.
+    2. README still contained legacy MediaPipe Hands runtime wording.
+    3. Browser adapter loading did not validate preprocessing or landmark-runtime metadata.
+ROOT CAUSE:
+    Checkpoint identity did not include content hash in the in-memory cache key.
+    Documentation and browser adapter validation had not been updated with the complete Tasks/runtime contract.
+CORRECTION:
+    Add checkpoint SHA-256 to the hot-reload signature.
+    Align README runtime wording with MediaPipe Tasks Hand Landmarker 0.10.35.
+    Enforce browser-side adapter preprocessing and landmark-runtime metadata compatibility.
+FIX VERIFIED:
+    Static re-audit confirms the new cache signature and adapter metadata guards are present.
+DOWNSTREAM RESULTS INVALIDATED:
+    No real-data model-quality results existed to invalidate.
+FULL RESTART COMPLETED:
+    Static repository re-audit completed again after these corrections.
+FINAL STATUS:
+    Source-level hardening is complete for the discovered issues; runtime and ML evidence remain explicitly unverified or blocked.
+
 # 1. Active model contract
 
     Input:          126 normalized landmark values
@@ -347,7 +373,7 @@ Known source status:
     Uploaded V3 checkpoint accuracy:  NOT VERIFIED
     Repository checkpoint install:    PENDING
     Base held-out accuracy:           NOT VERIFIED
-    Signer held-out accuracy:         BLOCKED pending signer metadata
+    Signer held-out accuracy:         REQUIRED / BLOCKED pending signer metadata
     Browser real-model inference:     NOT VERIFIED
 
 Known successful code verification:
