@@ -1205,3 +1205,53 @@ Remaining release boundary:
 The GitHub Actions verification workflow added during frontend repair was removed after the repository deployment requirement was clarified: VisionBridge must not introduce a GitHub CI/CD pipeline.
 
 Verification remains documented from the already completed local/hosted check, but no workflow is retained in the repository.
+
+
+## 2026-09-24 — Protocol iteration 27 — Post-pipeline execution audit
+
+Step 1 — Inventory:
+- active branch: `feat/stitch-frontend-integration-v2`
+- 66 repository files visible from the branch tree
+- 18 frontend files
+- no `.github/workflows` files
+- no retired `/evaluation` route/path
+- no legacy MediaPipe Hands path detected
+- Render configuration and frontend lockfile are present
+
+Step 2 — Reproduction:
+- no new functional failure reproduced in the active source.
+- The previously repaired frontend source and adapter-contract defects remain absent.
+
+Step 3 — Isolation:
+- `frontend/src/App.tsx` declaration markers are unique.
+- App delimiter counts are balanced.
+- active routes remain dashboard, translate, calibration, history, and settings.
+- Stitch recognition/calibration UI markers remain present.
+- `@mediapipe/tasks-vision` remains pinned to 0.10.35.
+- browser preprocessing/runtime identifiers remain aligned with the active contract.
+- package.json and package-lock root dependency declarations match.
+- Render still publishes `frontend/dist` and keeps `VITE_LOCAL_MODE=true`.
+
+Step 4 — Fix:
+- no functional fix was required in iteration 27.
+- The previously added GitHub Actions workflow remains removed as required.
+
+Step 5 — Invalidation:
+- no new defect was found, so no downstream evidence required invalidation.
+
+Step 6 — Restart:
+- full source audit was repeated from Step 1 after the pipeline removal.
+
+Step 7 — Verification:
+- repository tree audit: PASS
+- no GitHub workflow pipeline: PASS
+- source contract audit: PASS
+- deployment configuration audit: PASS
+- prior hosted type-check/build/preview evidence for the unchanged functional code: PASS
+- direct live Render URL probing from this environment: BLOCKED by the web access boundary; no live deployment claim is made.
+
+Iteration 27 result:
+    CLEAN AUDIT PASS
+    no restart-triggering defect discovered
+    no GitHub CI/CD pipeline retained
+    live Render E2E remains explicitly unverified from this environment.
