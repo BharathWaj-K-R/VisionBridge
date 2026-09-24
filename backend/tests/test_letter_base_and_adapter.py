@@ -4,6 +4,7 @@ import torch
 
 from app.models.letter_model import LANDMARK_RUNTIME, PREPROCESSING_VERSION, VisionBridgeLetterBaseModel, build_browser_payload, build_checkpoint, save_checkpoint, load_checkpoint
 from app.services import letter_fewshot
+from app.scripts import prepare_letter_dataset
 
 
 def _pair(seed):
@@ -18,6 +19,40 @@ def test_checkpoint_records_preprocessing_contract():
     payload = build_checkpoint(model)
     assert payload["preprocessing_version"] == PREPROCESSING_VERSION
     assert payload["landmark_runtime"] == LANDMARK_RUNTIME
+
+
+def test_train_validation_split_keeps_exact_duplicates_together():
+    features = np.arange(26 * 4 * 126, dtype=np.float32).reshape(26 * 4, 126)
+    labels = np.repeat(np.arange(26), 4)
+    samples = []
+    for index, letter in enumerate("ABCDEFGHIJKLMNOPQRSTUVWXYZ"):
+        samples.extend(
+            [
+                {"source_path": f"{letter}/one-a.jpg", "source_split": "training", "letter": letter, "image_sha256": f"{index}-a"},
+                {"source_path": f"{letter}/one-b.jpg", "source_split": "training", "letter": letter, "image_sha256": f"{index}-a"},
+                {"source_path": f"{letter}/two-a.jpg", "source_split": "validation", "letter": letter, "image_sha256": f"{index}-b"},
+                {"source_path": f"{letter}/two-b.jpg", "source_split": "validation", "letter": letter, "image_sha256": f"{index}-b"},
+            ]
+        )
+
+    train_x, train_y, train_samples, val_x, val_y, val_samples = (
+        prepare_letter_dataset.make_train_validation_split(
+            features,
+            labels,
+            samples,
+            validation_ratio=0.5,
+            seed=42,
+        )
+    )
+
+    train_hashes = {item["image_sha256"] for item in train_samples}
+    val_hashes = {item["image_sha256"] for item in val_samples}
+
+    assert train_x.shape[1] == 126
+    assert val_x.shape[1] == 126
+    assert set(train_y.tolist()) == set(range(26))
+    assert set(val_y.tolist()) == set(range(26))
+    assert train_hashes.isdisjoint(val_hashes)
 
 
 def test_base_model_contract():
