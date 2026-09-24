@@ -117,12 +117,19 @@ def load_checkpoint(path: str | Path) -> VisionBridgeLetterBaseModel:
     except (TypeError, ValueError) as exc:
         raise ValueError("Letter base-model architecture metadata is invalid") from exc
 
-    if not labels or len(labels) != num_classes:
-        raise ValueError("Letter base-model label metadata is incompatible")
+    if input_dim != INPUT_DIM:
+        raise ValueError("Letter base-model input dimension is incompatible")
+    if labels != LETTER_LABELS or num_classes != NUM_CLASSES:
+        raise ValueError("Letter base-model label vocabulary is incompatible")
 
     state = payload.get("state_dict")
     if not isinstance(state, dict):
         raise ValueError("Letter base-model state_dict is missing")
+    if any(
+        not isinstance(value, torch.Tensor) or not torch.isfinite(value).all()
+        for value in state.values()
+    ):
+        raise ValueError("Letter base-model state_dict contains invalid values")
 
     model = VisionBridgeLetterBaseModel(
         input_dim=input_dim,
