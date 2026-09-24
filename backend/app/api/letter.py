@@ -31,8 +31,14 @@ from app.services.letter_fewshot import (
 
 router = APIRouter(prefix="/letter", tags=["letter recognition"])
 settings = get_settings()
-_letter_limiter = SlidingWindowRateLimiter(limit=settings.TRANSLATE_RATE_LIMIT_PER_MINUTE)
-_rate_limit = make_rate_limit_dependency(_letter_limiter)
+_recognition_limiter = SlidingWindowRateLimiter(
+    limit=settings.TRANSLATE_RATE_LIMIT_PER_MINUTE
+)
+_recognition_rate_limit = make_rate_limit_dependency(_recognition_limiter)
+_calibration_limiter = SlidingWindowRateLimiter(
+    limit=settings.CALIBRATION_RATE_LIMIT_PER_MINUTE
+)
+_calibration_rate_limit = make_rate_limit_dependency(_calibration_limiter)
 
 def _validate_vector(values: list[float]) -> None:
     if len(values) != COMBINED_HAND_DIM:
@@ -62,7 +68,7 @@ def browser_model(
     except (OSError, RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=503, detail="Letter base model is unavailable") from exc
 
-@router.post("/calibrate", response_model=LetterCalibrationResult, dependencies=[Depends(_rate_limit)])
+@router.post("/calibrate", response_model=LetterCalibrationResult, dependencies=[Depends(_calibration_rate_limit)])
 def calibrate_letters(
     payload: LetterCalibrationRequest,
     db: Session = Depends(get_db),
@@ -125,7 +131,7 @@ def get_letter_adapter(
     except (OSError, ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=409, detail="Adapter requires recalibration for the current model") from exc
 
-@router.post("/event", dependencies=[Depends(_rate_limit)])
+@router.post("/event", dependencies=[Depends(_recognition_rate_limit)])
 def log_letter_event(
     payload: LetterRecognitionEvent,
     db: Session = Depends(get_db),
@@ -166,7 +172,7 @@ def log_letter_event(
     db.commit()
     return {"logged": True}
 
-@router.post("/predict", response_model=LetterPredictionResult, dependencies=[Depends(_rate_limit)])
+@router.post("/predict", response_model=LetterPredictionResult, dependencies=[Depends(_recognition_rate_limit)])
 def predict_letter_endpoint(
     payload: LetterPredictionRequest,
     db: Session = Depends(get_db),
