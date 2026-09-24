@@ -55,14 +55,25 @@ function localUser(username?: string): User {
   return user;
 }
 
+function localScopeKey(base: string): string {
+  try {
+    const raw = localStorage.getItem(LOCAL_USER_KEY);
+    if (raw) {
+      const user = JSON.parse(raw) as { username?: string };
+      if (user.username) return base + ":" + encodeURIComponent(user.username);
+    }
+  } catch {}
+  return base + ":anonymous";
+}
+
 function localLetterAdapters(): any[] {
-  try { return JSON.parse(localStorage.getItem(LOCAL_LETTER_ADAPTERS_KEY) || "[]") as any[]; } catch { return []; }
+  try { return JSON.parse(localStorage.getItem(localScopeKey(LOCAL_LETTER_ADAPTERS_KEY)) || "[]") as any[]; } catch { return []; }
 }
-function saveLocalLetterAdapters(items: any[]): void { localStorage.setItem(LOCAL_LETTER_ADAPTERS_KEY, JSON.stringify(items)); }
+function saveLocalLetterAdapters(items: any[]): void { localStorage.setItem(localScopeKey(LOCAL_LETTER_ADAPTERS_KEY), JSON.stringify(items)); }
 function localHistory(): any[] {
-  try { return JSON.parse(localStorage.getItem(LOCAL_HISTORY_KEY) || "[]") as any[]; } catch { return []; }
+  try { return JSON.parse(localStorage.getItem(localScopeKey(LOCAL_HISTORY_KEY)) || "[]") as any[]; } catch { return []; }
 }
-function saveLocalHistory(items: any[]): void { localStorage.setItem(LOCAL_HISTORY_KEY, JSON.stringify(items.slice(-100))); }
+function saveLocalHistory(items: any[]): void { localStorage.setItem(localScopeKey(LOCAL_HISTORY_KEY), JSON.stringify(items.slice(-100))); }
 let browserModelPromise: Promise<BrowserLetterModel> | null = null;
 
 
