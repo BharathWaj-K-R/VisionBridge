@@ -133,6 +133,19 @@ function Recognize() {
           setConfidence(result.confidence || 0);
           setLatency(result.latency_ms);
           setError("");
+
+          const now = performance.now();
+          const previous = lastEventRef.current;
+          if (result.predicted_letter !== previous.letter || now - previous.time >= 1000) {
+            lastEventRef.current = { letter: result.predicted_letter, time: now };
+            void api.logLetterEvent({
+              user_id: userId,
+              adapter_id: adapterId,
+              predicted_letter: result.predicted_letter,
+              confidence: result.confidence,
+              latency_ms: result.latency_ms,
+            });
+          }
         }).catch((err) => setError(err instanceof Error ? err.message : "Recognition failed"));
         return;
       }
