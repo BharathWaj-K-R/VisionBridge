@@ -1255,3 +1255,85 @@ Iteration 27 result:
     no restart-triggering defect discovered
     no GitHub CI/CD pipeline retained
     live Render E2E remains explicitly unverified from this environment.
+
+
+## 2026-09-24 — Protocol iteration 28 — Metadata consistency failure
+
+STEP 1 — INVENTORY:
+- active branch: `feat/stitch-frontend-integration-v2`
+- current PR #6 is open against `main`
+- repository deployment requirement remains: no GitHub Actions / CI/CD pipeline
+- functional source and Render configuration are unchanged
+
+STEP 2 — REPRODUCTION:
+- PR #6 metadata still claimed that frontend CI verification had been added.
+- This contradicted the repository's current state because the temporary workflow had already been removed.
+
+STEP 3 — ISOLATION:
+- repository tree audit: no `.github/workflows`
+- source audit: previously repaired frontend contracts remain intact
+- Render audit: static frontend publishes `dist`; `VITE_LOCAL_MODE=true`
+- the inconsistency was limited to PR metadata, not application behavior
+
+STEP 4 — FIX:
+- corrected PR #6 description to remove the stale CI claim and explicitly state that GitHub Actions / CI/CD is not introduced.
+
+STEP 5 — INVALIDATION:
+- no functional or deployment evidence was invalidated because application source and Render configuration were not changed.
+- PR documentation claims were corrected before this restart could be accepted.
+
+STEP 6 — RESTART:
+- restart from Step 1 required by the execution protocol after the discovered inconsistency.
+
+## 2026-09-24 — Protocol iteration 29 — Post-metadata restart audit
+
+STEP 1 — INVENTORY:
+- active branch: `feat/stitch-frontend-integration-v2`
+- branch is 8 commits ahead of `main`, 0 behind
+- PR #6 remains open and mergeable
+- 66 repository files visible from the branch tree
+- 18 frontend files
+- no `.github/workflows` files
+- no retired `/evaluation` route/path detected
+- no legacy MediaPipe Hands path detected
+- frontend lockfile and Render configuration are present
+
+STEP 2 — REPRODUCTION:
+- no new functional failure reproduced from the repository source audit
+- previously repaired App.tsx declaration duplication and adapter metadata drift remain absent
+
+STEP 3 — ISOLATION:
+- active frontend routes remain dashboard, translate, calibration, history, and settings
+- `@mediapipe/tasks-vision` remains pinned to 0.10.35
+- browser preprocessing/runtime identifiers remain aligned with the active contract
+- package.json and package-lock root dependency declarations match
+- Render still publishes `frontend/dist` and keeps `VITE_LOCAL_MODE=true`
+- searches for TODO/FIXME/NotImplementedError and retired frontend markers returned no matches
+- PR #6 description now matches the actual no-CI repository state
+
+STEP 4 — FIX:
+- no application-code fix required in iteration 29
+- metadata correction from iteration 28 is retained
+
+STEP 5 — INVALIDATION:
+- no new defect discovered; no downstream functional evidence invalidated
+
+STEP 6 — RESTART:
+- full source/deployment/metadata audit repeated from Step 1 after the iteration 28 correction
+
+STEP 7 — VERIFICATION:
+- repository tree audit: PASS
+- no GitHub workflow pipeline: PASS
+- source contract audit: PASS
+- dependency manifest/lockfile audit: PASS
+- Render configuration audit: PASS
+- PR metadata consistency audit: PASS
+- prior npm type-check/build/preview evidence for unchanged functional code remains applicable
+- direct live Render probing from this environment: BLOCKED by web access boundary; no live E2E claim is made
+
+Iteration 29 result:
+    CLEAN PASS
+    no restart-triggering defect discovered
+    no GitHub CI/CD pipeline retained
+    PR metadata is consistent with repository scope
+    live Render E2E remains explicitly unverified
