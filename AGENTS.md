@@ -1505,6 +1505,21 @@ Iteration 7 outcome:
     RESULT: FAILED
     RESTART REQUIRED: YES
     downstream evaluation evidence invalidated: YES
+
+### 2026-09-24 — Authoritative-protocol execution iteration 8 (FAILED)
+
+a8bbfca9fa16864872b92ffe2391121230ec7d87 — fix: cap calibration payload size
+85365d5c64f6f6d9ebb3ad5d842d909fe0438e68 — test: cover calibration payload size limit
+90f2bbb5a4e1c26c81a19c0aa5f9d64d2d76084 — fix: remove retired decoder wording
+
+Findings corrected:
+    calibration API had no total sample cap beyond per-request rate limiting   FIXED
+    active dashboard referenced retired sentence-decoder architecture         FIXED
+
+Iteration 8 outcome:
+    RESULT: FAILED
+    RESTART REQUIRED: YES
+    downstream evidence invalidated: YES
 ## Current correction state
 
     training/browser landmark mismatch      CORRECTED
