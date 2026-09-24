@@ -961,3 +961,18 @@ Verification then found two downstream defects:
 
 Per the authoritative restart protocol, iteration 12 is failed and its
 downstream evidence is invalidated. Iteration 13 restarts from Step 1.
+
+
+## 2026-09-24 — Protocol iteration 13 failure
+
+Iteration 13 repaired the deterministic adapter fixture and restored optional
+TypeScript metadata fields while keeping strict runtime compatibility checks.
+
+A final verification sweep found stale deployment-layout wording in
+frontend/vite.config.ts: the comment still described an older Render publish
+layout even after staticPublishPath was changed to dist.
+
+Commit 75992bcad7775cb0c4d3e657978d3d5b27ea7c55 corrected that residue.
+
+Per the authoritative restart protocol, iteration 13 is failed and all
+downstream evidence is invalidated. Iteration 14 restarts from Step 1.
