@@ -9,7 +9,7 @@ Browser camera
  -> MediaPipe Tasks Hand Landmarker 0.10.35
  -> normalized 126D two-hand landmark vector
  -> dynamic 26-class VisionBridge letter base model
- -> 64D signer-independent embedding
+ -> 64D embedding for signer adaptation
  -> few-shot signer adapter
  -> one predicted A-Z letter + confidence
 ~~~
@@ -112,6 +112,34 @@ DISCOVER
 Change only files required by the task. Avoid destructive cleanup, especially in Colab or training environments.
 
 ---
+
+
+# Self-correcting full-restart protocol
+
+The engineering process is transactional. This repository follows the uploaded
+Self-Correcting Full-Restart Protocol as a mandatory execution rule.
+
+If any code, ML, data, integration, product, deployment, or documentation error
+is discovered:
+
+~~~text
+STOP
+-> diagnose root cause
+-> fix completely
+-> verify the fix
+-> invalidate downstream results
+-> return to STEP 1
+-> rerun the complete workflow
+~~~
+
+Never continue downstream from a state that was discovered to be defective.
+Checkpoints are monitoring markers only and never override a required restart.
+Unverified work must remain explicitly marked UNVERIFIED. A final release
+requires one complete corrected execution with no unresolved restart-triggering
+error.
+
+Signer-independent evaluation is a required release gate. Missing signer
+metadata is a blocker, not permission to remove or bypass the gate.
 
 # 2. Current product mission
 
@@ -536,7 +564,7 @@ Before switching the deployed frontend to real mode, verify at minimum:
 real base checkpoint installed
 durable production database connected
 production authentication hardened
-real backend translation verified
+real backend letter-recognition API verified
 browser camera flow verified
 ~~~
 
@@ -624,12 +652,12 @@ Current known evidence:
 
 ~~~text
 Active architecture source: STATIC VERIFIED
-Base model implementation: CI VERIFIED
-Few-shot adapter implementation: CI VERIFIED
-Letter API implementation: CI VERIFIED
-Frontend TypeScript check: CI VERIFIED
-Frontend production build: CI VERIFIED
-Production artifact verification: CI VERIFIED
+Base model implementation: HISTORICAL CI VERIFIED
+Few-shot adapter implementation: HISTORICAL CI VERIFIED
+Letter API implementation: HISTORICAL CI VERIFIED
+Frontend TypeScript check: HISTORICAL CI VERIFIED
+Frontend production build: HISTORICAL CI VERIFIED
+Production artifact verification: HISTORICAL CI VERIFIED
 Base checkpoint trained on real data: NOT VERIFIED
 Base test accuracy: NOT VERIFIED
 Held-out signer accuracy: NOT VERIFIED
@@ -642,7 +670,7 @@ Production HttpOnly authentication: NOT VERIFIED
 Known successful code verification:
 
 ~~~text
-GitHub Actions run #197
+Historical GitHub Actions run #197
 backend: 72 passed, 1 skipped
 Python compilation: PASS
 frontend TypeScript check: PASS
@@ -657,11 +685,11 @@ Do not extend the above evidence into claims about model quality or real-world r
 # 13. Current blocker board
 
 ~~~text
-A  Train base model on real ISL A-Z data            NOT VERIFIED
-B  Record held-out base test performance            BLOCKED until A
-C  Validate few-shot adaptation on held-out signer  BLOCKED until A/B
-D  Verify browser camera + real inference           NOT VERIFIED
-E  Verify live Render real-mode flow               BLOCKED until A-D
+A  Train base model on real ISL A-Z data             NOT VERIFIED
+B  Record held-out base test performance             BLOCKED until A
+C  Validate few-shot adaptation on held-out signer   REQUIRED / BLOCKED until A+B+signer metadata
+D  Verify browser camera + real inference            NOT VERIFIED
+E  Verify live Render real-mode flow                 BLOCKED until A-D
 F  Durable production database                     NOT IMPLEMENTED
 G  Production HttpOnly authentication              NOT IMPLEMENTED
 H  Production rate limiting hardening              NOT VERIFIED
@@ -1106,6 +1134,33 @@ Status:
     checkpoint accuracy = NOT VERIFIED
     binary repository installation = PENDING
 
+
+### 2026-09-24 — Self-correcting audit cycle
+
+91942ffa43fe24e5083e7f0e6976fb65f458b1eb — fix: bind rate limits to identity
+8ed63bf3a5202ab0b4be800d41f035caa9623ff6 — fix: require signer adapter recalibration
+c4a1dbf34c78eda8e9111f952762ac6f43861c09 — fix: wire calibration rate limit
+e698aded2b7f4329a3af10e2794ae8ebca3ee92e — test: enforce adapter recalibration boundary
+33ebe19c90095d97bfa2bf57b6c06728d3f5b6ae — test: cover rate-limit identity and wiring
+b2815dde7bafdcb952764614571d791735239b36 — chore: remove stale calibration setting
+f557f114ae1d2eebc609d3787352a143f1b6dc2a — docs: clarify signer evaluation and runtime
+d184a5735c9cabeef24b0fe88b43bb8dadc2c430 — chore: normalize API root wording
+
+Audit findings corrected:
+    signer adapter auto-refresh after base-model change     FIXED
+    calibration limiter wired to recognition limit          FIXED
+    invalid bearer tokens bypass shared limiter bucket      FIXED
+    stale Render calibration setting                        REMOVED
+    signer-independent embedding claim overstated          CLARIFIED
+
+Verification boundary:
+    changed-source re-audit                 STATIC VERIFIED
+    current CI workflow                      DISABLED / NOT RUN
+    local full test suite                    NOT VERIFIED in this environment
+    real-data training                       NOT VERIFIED
+    held-out signer evaluation              REQUIRED / BLOCKED BY SIGNER METADATA
+    browser camera runtime                  NOT VERIFIED
+    live Render verification                NOT VERIFIED
 ## Current correction state
 
     training/browser landmark mismatch      CORRECTED
@@ -1116,7 +1171,7 @@ Status:
     train/validation duplicate leakage      PREVENTED
     evaluation visibility                   IMPROVED
     dependency drift                        REDUCED
-    signer-independent evaluation           BLOCKED BY SIGNER METADATA
+    signer-independent evaluation           REQUIRED / BLOCKED BY SIGNER METADATA
     V3 binary checkpoint in repository      PENDING
     browser real-device verification        NOT VERIFIED
     live Render real-mode verification      NOT VERIFIED
