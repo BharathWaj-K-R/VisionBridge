@@ -442,6 +442,15 @@ def prepare_dataset(
             & set(sample["image_sha256"] for sample in test_samples)
         ),
     }
+    if duplicate_report["train_val_overlap_hashes"]:
+        raise RuntimeError(
+            "Exact duplicate image hashes overlap between train and validation"
+        )
+    if duplicate_report["train_test_overlap_hashes"] or duplicate_report["val_test_overlap_hashes"]:
+        raise RuntimeError(
+            "Exact duplicate image hashes overlap the untouched source test split"
+        )
+
     (output_dir / "duplicate_report.json").write_text(
         json.dumps(duplicate_report, indent=2),
         encoding="utf-8",
