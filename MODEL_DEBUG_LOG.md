@@ -1361,4 +1361,7 @@ FINAL VERIFICATION:
 
 Iteration 30 result:
     CLEAN LEDGER PASS
-    repository state and recorded branch count are now consistent.
+    the recorded 9-ahead comparison was accurate at the verification point;
+    the ledger correction commit is itself an additional branch commit.
+    Future protocol entries must treat branch-ahead counts as point-in-time evidence,
+    not as a value that remains constant after documentation commits.
