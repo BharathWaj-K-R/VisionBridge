@@ -1455,6 +1455,21 @@ Iteration 4 outcome:
     RESULT: FAILED
     RESTART REQUIRED: YES
     downstream runtime evidence invalidated: YES
+
+### 2026-09-24 — Authoritative-protocol execution iteration 5 (FAILED)
+
+0512c935105474ea7a111202a4b77653df09a24a — fix: enforce notebook asset checksum
+7f2540b1fef5b7942638e5c46fcdafe5a82f887b — docs: align V3 scaling contract
+04b53ddefc052b4ba60dc787da55fb0bab81bcd3 — docs: align V3 scaling contract
+
+Findings corrected:
+    notebook downloaded the pinned hand asset without actually hashing it      FIXED
+    documentation overstated active V3 input/vocabulary scalability           FIXED
+
+Iteration 5 outcome:
+    RESULT: FAILED
+    RESTART REQUIRED: YES
+    downstream evidence invalidated: YES
 ## Current correction state
 
     training/browser landmark mismatch      CORRECTED
