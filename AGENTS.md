@@ -132,7 +132,7 @@ The application stack is:
 Frontend: React + Vite + TypeScript
 Backend: FastAPI + SQLAlchemy
 ML runtime: PyTorch
-Landmarks: MediaPipe Hands
+Landmarks: MediaPipe Tasks Hand Landmarker 0.10.35
 Training: Python CLI + Colab notebook
 ~~~
 
@@ -896,3 +896,248 @@ backend/app/training/evaluate_letter_base.py
 It must be used for recorded V3/V4/V5 test measurements and reports overall accuracy, macro accuracy, per-letter accuracy, worst-class accuracy, confusion matrix, parameter count, checkpoint size, and model-only latency. The original test split remains measurement-only and is not a tuning input.
 
 Signer-independent evaluation is a separate gate. The current prepared NPZ contract does not contain signer IDs, so a signer-independent result must not be inferred from the random 80/20 split. A future signer-holdout evaluation requires explicit signer metadata or a verified signer manifest.
+
+# 18. Change ledger — maintained on every repository change
+
+This section is the cumulative engineering ledger for the active VisionBridge letter-recognition development cycle. Every repository change made during the current refactor, training stabilization, ML evaluation, runtime-parity correction, and documentation cycle is recorded here. Future repository changes must update this file in the same engineering cycle.
+
+## Change-record rule
+
+Every future change must record:
+
+    date
+    commit
+    files or area
+    change
+    reason
+    verification
+    status
+
+A change is incomplete if the implementation changes but this ledger is not updated. Multiple tiny commits for one logical correction may be grouped, but no meaningful implementation, dependency, training, model, runtime, deployment, test, or documentation change may be omitted.
+
+## 2026-09-24 — Complete change history carried into the active ledger
+
+### Product and legacy-architecture cleanup
+
+060301e0541df57b4d86f452dc2b3c385e8691d0 — remove obsolete pose conversion script
+1c36b35563a6dd07d56025222d3f2bd2f1c96b03 — remove obsolete pose-face extraction script
+593d2c9356982f3ee829bafc267dcf03ebdf6c35 — remove obsolete temporal adapter tests
+827d7e380fc563852cfd2be5502aa988f8c2b59b — remove obsolete sequence calibration tests
+4d6777074f96b5c6b116e5135e8c403192f6a22e — remove obsolete CTC contract tests
+3af0f77905fc9e89092affa98531b85dc87fa2f6 — remove obsolete sentence dataset UID tests
+e16b2146ef8b8c2d89525b32875c22d6b41fa19b — remove obsolete sentence CER tests
+a7a38a214ce4b6a27474cb979a5b1e7bf50ebc93 — remove obsolete pose-face script tests
+35a0f78d9f6541fb9792188b41c7342acde9100a — remove obsolete multimodal model tests
+596a557c54ebc416458ebcd31a93f40d8b83574e — test: align account coverage with active APIs
+0244ccd09f7a98bcc9e3132022ea77669cd672d5 — test: validate current letter model readiness
+24b622454b7520e34757e81a6e16d87b412b1959 — test: cover history export with direct letter prediction records
+d53b1d1e8a8f9eda480a102b8e2e77ae832abe92 — test: keep rate limiter coverage focused on reusable logic
+756ee1e9557c9b96c07bd375b2a182905b59078a — remove obsolete sentence live-pipeline tests
+b8e590dc769830155b0c191e71d88785ef7191fc — remove obsolete sentence training notebook
+735059f791dcfeed6b6a5b764b7cbc5470f5c4a9 — remove obsolete sentence lightning notebook
+7679ffb7afbc53a93da182d9a93606879bec4634 — remove obsolete sentence validation notebook
+d487c8bff343cf282fc4f857c6d239688465b7b7 — remove obsolete sentence vocabulary
+237722985c7245de97633defe39b839c8173afee — remove obsolete sentence checkpoint
+34f3f1640fcf3fd4d7106510b6d3b9baa118ae45 — docs: align backend environment example with letter pipeline
+d126db6edb28f91f01f601216b751d2d1fb12698 — refactor: make letter dataset preparation maintainable
+52c976ff494d6b16f4a4a6af2239a7f3b0efd7cd — refactor: simplify adapter lifecycle handlers
+7961bd143cad868ffed3120a2701b324d73b067c — refactor: organize active letter API
+cd3e54af1dc49400ee3e55e490c1943c29bd0aad — refactor: make settings readable and letter-specific
+9d748cf9db488095f7a7aa8326efa8382b700323 — fix: preserve established settings interface
+9d5d3f3f3a2a8fe2f6bcdd0ea617531c7d4e6481 — refactor: align database models with active letter product
+9672e56416d5783f7e70019f4e557ee2ddcdc636 — docs: add human maintainability engineering standard
+6b5586234c18cf4dc2946005e20c9f822ee41a70 — chore: remove failing CI workflow until re-enabled
+
+Status:
+    legacy sequence/pose/face/sentence architecture removed from the active product
+    active product narrowed to A-Z letter recognition
+    failing CI workflow intentionally removed and not restored
+
+### 2026-09-23 — Training policy and reproducibility
+
+5e8feb5f80907701c38adc49a425c4bbaabe04fc5 — iterate base-model training by letter accuracy
+722482938fb2f43ff71d69190bef0aad3c64146e — make letter training notebook self-iterating
+b9c5e79b76acaa913324894b31a9a34689af98dc — document iterative letter model training
+86a9b495bd1b7418c59d67b5c2e962f7ccc78851 — record iterative base-model training
+55d9c94f7c3e476fb6a06291a1e65ffac1b3ea08 — use stratified 80-20 letter training split
+234ccf5902f38d169b8236bc0fff7fe424adc3dc — raise automatic training epoch cap
+b400c04a74343eb640b2cad0ae5d498d11c7ecdc — use 80-20 split and 500 epoch training cap
+2d281190e5f799effb553ace36cdedb6667aea5e — document 80-20 training split
+e00782d8648d6344f3dd077263c39116ea0149d5 — document current training split and epoch policy
+2b4915c0a315578ec89f9c61e0da6890c969431f — make Colab training isolated and reproducible
+
+Training contract:
+    stratified 80/20 train-validation split
+    maximum 500 epochs
+    per-letter validation monitoring
+    weakest-class checkpoint selection
+    untouched source test split
+    finite-loss and finite-gradient guards
+
+### 2026-09-23 — MediaPipe Tasks and RealSign fixes
+
+038a5ab00fd6d0860eb3b8db32aa349be2190683 — update MediaPipe training dependency for Colab
+dbfb24dc82885b9c6d9256749c1a1d998e0803a8 — clarify MediaPipe training dependency
+b76027ab691d5687b131f05b8c796753b0e01622 — verify MediaPipe version before preprocessing
+a7ded9fbaa631258b9e9040f0bcaf0d8694c9b2f — reset Colab working directory before repository cleanup
+91676482255a5ea5319fa3c91cd51a96040ad09d — isolate Colab training dependencies
+ec42ab92f39751441c078147086b49bc2da0c8bc — migrate dataset preparation to MediaPipe Tasks API
+582b57f00f235b69c71e68cc47953381659f01c4 — trim training dependencies to MediaPipe runtime
+b6e5d17d0cb33871933ba3e6b1e696a42b08c366 — make Colab training use MediaPipe Tasks
+74660478c6ace6cec20842ac3a4ecefded7dcdd4 — document MediaPipe Tasks training path
+d7e9fcfab537e80876f5116b28abc843575d59b3 — record MediaPipe Tasks training contract
+b1e93cc912b64d77a106876b40bb93b47adf0f7d — record MediaPipe Tasks training compatibility
+29736546ecd2f03cd45099b9601956175cad29e0 — download RealSign LFS archive correctly
+4a8e0f314d323358a68f79acab048bdf463751c7 — document RealSign LFS training source
+5c58751cbd94bce7cb5a59c9c1e5e6fbf69f611b — document current letter dataset preparation
+9fbee0239a8c2e4b77f3a416350ae417f5e50be9 — record RealSign LFS training path
+2ea274df551503ddf8a583510dbea26f74a34d08 — record RealSign archive download fix
+f03d476b8f590c1749c2aa30777f80df36604ed3 — use supported MediaPipe Tasks imports in preprocessing
+
+Dataset source and extraction contract:
+    RealSign Git LFS media endpoint
+    MediaPipe Tasks Hand Landmarker
+    normalized 126D two-hand representation
+    original source testing split left untouched
+
+### 2026-09-24 — Colab runtime corrections
+
+bca6ba6b443389157f0af03ce28f4dbe0e2a0769 — reset Colab cwd before repository cleanup
+96e5324d11729a5840f4473314666d9c717ca2b9 — fix Colab training environment setup
+7774d9fd409939179df2261ad9fc604e9f465b63 — use isolated Python 3.12 training environment
+2fec304110b7b7ac7ed635d7a2f07a3a0eafdb7f — make uv invocation robust in Colab
+b808a3e6774d244af60b48cbbcf0da46b78bb9a4 — notebook correction
+9852e9283c48b809736e5e93c4892678d57935da — correction of notebook
+ffdc684164b28631301bb5f79f77963c46d1cd12 — pin notebook training dependencies
+72794c0af1013fca1e82a0e51e380532ae4a1d19 — align Colab notebook dependency pins
+
+Current notebook environment contract:
+    managed Python 3.12 environment via uv
+    MediaPipe 0.10.35
+    pinned NumPy 2.1.3
+    pinned PyTorch 2.9.0 build
+    streamed subprocess errors
+
+### 2026-09-24 — Browser landmark parity correction
+
+0e7ac3671c673248a6953c25a82b6b0bea51cb1b — use MediaPipe Tasks Vision in browser
+a00ee1bb4e73f6db40646d13d9075140f344c139 — align browser landmarks with MediaPipe Tasks
+e4d48c2fe02135a6770bf5a4f256b59b00ddeaac — pin browser MediaPipe Tasks version
+b89b93ff00855416796800266164f199399c263b — lock MediaPipe Tasks dependency
+5b4aaf441404643f54e3e3a60e673482b7fbc27a — match browser MediaPipe runtime version
+336b12d8dfa15d7699e5226c6861748f52a8a364 — keep browser hand tracking on the default delegate
+f73356646ff4d5fe50ae34799a4d4e95d250e8d6 — update frontend tracker label
+654028fa33649a19f73b0138bae2c8377a8c0e2a — document consistent Tasks handedness semantics
+a5606c422d85392e292968023c44d203da77811c — document handedness parity rule
+ff647f493097fd332515d5b4d4bc469639c7eba06 — record handedness parity rule
+a276f1ebd6d89acec282429f0dc22576684d3116 — support current Tasks handedness result field
+
+Current runtime contract:
+    browser package: @mediapipe/tasks-vision 0.10.35
+    training runtime: MediaPipe Tasks Hand Landmarker 0.10.35
+    browser model asset: hand_landmarker.task
+    same raw Tasks handedness semantics in both paths
+    legacy @mediapipe/hands browser path removed
+
+### 2026-09-24 — Checkpoint and preprocessing contract
+
+a261a27f9060af76c4e5f187af3f9341c3ab8e0c — version the landmark preprocessing contract
+5109456c3b776521f274f1b26515659d4e0c3aba — bind adapters to preprocessing contract
+0d6164c3debcc3d32c814d0b33638c3a85d30f1f — validate browser model preprocessing metadata
+a56e7f6d238dd8924f367b64508bdc4b95f8fe96 — include model preprocessing metadata in evaluation
+0f9b9c9ed4114176d39d9023d59c88f258e073a3 — test model preprocessing metadata
+990dda0f1aa37a42c02f3fc0f730f7286d04ab52 — test adapter preprocessing binding
+
+Metadata contract:
+    preprocessing_version = two-hand-wrist-scale-v1
+    landmark_runtime = mediapipe-hand-landmarker-0.10.35
+
+### 2026-09-24 — Evaluation and dataset-integrity improvements
+
+bb1e4e7522c4c6686b90491cd8c7c638163ca836 — add reproducible letter model evaluation
+7e3c822a35ee18c4fe505eae4cad97f9ce62bc0e — add canonical letter model evaluation
+a56e7f6d238dd8924f367b64508bdc4b95f8fe96 — include model preprocessing metadata in evaluation
+42f3963c27c0e995796728ad5f81baf9dec4465c — prevent duplicate leakage across train and validation
+ae942ed618cb99efae1e0d96fd1a0709b0e0c782 — test duplicate-safe dataset splitting
+de111cb6a5a63902ec689f1358f5425fbbadf45f — fix dataset split test import
+53e5675c596354716b708e2b2f9a48174a4964a0 — guard notebook against dataset leakage
+be66781f9a53800a6b34f172e8f8244f1678826f — document dataset manifests and duplicate checks
+8dc44b04ce1b32aa78bdbc04f661172a0b6f1959 — update training command to current epoch cap
+
+Evaluation outputs:
+    overall accuracy
+    macro class accuracy
+    per-letter accuracy
+    worst-letter accuracy
+    A-Z confusion matrix
+    parameter count
+    checkpoint size
+    model-only latency
+
+Dataset outputs:
+    train_manifest.jsonl
+    val_manifest.jsonl
+    test_manifest.jsonl
+    duplicate_report.json
+
+### 2026-09-24 — Documentation and debug records
+
+41090105b6c830e83fb9eca9c976fe41a36c3589 — document unified landmark runtime and evaluation
+6ef9210366b7f2d0e528dfd3ef8a6b5a329c76bd — document ML parity and evaluation gates
+fc4c474ee919b0a60e4f2d519bb58842c6982f42 — record critical ML pipeline corrections
+bd38f90d7457801612f02d3ee654dfb5? — record uploaded checkpoint audit
+
+Note: the checkpoint-audit commit recorded the supplied V3 checkpoint structure, size, and SHA-256. The binary checkpoint itself is still not stored in this repository because the available GitHub write interface cannot upload binary model files.
+
+### 2026-09-24 — Uploaded V3 checkpoint audit
+
+checkpoint:
+    visionbridge-letter-base-v3
+    input_dim = 126
+    hidden_dim = 128
+    embedding_dim = 64
+    num_classes = 26
+    parameters = 26,582
+    size_bytes = 111,205
+    sha256 = 2b42639e0ffb3c40112bf931f434f6adf5b578fce21399ba53795d3fba0529a
+
+Status:
+    checkpoint structure = STATIC VERIFIED
+    checkpoint accuracy = NOT VERIFIED
+    binary repository installation = PENDING
+
+## Current correction state
+
+    training/browser landmark mismatch      CORRECTED
+    legacy browser MediaPipe path           REMOVED
+    handedness one-sided swap               REMOVED
+    preprocessing drift                     GUARDED
+    checkpoint/adapter contract drift       GUARDED
+    train/validation duplicate leakage      PREVENTED
+    evaluation visibility                   IMPROVED
+    dependency drift                        REDUCED
+    signer-independent evaluation           BLOCKED BY SIGNER METADATA
+    V3 binary checkpoint in repository      PENDING
+    browser real-device verification        NOT VERIFIED
+    live Render real-mode verification      NOT VERIFIED
+
+## Historical supersession rule
+
+Historical diary entries describe the implementation that existed at the time. A later correction is authoritative for the active contract. Do not delete historical records merely because they are superseded.
+
+Example:
+    2026-09-23 legacy MediaPipe browser path
+    superseded by
+    2026-09-24 MediaPipe Tasks Hand Landmarker browser path
+
+## Required future change loop
+
+    DISCOVER
+    -> TRACE
+    -> MODIFY
+    -> TEST
+    -> UPDATE AGENTS.md
+    -> UPDATE OTHER REQUIRED DOCS
+    -> RE-AUDIT
+
+Every future repository change must update this file before the engineering cycle is considered complete.
