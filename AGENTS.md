@@ -1855,3 +1855,75 @@ Iteration 20 outcome:
     RESULT: FAILED
     RESTART REQUIRED: YES
     downstream evidence invalidated: YES
+
+
+### 2026-09-24 — Authoritative-protocol execution iteration 21 (CLEAN)
+
+Final corrected pass after restart chain:
+
+Step 1 inventory:
+    active repository tree inspected; retired architecture files remain absent.
+    No current workflow file exists under .github/workflows.
+
+Step 2-3 reproduction/isolation:
+    prior defects from iterations 11-20 were rechecked at their repaired
+    boundaries; no new restart-triggering defect surfaced.
+
+Step 4 data-flow:
+    Browser camera -> MediaPipe Tasks 0.10.35 -> 126D normalization ->
+    browser base model -> embedding -> signer prototype adapter -> letter.
+    Backend network traffic remains outside the per-frame recognition hot path.
+
+Step 5-6 implementation/repair:
+    adapter test fixtures, checkpoint contract tests, browser compatibility
+    checks, Render publish root, adapter/history transaction behavior,
+    calibration rollback cleanup, camera error cleanup, stale callback guards,
+    explicit regression imports, and retired evaluation routing are all
+    incorporated in the current tree.
+
+Step 7 verification:
+    targeted runtime checks PASS:
+      checkpoint migration + strict load
+      126->128->64->26 model contract
+      learned tensor preservation during migration
+      browser/Python numerical inference parity
+      126D normalization parity
+      adapter deletion with retained history
+      calibration commit-failure cleanup
+      tracker failure recovery and stale callback rejection
+
+    static checks PASS:
+      no TODO/FIXME/NotImplementedError placeholders
+      no retired architecture imports/references
+      no /evaluation frontend route
+      no legacy MediaPipe Hands references
+      Render manifest uses /api/v1/health and frontend/dist
+
+    repository status:
+      combined GitHub status: no current CI statuses
+      CI workflow: intentionally disabled
+      live Render verification: NOT VERIFIED / environment access unavailable
+      full dependency-backed pytest/Vite build in this environment: NOT VERIFIED
+
+Step 8 cleanup:
+    no active retired routes, legacy implementation imports, or placeholder
+    modules remain in the current tree.
+
+Step 9 documentation:
+    this clean iteration and its verification boundary are recorded here and
+    in MODEL_DEBUG_LOG.md.
+
+Release blockers remain explicit rather than hidden:
+    base checkpoint accuracy: NOT VERIFIED
+    signer-independent held-out evaluation: BLOCKED pending verified signer metadata
+    repository checkpoint installation: PENDING
+    live browser real-model inference: NOT VERIFIED
+    live Render real-mode deployment: NOT VERIFIED
+    durable production database: not implemented
+    real-mode auth token hardening: pending
+
+Iteration 21 outcome:
+    RESULT: CLEAN REPAIR PASS
+    RESTART REQUIRED: NO
+    downstream repair evidence accepted only for the checks explicitly marked
+    PASS above; all model-quality/deployment blockers remain invalid/unverified.
