@@ -80,6 +80,8 @@ export function useLandmarkSession(sampleFps: number) {
         if (framesRef.current.length > 60) framesRef.current.shift();
       });
 
+      handsRef.current = hands;
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 640, max: 960 },
@@ -95,7 +97,6 @@ export function useLandmarkSession(sampleFps: number) {
       streamRef.current = stream;
       videoRef.current.srcObject = stream;
       await videoRef.current.play();
-      handsRef.current = hands;
       activeRef.current = true;
       setRunning(true);
       setStatus("Live · hand tracking");
