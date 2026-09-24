@@ -44,6 +44,17 @@ def evaluate(
     if y.min().item() < 0 or y.max().item() >= model.num_classes:
         raise ValueError(f"{split} labels exceed the model vocabulary")
 
+    present = set(y.tolist())
+    missing = [
+        model.labels[index]
+        for index in range(model.num_classes)
+        if index not in present
+    ]
+    if missing:
+        raise ValueError(
+            f"{split} is missing required A-Z classes: {', '.join(missing)}"
+        )
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
     loader = DataLoader(
