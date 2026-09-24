@@ -158,6 +158,7 @@ Rules:
 - feature dimension must remain exactly 126;
 - preprocessing used for training must match preprocessing used at inference;
 - handedness handling must remain consistent between dataset preparation and runtime;
+- training and browser inference consume the raw Tasks handedness labels in the same left/right ordering; do not introduce a one-sided mirror swap;
 - the active preprocessing contract is `two-hand-wrist-scale-v1` and the active landmark runtime is `mediapipe-hand-landmarker-0.10.35`.
 
 Do not silently change the active 126D contract. Model versions may introduce a new input contract explicitly.
