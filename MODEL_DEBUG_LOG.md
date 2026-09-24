@@ -313,10 +313,12 @@ Known source status:
     Colab notebook:                  STATIC VERIFIED
     Few-shot adapter code:           CI VERIFIED
     Checkpoint compatibility:        CI VERIFIED
-    Real base checkpoint:            NOT VERIFIED
-    Base held-out accuracy:          NOT VERIFIED
-    Signer held-out accuracy:        NOT VERIFIED
-    Browser real-model inference:    NOT VERIFIED
+    Uploaded V3 checkpoint structure: STATIC VERIFIED
+    Uploaded V3 checkpoint accuracy:  NOT VERIFIED
+    Repository checkpoint install:    PENDING
+    Base held-out accuracy:           NOT VERIFIED
+    Signer held-out accuracy:         BLOCKED pending signer metadata
+    Browser real-model inference:     NOT VERIFIED
 
 Known successful code verification:
 
