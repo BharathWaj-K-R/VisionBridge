@@ -207,6 +207,35 @@ Protocol result:
     RESTART REQUIRED: YES
     downstream evidence invalidated: YES
 
+
+---
+
+# 12. 2026-09-24 — Authoritative-protocol execution iteration 2 (FAILED)
+
+During the second full pass, legitimate model/data integrity defects were corrected.
+
+One discovered diagnosis was later proven incorrect:
+    The FastAPI Permissions-Policy header was interpreted as governing the separately served frontend page.
+    That assumption was wrong for this deployment shape, so the camera-policy change was reverted.
+
+Reverted commits:
+    87f94197ca08e75984cebba070a161c3efc61d3c — allow camera under permissions policy
+    05cda46694eddd051059552eab9169c40403c678 — camera policy assertion
+
+Retained corrections:
+    active V3 input/class contract enforcement
+    finite checkpoint state validation
+    A-Z training vocabulary enforcement
+    train/validation split coverage guard
+    source-test duplicate exclusion from training/validation
+    notebook hand-model asset integrity verification
+    local three-shot calibration parity
+
+Protocol result:
+    RESULT: FAILED
+    RESTART REQUIRED: YES
+    downstream evidence invalidated: YES
+
 # 1. Active model contract
 
     Input:          126 normalized landmark values
