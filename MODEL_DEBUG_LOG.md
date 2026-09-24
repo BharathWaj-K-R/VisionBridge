@@ -945,3 +945,19 @@ Per the authoritative restart contract, iteration 11 is failed and all
 downstream evidence is invalidated. Iteration 12 must restart at Step 1 and
 resolve the checkpoint/test contract contradiction before further evidence is
 accepted.
+
+
+## 2026-09-24 — Protocol iteration 12 failure
+
+Iteration 12 resolved the production A-Z checkpoint-test contradiction, tightened
+browser compatibility checks, and changed Render to publish only the Vite build
+output.
+
+Verification then found two downstream defects:
+1. The adapter test fixture used six distinct random exemplars, so the existing
+   assertion that the query predicts A was no longer deterministic.
+2. Requiring browser compatibility metadata at the TypeScript payload type level
+   made the existing local-demo payload fail that type contract.
+
+Per the authoritative restart protocol, iteration 12 is failed and its
+downstream evidence is invalidated. Iteration 13 restarts from Step 1.
