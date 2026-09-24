@@ -4,7 +4,7 @@ This file records model-specific failures, fixes, experiments, validation eviden
 
 ACTIVE PIPELINE
 
-    MediaPipe Hands
+    MediaPipe Tasks Hand Landmarker 0.10.35
      -> normalized 126D two-hand landmarks
      -> dynamic VisionBridgeLetterBaseModel
      -> 64D embedding
@@ -44,7 +44,7 @@ Each sample contains:
 
 Preprocessing:
 
-    MediaPipe Hands
+    MediaPipe Tasks Hand Landmarker 0.10.35
      -> handedness-aware left/right placement
      -> wrist-relative coordinates
      -> scale normalization
@@ -238,7 +238,7 @@ Do not claim signer adaptation works solely because calibration completes withou
 When browser inference is enabled, trace the complete path:
 
     camera frame
-     -> MediaPipe Hands
+     -> MediaPipe Tasks Hand Landmarker 0.10.35
      -> handedness
      -> normalization
      -> 126D vector
@@ -273,7 +273,7 @@ Do not tune confidence thresholds before verifying feature and embedding correct
 The active real-time hot path is:
 
     camera
-     -> MediaPipe Hands
+     -> MediaPipe Tasks Hand Landmarker 0.10.35
      -> hand tracing
      -> normalized 126D vector
      -> browser model
@@ -493,7 +493,7 @@ The previous real-mode UI sent prediction requests to FastAPI from the browser d
 The active prediction path now loads the current model and signer adapter once and performs inference in the browser:
 
     camera
-     -> MediaPipe Hands
+     -> MediaPipe Tasks Hand Landmarker 0.10.35
      -> normalized 126D vector
      -> browser base model
      -> browser few-shot adapter
@@ -516,7 +516,7 @@ The UI also renders:
 
 ### Performance decisions
 
-    MediaPipe Hands modelComplexity=0
+    MediaPipe Tasks Hand Landmarker 0.10.35 modelComplexity=0
     640x480 ideal camera input
     one in-flight tracker call
     no per-frame network request
@@ -546,3 +546,44 @@ The dataset-preparation path now uses MediaPipe Tasks Hand Landmarker in image m
 ## 2026-09-23 — RealSign download path
 
 The RealSign Dataset.zip file is stored through Git LFS. The training notebook downloads the actual archive from the Git LFS media endpoint and validates it with zipfile.is_zipfile before extraction. The ordinary raw GitHub file endpoint returns the small LFS pointer text instead of the 656 MB archive.
+
+
+# 2026-09-24 — Critical ML pipeline corrections
+
+### Findings corrected
+
+1. Browser landmark extraction no longer uses the legacy `@mediapipe/hands` CDN. The browser now uses the same MediaPipe Tasks Vision 0.10.35 family and the same Google-hosted hand_landmarker.task bundle as dataset preparation.
+
+2. The browser no longer swaps left/right handedness. Training and browser inference now place landmarks according to the Tasks result handedness labels using the same 126D ordering.
+
+3. The 126D preprocessing contract is versioned as `two-hand-wrist-scale-v1`, and the active landmark runtime is recorded as `mediapipe-hand-landmarker-0.10.35`. Checkpoints and signer adapters carry this metadata.
+
+4. Training dependencies are pinned for reproducibility:
+    mediapipe==0.10.35
+    numpy==2.1.3
+    torch==2.9.0+cpu
+
+5. The canonical letter evaluator now reports:
+    overall accuracy
+    macro class accuracy
+    per-letter accuracy
+    worst-letter accuracy
+    confusion matrix
+    parameter count
+    checkpoint size
+    model-only latency
+
+6. Dataset preparation now hashes source images, preserves train/validation/test manifests, and keeps exact duplicate images together during the generated 80/20 train-validation split. Any exact duplicate between the training/validation pools and source test split is reported without modifying the test set.
+
+### Verification status
+
+    CODE FIXED
+    STATIC VERIFIED
+
+    Browser MediaPipe Tasks runtime: NOT VERIFIED on a real browser/device
+    Base-model test accuracy: NOT VERIFIED in this environment
+    Signer-independent evaluation: BLOCKED until verified signer metadata/manifest is available
+
+### Signer-evaluation boundary
+
+The RealSign repository documents four signers and separate class-based Training, Validation, and Testing folders, but its documented folder structure does not provide signer IDs in the prepared class directories. Therefore the generated random 80/20 split is a class-balanced sample split, not a signer-holdout experiment. A signer-independent result must only be reported after verified signer metadata is available.
