@@ -9,7 +9,7 @@ Browser camera
   -> MediaPipe Tasks Hand Landmarker 0.10.35 hand landmarks
   -> normalized 126D two-hand vector
   -> dynamic 26-class ISL letter base model
-  -> 64D signer-independent embedding
+  -> 64D embedding for signer adaptation
   -> few-shot signer adapter
   -> one predicted letter + confidence
 ~~~
@@ -196,6 +196,8 @@ Two separate measurements matter:
 2. Few-shot signer accuracy on held-out examples from a signer not used during adapter calibration.
 
 No accuracy percentage is claimed here until those runs produce actual measurements.
+
+Signer-independent evaluation is a required release gate, not a feature that can be removed because the current dataset metadata is insufficient. The current RealSign class folders do not expose verified signer IDs, so this gate remains blocked until an explicit signer-labeled manifest or equivalent verified metadata is available.
 
 ## Evaluation
 
