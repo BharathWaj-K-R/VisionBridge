@@ -49,7 +49,7 @@ function Metric({ label, value, detail }: { label: string; value: string | numbe
 function Dashboard() {
   const [data, setData] = useState<any>(null); const [error, setError] = useState("");
   useEffect(() => { api.dashboard().then(setData).catch((e) => setError(e.message)); }, []);
-  return <Page title="Letter recognition" subtitle="Hand-only, signer-adaptive recognition. The sentence decoder has finally been evicted.">
+  return <Page title="Letter recognition" subtitle="Hand-only, signer-adaptive recognition for one ISL letter at a time.">
     {error ? <div className="alert error">{error}</div> : !data ? <Loading /> : <>
       <div className="metric-grid">
         <Metric label="Mode" value="Letters" detail="hand-only" />
