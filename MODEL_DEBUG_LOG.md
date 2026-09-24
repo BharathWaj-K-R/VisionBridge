@@ -1008,3 +1008,16 @@ commit 3f59709b11eb5c07302ab5b2dc6624490a8338eb adds regression coverage.
 The fix was source-verified. Per the authoritative restart protocol, iteration
 15 is failed and downstream evidence is invalidated. Iteration 16 restarts
 from Step 1.
+
+
+## 2026-09-24 — Protocol iteration 16 failure
+
+The lifecycle audit reproduced an unhandled promise rejection when the MediaPipe
+tracker's asynchronous send() operation failed.
+
+Commit b07a171638869a4960db6f43fe607b43ed1478ae handles tracker errors by
+stopping recognition, releasing camera tracks, closing the tracker, and leaving
+the UI in a stopped state. A local rejection-path simulation passed.
+
+Per the authoritative restart protocol, iteration 16 is failed and its
+downstream evidence is invalidated. Iteration 17 restarts from Step 1.
