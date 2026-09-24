@@ -31,7 +31,7 @@ function Shell({ children, username, onLogout }: { children: ReactNode; username
   </div>;
 }
 
-function Authfunction Auth({ onAuthed }: { onAuthed: () => void }) {
+function Auth({ onAuthed }: { onAuthed: () => void }) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [username, setUsername] = useState(""); const [password, setPassword] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
   const submit = async (event: FormEvent) => {
@@ -55,7 +55,7 @@ function Loading() { return <div className="loading">Loading workspace…</div>;
 function Empty({ text }: { text: string }) { return <div className="empty">{text}</div>; }
 function Metric({ label, value, detail }: { label: string; value: string | number; detail: string }) { return <div className="metric"><span className="eyebrow">{label}</span><strong>{value}</strong><span className="muted">{detail}</span></div>; }
 
-function Dashboard()function Dashboard() {
+function Dashboard() {
   const [data, setData] = useState<any>(null); const [error, setError] = useState("");
   useEffect(() => { api.dashboard().then(setData).catch((e) => setError(e.message)); }, []);
   return <Page title="Letter recognition" subtitle="Hand-only, signer-adaptive recognition for one ISL letter at a time.">
@@ -192,7 +192,7 @@ function Recognize() {
   </Page>;
 }
 
-const LETTERS =const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
 
 function Calibration() {
@@ -261,7 +261,7 @@ function Calibration() {
   </Page>;
 }
 
-function History()function History() {
+function History() {
   const [data, setData] = useState<any>(); const [query, setQuery] = useState(""); const [exporting, setExporting] = useState(false);
   useEffect(() => { api.history().then(setData).catch(() => setData({ items: [] })); }, []);
   async function downloadCsv() { setExporting(true); try { const blob = await api.exportHistoryCsv(); const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = "visionbridge-letter-history.csv"; document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url); } finally { setExporting(false); } }

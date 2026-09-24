@@ -1153,3 +1153,215 @@ Clean source-level checks after restart:
 
 Runtime verification remains blocked by the environment/network boundary, so
 no Vite build or live browser result is claimed.
+
+
+## 2026-09-24 — Protocol iterations 24–26 — Stitch integration repair and verification
+
+Scope:
+- Integrate the uploaded Stitch VisionBridge design into the existing frontend without modifying backend/model behavior.
+- Preserve the existing live recognition, few-shot calibration, history, signer profile, local-runtime, and real-runtime flows.
+
+Iteration 24:
+- FAILED at frontend source audit.
+- The active `frontend/src/App.tsx` contained duplicated declarations:
+  `function Authfunction Auth`, `function Dashboard()function Dashboard()`,
+  `const LETTERS =const LETTERS`, and `function History()function History()`.
+- Root cause: malformed source edits in the active frontend file.
+- Correction: restored the intended single declarations.
+- Isolated verification: duplicate markers absent and delimiter balance is zero.
+
+Iteration 25:
+- FAILED at CI type-check.
+- Error: local `BrowserAdapterPayload` construction in `frontend/src/api.ts`
+  omitted required `preprocessing_version` and `landmark_runtime` metadata.
+- Root cause: the local demo adapter path had drifted from the browser model contract.
+- Correction: supplied the canonical preprocessing and MediaPipe runtime identifiers already enforced by `browserModel.ts`.
+- Downstream build evidence from the failed run was invalidated.
+
+Iteration 26:
+- PASS.
+- `npm ci`: PASS.
+- `npm run check`: PASS.
+- `npm run build`: PASS.
+- Vite production preview startup and HTTP response check: PASS.
+- Source audit after restart: PASS.
+- Render configuration remains static frontend -> `dist`, with `VITE_LOCAL_MODE=true`; backend/model behavior was not changed.
+- The Stitch visual system remains sourced from the existing integrated stylesheet: monochrome editorial layout, Newsreader/Space Mono typography, telemetry strips, camera workstation, classification panel, word buffer, temporal log, and A–Z calibration matrix.
+- Temporary/branch verification is isolated in `.github/workflows/stitch-frontend-check.yml` so the main deployment path is not altered.
+
+Final verified change set relative to main:
+- `frontend/src/App.tsx`: repaired malformed duplicated declarations.
+- `frontend/src/api.ts`: restored local adapter metadata contract.
+- `.github/workflows/stitch-frontend-check.yml`: added frontend type-check, production build, and preview-start verification.
+
+Remaining release boundary:
+- This branch is not a live Render deployment of the new commit.
+- Browser camera/model behavior and production Render E2E remain separate verification stages.
+- No claim is made that backend model quality has changed.
+
+
+## 2026-09-24 — Pipeline scope correction
+
+The GitHub Actions verification workflow added during frontend repair was removed after the repository deployment requirement was clarified: VisionBridge must not introduce a GitHub CI/CD pipeline.
+
+Verification remains documented from the already completed local/hosted check, but no workflow is retained in the repository.
+
+
+## 2026-09-24 — Protocol iteration 27 — Post-pipeline execution audit
+
+Step 1 — Inventory:
+- active branch: `feat/stitch-frontend-integration-v2`
+- 66 repository files visible from the branch tree
+- 18 frontend files
+- no `.github/workflows` files
+- no retired `/evaluation` route/path
+- no legacy MediaPipe Hands path detected
+- Render configuration and frontend lockfile are present
+
+Step 2 — Reproduction:
+- no new functional failure reproduced in the active source.
+- The previously repaired frontend source and adapter-contract defects remain absent.
+
+Step 3 — Isolation:
+- `frontend/src/App.tsx` declaration markers are unique.
+- App delimiter counts are balanced.
+- active routes remain dashboard, translate, calibration, history, and settings.
+- Stitch recognition/calibration UI markers remain present.
+- `@mediapipe/tasks-vision` remains pinned to 0.10.35.
+- browser preprocessing/runtime identifiers remain aligned with the active contract.
+- package.json and package-lock root dependency declarations match.
+- Render still publishes `frontend/dist` and keeps `VITE_LOCAL_MODE=true`.
+
+Step 4 — Fix:
+- no functional fix was required in iteration 27.
+- The previously added GitHub Actions workflow remains removed as required.
+
+Step 5 — Invalidation:
+- no new defect was found, so no downstream evidence required invalidation.
+
+Step 6 — Restart:
+- full source audit was repeated from Step 1 after the pipeline removal.
+
+Step 7 — Verification:
+- repository tree audit: PASS
+- no GitHub workflow pipeline: PASS
+- source contract audit: PASS
+- deployment configuration audit: PASS
+- prior hosted type-check/build/preview evidence for the unchanged functional code: PASS
+- direct live Render URL probing from this environment: BLOCKED by the web access boundary; no live deployment claim is made.
+
+Iteration 27 result:
+    CLEAN AUDIT PASS
+    no restart-triggering defect discovered
+    no GitHub CI/CD pipeline retained
+    live Render E2E remains explicitly unverified from this environment.
+
+
+## 2026-09-24 — Protocol iteration 28 — Metadata consistency failure
+
+STEP 1 — INVENTORY:
+- active branch: `feat/stitch-frontend-integration-v2`
+- current PR #6 is open against `main`
+- repository deployment requirement remains: no GitHub Actions / CI/CD pipeline
+- functional source and Render configuration are unchanged
+
+STEP 2 — REPRODUCTION:
+- PR #6 metadata still claimed that frontend CI verification had been added.
+- This contradicted the repository's current state because the temporary workflow had already been removed.
+
+STEP 3 — ISOLATION:
+- repository tree audit: no `.github/workflows`
+- source audit: previously repaired frontend contracts remain intact
+- Render audit: static frontend publishes `dist`; `VITE_LOCAL_MODE=true`
+- the inconsistency was limited to PR metadata, not application behavior
+
+STEP 4 — FIX:
+- corrected PR #6 description to remove the stale CI claim and explicitly state that GitHub Actions / CI/CD is not introduced.
+
+STEP 5 — INVALIDATION:
+- no functional or deployment evidence was invalidated because application source and Render configuration were not changed.
+- PR documentation claims were corrected before this restart could be accepted.
+
+STEP 6 — RESTART:
+- restart from Step 1 required by the execution protocol after the discovered inconsistency.
+
+## 2026-09-24 — Protocol iteration 29 — Post-metadata restart audit
+
+STEP 1 — INVENTORY:
+- active branch: `feat/stitch-frontend-integration-v2`
+- branch is 9 commits ahead of `main`, 0 behind
+- PR #6 remains open and mergeable
+- 66 repository files visible from the branch tree
+- 18 frontend files
+- no `.github/workflows` files
+- no retired `/evaluation` route/path detected
+- no legacy MediaPipe Hands path detected
+- frontend lockfile and Render configuration are present
+
+STEP 2 — REPRODUCTION:
+- no new functional failure reproduced from the repository source audit
+- previously repaired App.tsx declaration duplication and adapter metadata drift remain absent
+
+STEP 3 — ISOLATION:
+- active frontend routes remain dashboard, translate, calibration, history, and settings
+- `@mediapipe/tasks-vision` remains pinned to 0.10.35
+- browser preprocessing/runtime identifiers remain aligned with the active contract
+- package.json and package-lock root dependency declarations match
+- Render still publishes `frontend/dist` and keeps `VITE_LOCAL_MODE=true`
+- searches for TODO/FIXME/NotImplementedError and retired frontend markers returned no matches
+- PR #6 description now matches the actual no-CI repository state
+
+STEP 4 — FIX:
+- no application-code fix required in iteration 29
+- metadata correction from iteration 28 is retained
+
+STEP 5 — INVALIDATION:
+- no new defect discovered; no downstream functional evidence invalidated
+
+STEP 6 — RESTART:
+- full source/deployment/metadata audit repeated from Step 1 after the iteration 28 correction
+
+STEP 7 — VERIFICATION:
+- repository tree audit: PASS
+- no GitHub workflow pipeline: PASS
+- source contract audit: PASS
+- dependency manifest/lockfile audit: PASS
+- Render configuration audit: PASS
+- PR metadata consistency audit: PASS
+- prior npm type-check/build/preview evidence for unchanged functional code remains applicable
+- direct live Render probing from this environment: BLOCKED by web access boundary; no live E2E claim is made
+
+Iteration 29 result:
+    CLEAN PASS
+    no restart-triggering defect discovered
+    no GitHub CI/CD pipeline retained
+    PR metadata is consistent with repository scope
+    live Render E2E remains explicitly unverified
+
+
+## 2026-09-24 — Protocol iteration 30 — Ledger arithmetic correction and restart
+
+A documentation arithmetic error was discovered during post-write verification: iteration 29 recorded the branch as 8 commits ahead of `main`, while the live GitHub compare result shows 9 commits ahead and 0 behind.
+
+CORRECTION:
+- corrected the recorded ahead count from 8 to 9.
+
+RESTART:
+- the protocol was restarted from Step 1 after correcting the ledger discrepancy.
+
+FINAL VERIFICATION:
+- GitHub compare: 9 ahead / 0 behind
+- current head: `e8ea916fb8ba57dc0f7752623b698e2c5c0b882a`
+- PR #6 remains open
+- no GitHub Actions workflow exists
+- no `/evaluation` route/path detected
+- no legacy MediaPipe Hands path detected
+- Render configuration remains unchanged
+- live Render E2E remains unverified from this environment
+
+Iteration 30 result:
+    CLEAN LEDGER PASS
+    the recorded 9-ahead comparison was accurate at the verification point;
+    the ledger correction commit is itself an additional branch commit.
+    Future protocol entries must treat branch-ahead counts as point-in-time evidence,
+    not as a value that remains constant after documentation commits.
