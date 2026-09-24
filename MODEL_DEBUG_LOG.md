@@ -587,3 +587,24 @@ The RealSign Dataset.zip file is stored through Git LFS. The training notebook d
 ### Signer-evaluation boundary
 
 The RealSign repository documents four signers and separate class-based Training, Validation, and Testing folders, but its documented folder structure does not provide signer IDs in the prepared class directories. Therefore the generated random 80/20 split is a class-balanced sample split, not a signer-holdout experiment. A signer-independent result must only be reported after verified signer metadata is available.
+
+
+## 2026-09-24 — Uploaded V3 checkpoint audit
+
+The user-supplied checkpoint was inspected before repository installation.
+
+    model_version: visionbridge-letter-base-v3
+    input_dim: 126
+    hidden_dim: 128
+    embedding_dim: 64
+    classes: 26
+    size_bytes: 111205
+    sha256: 2b42639e0ffb3c40112bf931f434f6adf5b578fce21399ba53795d3fba0529a
+
+Status:
+
+    checkpoint structure: STATIC VERIFIED
+    checkpoint accuracy: NOT VERIFIED
+    repository installation: PENDING
+
+The checkpoint must not be described as accuracy-validated until it has been evaluated on the untouched test split with the canonical evaluator.
