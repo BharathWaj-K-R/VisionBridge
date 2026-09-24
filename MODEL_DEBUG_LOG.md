@@ -348,7 +348,7 @@ Standard training command:
     PYTHONPATH=backend python -m app.training.letter_base
       --data-dir /content/visionbridge_letter_data
       --output backend/app/models/weights/letter_base_model.pt
-      --epochs 30
+      --epochs 500
       --batch-size 128
       --lr 0.001
       --patience 6
