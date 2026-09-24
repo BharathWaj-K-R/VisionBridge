@@ -1289,7 +1289,7 @@ STEP 6 — RESTART:
 
 STEP 1 — INVENTORY:
 - active branch: `feat/stitch-frontend-integration-v2`
-- branch is 8 commits ahead of `main`, 0 behind
+- branch is 9 commits ahead of `main`, 0 behind
 - PR #6 remains open and mergeable
 - 66 repository files visible from the branch tree
 - 18 frontend files
@@ -1337,3 +1337,28 @@ Iteration 29 result:
     no GitHub CI/CD pipeline retained
     PR metadata is consistent with repository scope
     live Render E2E remains explicitly unverified
+
+
+## 2026-09-24 — Protocol iteration 30 — Ledger arithmetic correction and restart
+
+A documentation arithmetic error was discovered during post-write verification: iteration 29 recorded the branch as 8 commits ahead of `main`, while the live GitHub compare result shows 9 commits ahead and 0 behind.
+
+CORRECTION:
+- corrected the recorded ahead count from 8 to 9.
+
+RESTART:
+- the protocol was restarted from Step 1 after correcting the ledger discrepancy.
+
+FINAL VERIFICATION:
+- GitHub compare: 9 ahead / 0 behind
+- current head: `e8ea916fb8ba57dc0f7752623b698e2c5c0b882a`
+- PR #6 remains open
+- no GitHub Actions workflow exists
+- no `/evaluation` route/path detected
+- no legacy MediaPipe Hands path detected
+- Render configuration remains unchanged
+- live Render E2E remains unverified from this environment
+
+Iteration 30 result:
+    CLEAN LEDGER PASS
+    repository state and recorded branch count are now consistent.
