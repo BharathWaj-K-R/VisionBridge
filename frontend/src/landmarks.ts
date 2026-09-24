@@ -230,7 +230,6 @@ export async function createHands(
   const handLandmarker = await HandLandmarker.createFromOptions(vision, {
     baseOptions: {
       modelAssetPath: HAND_MODEL_URL,
-      delegate: "GPU",
     },
     runningMode: "VIDEO",
     numHands: 2,
