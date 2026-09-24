@@ -1021,3 +1021,15 @@ the UI in a stopped state. A local rejection-path simulation passed.
 
 Per the authoritative restart protocol, iteration 16 is failed and its
 downstream evidence is invalidated. Iteration 17 restarts from Step 1.
+
+
+## 2026-09-24 — Protocol iteration 17 failure
+
+Iteration 17 found a retired frontend route: /evaluation silently redirected to
+the dashboard after the old evaluation screen had been removed. Commit
+f6829ce0a0ed175f4cd4a2e9afbbd1036ce9b0f6 removed the dead route.
+
+Source search confirmed no remaining frontend /evaluation route references.
+
+Per the authoritative restart protocol, iteration 17 is failed and its
+downstream evidence is invalidated. Iteration 18 restarts from Step 1.
