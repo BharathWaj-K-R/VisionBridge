@@ -249,6 +249,14 @@ def make_train_validation_split(
     rng.shuffle(train_indices)
     rng.shuffle(validation_indices)
 
+    train_labels = labels[train_indices]
+    validation_labels = labels[validation_indices]
+    for label_index, letter in enumerate(LABELS):
+        if not np.any(train_labels == label_index) or not np.any(validation_labels == label_index):
+            raise ValueError(
+                f"Class {letter} does not have at least one usable sample in both train and validation"
+            )
+
     return (
         features[train_indices],
         labels[train_indices],
@@ -362,9 +370,30 @@ def prepare_dataset(
     finally:
         landmarker.close()
 
-    pooled_x = np.concatenate([train_source_x, validation_source_x])
-    pooled_y = np.concatenate([train_source_y, validation_source_y])
-    pooled_samples = train_samples + validation_samples
+    test_hashes = {sample["image_sha256"] for sample in test_samples}
+    pooled_records = [
+        (vector, label, sample)
+        for vector, label, sample in zip(
+            np.concatenate([train_source_x, validation_source_x]),
+            np.concatenate([train_source_y, validation_source_y]),
+            train_samples + validation_samples,
+        )
+        if sample["image_sha256"] not in test_hashes
+    ]
+
+    excluded_test_overlap = len(train_samples) + len(validation_samples) - len(pooled_records)
+    if excluded_test_overlap:
+        print(
+            "Excluded {} training/validation sample(s) whose exact image hash "
+            "also occurs in the source test split.".format(excluded_test_overlap)
+        )
+
+    if not pooled_records:
+        raise RuntimeError("No training/validation samples remain after test-overlap filtering")
+
+    pooled_x = np.stack([item[0] for item in pooled_records])
+    pooled_y = np.asarray([item[1] for item in pooled_records], dtype=np.int64)
+    pooled_samples = [item[2] for item in pooled_records]
 
     train_x, train_y, train_manifest, val_x, val_y, val_manifest = (
         make_train_validation_split(
@@ -375,20 +404,6 @@ def prepare_dataset(
             seed=seed,
         )
     )
-
-    pool_hashes = {sample["image_sha256"] for sample in pooled_samples}
-    test_overlap = {
-        sample["image_sha256"]
-        for sample in test_samples
-        if sample["image_sha256"] in pool_hashes
-    }
-
-    if test_overlap:
-        print(
-            "WARNING: exact image duplicates occur between the source test split "
-            f"and train/validation pools: {len(test_overlap)} hash(es). "
-            "The test set was not modified."
-        )
 
     np.savez_compressed(output_dir / "train.npz", x=train_x, y=train_y)
     np.savez_compressed(output_dir / "val.npz", x=val_x, y=val_y)
