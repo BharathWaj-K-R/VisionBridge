@@ -8,6 +8,8 @@ export type BrowserLayer = {
 export type BrowserModelPayload = {
   model_version: string;
   model_sha256: string;
+  preprocessing_version?: string;
+  landmark_runtime?: string;
   input_dim: number;
   hidden_dim: number;
   embedding_dim: number;
@@ -83,6 +85,9 @@ function flatten(rows: number[][]): Float32Array {
   return Float32Array.from(rows.flat());
 }
 
+const PREPROCESSING_VERSION = "two-hand-wrist-scale-v1";
+const LANDMARK_RUNTIME = "mediapipe-hand-landmarker-0.10.35";
+
 export class BrowserLetterModel {
   readonly modelVersion: string;
   readonly modelSha256: string;
@@ -110,6 +115,13 @@ export class BrowserLetterModel {
     }
     if (payload.labels.length !== payload.num_classes) {
       throw new Error("Browser model label metadata is invalid");
+    }
+
+    if (payload.preprocessing_version && payload.preprocessing_version !== PREPROCESSING_VERSION) {
+      throw new Error("Browser model preprocessing is incompatible");
+    }
+    if (payload.landmark_runtime && payload.landmark_runtime !== LANDMARK_RUNTIME) {
+      throw new Error("Browser model landmark runtime is incompatible");
     }
 
     this.modelVersion = payload.model_version;
