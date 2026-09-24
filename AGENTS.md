@@ -1470,6 +1470,25 @@ Iteration 5 outcome:
     RESULT: FAILED
     RESTART REQUIRED: YES
     downstream evidence invalidated: YES
+
+### 2026-09-24 — Authoritative-protocol execution iteration 6 (FAILED)
+
+c3f48941c24c981b847e55db4d697970e0a9f4af — fix: cancel stale camera activation
+0512c935105474ea7a111202a4b77653df09a24a — fix: enforce notebook asset checksum
+7f2540b1fef5b7942638e5c46fcdafe5a82f887b — docs: align V3 scaling contract
+04b53ddefc052b4ba60dc787da55fb0bab81bcd3 — docs: align V3 scaling contract
+dc2ec276726ccdad0eb3b29aa116d4638931d149 — docs: align notebook dependency wording
+63451544545df1825ce91f9df168af3251748e6d — docs: remove obsolete tracker setting
+
+Findings corrected:
+    stale async camera activation after video.play()          FIXED
+    notebook dependency wording contradicted NumPy pin        FIXED
+    model debug log contained obsolete tracker setting        FIXED
+
+Iteration 6 outcome:
+    RESULT: FAILED
+    RESTART REQUIRED: YES
+    downstream evidence invalidated: YES
 ## Current correction state
 
     training/browser landmark mismatch      CORRECTED
