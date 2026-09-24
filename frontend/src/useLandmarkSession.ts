@@ -54,6 +54,10 @@ export function useLandmarkSession(sampleFps: number) {
     try {
       setStatus("Loading hand tracker…");
       hands = await createHands((results) => {
+        if (startGeneration !== startGenerationRef.current || !activeRef.current) {
+          return;
+        }
+
         const video = videoRef.current;
         const canvas = canvasRef.current;
         if (!video) return;
@@ -140,6 +144,9 @@ export function useLandmarkSession(sampleFps: number) {
             await handsRef.current.send({ image: videoRef.current });
             frames += 1;
           } catch (error) {
+            if (startGeneration !== startGenerationRef.current) {
+              return;
+            }
             activeRef.current = false;
             setRunning(false);
             setStatus(error instanceof Error ? error.message : "Hand tracking failed");
