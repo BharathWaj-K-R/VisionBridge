@@ -1489,6 +1489,22 @@ Iteration 6 outcome:
     RESULT: FAILED
     RESTART REQUIRED: YES
     downstream evidence invalidated: YES
+
+### 2026-09-24 — Authoritative-protocol execution iteration 7 (FAILED)
+
+10f43df2da8560e702cd746f4ec70951bc7f4628 — fix: reject cross-label duplicate images
+dd6754abd0c531531d71609660b90037782bcce0 — fix: fail evaluation on missing classes
+834f9da377a139513a5b349b5be24bf8deaf2aba — test: cover cross-label duplicate rejection
+083600751ee9d29b8eff4f6640dfe1164147cf8c — test: cover evaluator class coverage
+
+Findings corrected:
+    same image hash could be associated with multiple labels              FIXED
+    evaluator could report metrics for splits missing A-Z classes         FIXED
+
+Iteration 7 outcome:
+    RESULT: FAILED
+    RESTART REQUIRED: YES
+    downstream evaluation evidence invalidated: YES
 ## Current correction state
 
     training/browser landmark mismatch      CORRECTED
