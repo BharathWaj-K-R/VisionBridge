@@ -853,7 +853,7 @@ The real-time product path was optimized around local inference:
 
 ~~~text
 camera
- -> MediaPipe Hands only
+ -> MediaPipe Tasks Hand Landmarker 0.10.35
  -> 21-point hand tracing + wrist trail
  -> normalized 126D vector
  -> browser-loaded base model
@@ -868,7 +868,7 @@ The previous Holistic browser pipeline was removed from the active camera path.
 Performance decisions:
 
 ~~~text
-MediaPipe Hands modelComplexity=0
+MediaPipe Tasks Hand Landmarker runtime=0.10.35
 camera target=640x480, max=960x720
 single in-flight hand-tracking call
 canvas size changes only when video dimensions change
