@@ -1365,3 +1365,72 @@ Iteration 30 result:
     the ledger correction commit is itself an additional branch commit.
     Future protocol entries must treat branch-ahead counts as point-in-time evidence,
     not as a value that remains constant after documentation commits.
+
+## 2026-09-24 — Protocol iteration 31 — Colab notebook V3 architecture execution hardening
+
+STEP 1 — INVENTORY:
+- current source of truth: `main`
+- active base-model contract remains V3:
+  126D normalized two-hand landmarks -> LayerNorm -> Linear(128) -> GELU -> Dropout(0.10)
+  -> Linear(64) -> LayerNorm -> GELU -> Linear(26)
+- training notebook: `notebooks/train_letter_base_colab.ipynb`
+- no trained production checkpoint is currently committed under `backend/app/models/weights/`
+- no GitHub Actions workflow is present
+
+STEP 2 — REPRODUCTION:
+- environment-level repository execution was attempted with a shallow Git clone.
+- reproduction failed before source execution because the container could not resolve `github.com`:
+  `fatal: unable to access 'https://github.com/BharathWaj-K-R/VisionBridge.git/': Could not resolve host: github.com
+  `
+- therefore local pytest/build execution could not be performed from the container in this iteration.
+- GitHub-backed source inspection remained available and was used for contract verification.
+
+STEP 3 — ISOLATION:
+- notebook source inspection found two quality defects:
+  1. duplicated `nvidia-smi` capability probing in the environment cell
+  2. stale Colab metadata name `train_letter_base_colab_fixed.ipynb`
+- the active model source and training CLI dimensions were already aligned with V3; no architecture mismatch was reproduced.
+- the notebook trained with explicit `--hidden-dim 128`, `--embedding-dim 64`, `--dropout 0.10` and the active 126D/A-Z dataset contract.
+
+STEP 4 — FIX:
+- removed the duplicated GPU capability probe.
+- renamed Colab metadata to `train_letter_base_colab.ipynb`.
+- added an executable V3 architecture-contract cell immediately before training.
+- the new check asserts:
+  - input_dim = 126
+  - hidden_dim = 128
+  - embedding_dim = 64
+  - num_classes = 26
+  - A-Z label vocabulary
+  - encoder layer order: LayerNorm -> Linear -> GELU -> Dropout -> Linear -> LayerNorm -> GELU
+  - embedding output shape [2, 64]
+  - logits output shape [2, 26]
+  - finite outputs
+
+STEP 5 — INVALIDATION:
+- prior notebook-only claims are superseded by the modified notebook.
+- previously established model/source contracts remain applicable because backend model, preprocessing, and evaluation code were not changed.
+- no trained-checkpoint accuracy evidence exists and none is claimed.
+
+STEP 6 — RESTART:
+- restarted verification from Step 1 after the notebook write.
+
+STEP 7 — VERIFICATION:
+- remote notebook fetch after commit: PASS
+- notebook JSON parse: PASS
+- notebook cell count: 12
+- exactly one architecture-contract cell: PASS
+- exactly one GPU probe invocation: PASS
+- architecture assertions 126/128/64/26: PASS
+- encoder sequence assertion: PASS
+- output-shape assertions: PASS
+- training flags remain hidden=128, embedding=64, dropout=0.10: PASS
+- untouched test evaluation cell remains present: PASS
+- current production checkpoint still absent: PASS
+- commit: `383c5d76f351ca33a555c293017776e711aefdf2`
+
+Iteration 31 result:
+    PASS for source/notebook contract hardening
+    runtime execution remains BLOCKED by container DNS/network access
+    real RealSign training and held-out accuracy remain outstanding
+
