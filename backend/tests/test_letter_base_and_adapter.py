@@ -80,12 +80,12 @@ def test_base_model_scales_from_config():
     assert model.embed(x).shape == (3, 96)
 
 
-def test_checkpoint_round_trip_preserves_dynamic_configuration(tmp_path):
+def test_checkpoint_round_trip_preserves_dynamic_width_configuration(tmp_path):
     path = tmp_path / "base.pt"
     model = VisionBridgeLetterBaseModel(
         hidden_dim=192,
         embedding_dim=80,
-        labels=("A", "B", "C"),
+        labels=tuple("ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
         dropout=0.2,
     )
     save_checkpoint(model, path)
@@ -94,8 +94,8 @@ def test_checkpoint_round_trip_preserves_dynamic_configuration(tmp_path):
     assert loaded.input_dim == 126
     assert loaded.hidden_dim == 192
     assert loaded.embedding_dim == 80
-    assert loaded.labels == ("A", "B", "C")
-    assert loaded.output_head.out_features == 3
+    assert loaded.labels == tuple("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    assert loaded.output_head.out_features == 26
     assert loaded.dropout == pytest.approx(0.2)
 
 
