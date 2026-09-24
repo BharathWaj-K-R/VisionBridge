@@ -6,7 +6,7 @@ VisionBridge's active product is a two-stage fingerspelling recognizer:
 
 ~~~text
 Browser camera
-  -> MediaPipe Tasks Hand Landmarker hand landmarks
+  -> MediaPipe Tasks Hand Landmarker 0.10.35 hand landmarks
   -> normalized 126D two-hand vector
   -> dynamic 26-class ISL letter base model
   -> 64D signer-independent embedding
@@ -69,7 +69,7 @@ The default training source is the public RealSign Indian Sign Language alphabet
 
 RealSign ISL alphabet dataset: https://github.com/RealSign62/RealSign-Indian-Sign-Language-Dataset
 
-The repository preparation script uses the MediaPipe Tasks Hand Landmarker in image mode and converts its 21-point results into the normalized 126-value hand contract used by the live application. The training notebook downloads the RealSign Git LFS archive through the media endpoint because the normal GitHub file endpoint returns the LFS pointer.
+The repository preparation script and browser runtime both use MediaPipe Tasks Hand Landmarker 0.10.35 with the same 21-point normalized landmark contract. The browser uses the version-pinned Tasks Vision package and the same hand-landmarker.task model bundle. The training notebook downloads the RealSign Git LFS archive through the media endpoint because the normal GitHub file endpoint returns the LFS pointer.
 
 ## Active API
 
@@ -196,3 +196,17 @@ Two separate measurements matter:
 2. Few-shot signer accuracy on held-out examples from a signer not used during adapter calibration.
 
 No accuracy percentage is claimed here until those runs produce actual measurements.
+
+## Evaluation
+
+Use the canonical evaluator after preparing the dataset and installing a checkpoint:
+
+~~~bash
+PYTHONPATH=backend python -m app.training.evaluate_letter_base \
+  --checkpoint backend/app/models/weights/letter_base_model.pt \
+  --data-dir /content/visionbridge_letter_data \
+  --split test \
+  --output-json /content/visionbridge_letter_evaluation.json
+~~~
+
+The evaluator reports overall accuracy, macro class accuracy, per-letter accuracy, the weakest class, the full A-Z confusion matrix, checkpoint size, parameter count, and model-only latency. Test results are for measurement only and must not be used repeatedly to tune training settings.
