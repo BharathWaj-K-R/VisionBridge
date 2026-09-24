@@ -18,8 +18,6 @@ services:
         value: https://visionbridge-2c7h.onrender.com
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
         value: "60"
-      - key: CALIBRATION_MIN_SECONDS
-        value: "300"
 
   - type: web
     runtime: static
@@ -41,7 +39,7 @@ services:
       #   2. the database is durable, not the ephemeral SQLite noted below;
       #   3. auth tokens are HttpOnly, not the current localStorage bearer token.
       # Flipping this to false before then would point the real live frontend at
-      # a backend that cannot actually serve translations or retain user data.
+      # a backend that cannot actually serve real letter recognition or retain user data.
       - key: VITE_LOCAL_MODE
         value: "true"
     routes:
