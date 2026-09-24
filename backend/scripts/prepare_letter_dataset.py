@@ -20,6 +20,8 @@ HAND_LANDMARKER_URL = (
     "https://storage.googleapis.com/mediapipe-models/"
     "hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
 )
+HAND_LANDMARKER_SIZE = 7_819_105
+HAND_LANDMARKER_SHA256 = "fbc2a30080c3c557093b5ddfc334698132eb341044ccee322ccf8bcf3607cde1"
 SPLIT_NAMES = {
     "train": ("Training (A-Z)", "Training"),
     "val": ("Validation (A-Z)", "Validation", "Val"),
@@ -42,17 +44,27 @@ def find_split(root: Path, names: tuple[str, ...]) -> Path:
 
 def ensure_hand_model(model_path: Path) -> Path:
     model_path.parent.mkdir(parents=True, exist_ok=True)
-    if model_path.is_file() and model_path.stat().st_size > 0:
-        return model_path
+
+    if model_path.is_file():
+        if (
+            model_path.stat().st_size == HAND_LANDMARKER_SIZE
+            and _sha256_file(model_path) == HAND_LANDMARKER_SHA256
+        ):
+            return model_path
+        print("Cached MediaPipe Hand Landmarker does not match the pinned asset; redownloading.")
+        model_path.unlink()
 
     print(f"Downloading MediaPipe Hand Landmarker to {model_path}")
     urllib.request.urlretrieve(HAND_LANDMARKER_URL, model_path)
 
-    if not model_path.is_file() or model_path.stat().st_size == 0:
-        raise RuntimeError("MediaPipe Hand Landmarker download failed")
+    if (
+        not model_path.is_file()
+        or model_path.stat().st_size != HAND_LANDMARKER_SIZE
+        or _sha256_file(model_path) != HAND_LANDMARKER_SHA256
+    ):
+        raise RuntimeError("MediaPipe Hand Landmarker download failed integrity validation")
 
     return model_path
-
 
 def create_hand_landmarker(model_path: Path):
     base_options = python.BaseOptions(
@@ -415,6 +427,8 @@ def prepare_dataset(
             "api": "mediapipe.tasks.vision.HandLandmarker",
             "runtime": "mediapipe-hand-landmarker-0.10.35",
             "model_url": HAND_LANDMARKER_URL,
+            "model_size_bytes": HAND_LANDMARKER_SIZE,
+            "model_sha256": HAND_LANDMARKER_SHA256,
             "num_hands": 2,
         },
         "split_policy": {
