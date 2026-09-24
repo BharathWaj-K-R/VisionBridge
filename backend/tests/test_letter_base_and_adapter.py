@@ -278,3 +278,56 @@ def test_calibration_request_requires_three_examples_per_letter():
     request = LetterCalibrationRequest(user_id=1, samples=valid_samples)
 
     assert len(request.samples) == 6
+
+
+@pytest.mark.parametrize(
+    "mutator,message",
+    [
+        (
+            lambda payload: payload.__setitem__("input_dim", 64),
+            "input dimension",
+        ),
+        (
+            lambda payload: payload.__setitem__("labels", ["A", "B"]),
+            "label vocabulary",
+        ),
+        (
+            lambda payload: payload["state_dict"]["encoder.1.weight"].__setitem__(
+                0, torch.full_like(payload["state_dict"]["encoder.1.weight"][0], float("nan"))
+            ),
+            "state_dict",
+        ),
+    ],
+)
+def test_checkpoint_rejects_incompatible_active_contract(tmp_path, mutator, message):
+    path = tmp_path / "base.pt"
+    save_checkpoint(VisionBridgeLetterBaseModel(), path)
+    payload = torch.load(path, map_location="cpu", weights_only=True)
+    mutator(payload)
+    torch.save(payload, path)
+
+    with pytest.raises(ValueError, match=message):
+        load_checkpoint(path)
+
+
+def test_train_validation_split_rejects_class_without_train_side(tmp_path):
+    features = np.arange(26 * 3 * 126, dtype=np.float32).reshape(26 * 3, 126)
+    labels = np.repeat(np.arange(26), 3)
+    samples = []
+    for index, letter in enumerate("ABCDEFGHIJKLMNOPQRSTUVWXYZ"):
+        samples.extend(
+            [
+                {"source_path": f"{letter}/a.jpg", "source_split": "training", "letter": letter, "image_sha256": f"{index}-shared"},
+                {"source_path": f"{letter}/b.jpg", "source_split": "training", "letter": letter, "image_sha256": f"{index}-shared"},
+                {"source_path": f"{letter}/c.jpg", "source_split": "training", "letter": letter, "image_sha256": f"{index}-unique"},
+            ]
+        )
+
+    with pytest.raises(ValueError, match="both train and validation"):
+        prepare_letter_dataset.make_train_validation_split(
+            features,
+            labels,
+            samples,
+            validation_ratio=0.9,
+            seed=42,
+        )
