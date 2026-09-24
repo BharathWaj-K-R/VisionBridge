@@ -102,9 +102,9 @@ def load_checkpoint(path: str | Path) -> VisionBridgeLetterBaseModel:
         raise ValueError("Letter base-model checkpoint must be a dictionary")
     if payload.get("model_version") != MODEL_VERSION:
         raise ValueError("Unsupported letter base-model version")
-    if payload.get("preprocessing_version") not in (None, PREPROCESSING_VERSION):
+    if payload.get("preprocessing_version") != PREPROCESSING_VERSION:
         raise ValueError("Unsupported letter base-model preprocessing version")
-    if payload.get("landmark_runtime") not in (None, LANDMARK_RUNTIME):
+    if payload.get("landmark_runtime") != LANDMARK_RUNTIME:
         raise ValueError("Unsupported letter base-model landmark runtime")
 
     try:
