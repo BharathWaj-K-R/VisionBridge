@@ -1153,3 +1153,48 @@ Clean source-level checks after restart:
 
 Runtime verification remains blocked by the environment/network boundary, so
 no Vite build or live browser result is claimed.
+
+
+## 2026-09-24 — Protocol iterations 24–26 — Stitch integration repair and verification
+
+Scope:
+- Integrate the uploaded Stitch VisionBridge design into the existing frontend without modifying backend/model behavior.
+- Preserve the existing live recognition, few-shot calibration, history, signer profile, local-runtime, and real-runtime flows.
+
+Iteration 24:
+- FAILED at frontend source audit.
+- The active `frontend/src/App.tsx` contained duplicated declarations:
+  `function Authfunction Auth`, `function Dashboard()function Dashboard()`,
+  `const LETTERS =const LETTERS`, and `function History()function History()`.
+- Root cause: malformed source edits in the active frontend file.
+- Correction: restored the intended single declarations.
+- Isolated verification: duplicate markers absent and delimiter balance is zero.
+
+Iteration 25:
+- FAILED at CI type-check.
+- Error: local `BrowserAdapterPayload` construction in `frontend/src/api.ts`
+  omitted required `preprocessing_version` and `landmark_runtime` metadata.
+- Root cause: the local demo adapter path had drifted from the browser model contract.
+- Correction: supplied the canonical preprocessing and MediaPipe runtime identifiers already enforced by `browserModel.ts`.
+- Downstream build evidence from the failed run was invalidated.
+
+Iteration 26:
+- PASS.
+- `npm ci`: PASS.
+- `npm run check`: PASS.
+- `npm run build`: PASS.
+- Vite production preview startup and HTTP response check: PASS.
+- Source audit after restart: PASS.
+- Render configuration remains static frontend -> `dist`, with `VITE_LOCAL_MODE=true`; backend/model behavior was not changed.
+- The Stitch visual system remains sourced from the existing integrated stylesheet: monochrome editorial layout, Newsreader/Space Mono typography, telemetry strips, camera workstation, classification panel, word buffer, temporal log, and A–Z calibration matrix.
+- Temporary/branch verification is isolated in `.github/workflows/stitch-frontend-check.yml` so the main deployment path is not altered.
+
+Final verified change set relative to main:
+- `frontend/src/App.tsx`: repaired malformed duplicated declarations.
+- `frontend/src/api.ts`: restored local adapter metadata contract.
+- `.github/workflows/stitch-frontend-check.yml`: added frontend type-check, production build, and preview-start verification.
+
+Remaining release boundary:
+- This branch is not a live Render deployment of the new commit.
+- Browser camera/model behavior and production Render E2E remain separate verification stages.
+- No claim is made that backend model quality has changed.
