@@ -42,6 +42,7 @@ Hidden width, embedding width, dropout, and output vocabulary are stored in the 
 The signer adapter operates on the current model's configured embedding. The signer captures a few examples for each letter they want to recognize. The adapter stores a normalized prototype for each calibrated letter and predicts by cosine similarity.
 
 The adapter records the exact base-model version and checkpoint SHA-256. Replacing the base checkpoint requires recalibration rather than silently mixing incompatible representations.
+Raw calibration landmarks are not stored in the active adapter payload; the adapter stores the derived letter prototypes and compatibility metadata instead.
 
 ## Do I need to train anything?
 
