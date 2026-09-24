@@ -927,3 +927,21 @@ Status:
     repository installation: PENDING
 
 The checkpoint must not be described as accuracy-validated until it has been evaluated on the untouched test split with the canonical evaluator.
+
+
+## 2026-09-24 — Protocol iteration 11 failure
+
+The three-shot calibration contract was correctly enforced in the service, but
+existing successful adapter tests still contained two-shot fixtures. Commit
+9ea571e7426707182453f81496cd604bc86ed9aa aligned those fixtures with the
+runtime contract.
+
+During verification, a separate latent contradiction was found: the dynamic
+constructor permits custom label vocabularies, but the active checkpoint loader
+strictly requires the production A-Z/26-class vocabulary. The existing
+checkpoint round-trip test expected a three-class checkpoint to load.
+
+Per the authoritative restart contract, iteration 11 is failed and all
+downstream evidence is invalidated. Iteration 12 must restart at Step 1 and
+resolve the checkpoint/test contract contradiction before further evidence is
+accepted.
