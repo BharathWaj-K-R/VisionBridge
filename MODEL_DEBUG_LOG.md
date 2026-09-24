@@ -835,7 +835,7 @@ The UI also renders:
 
 ### Performance decisions
 
-    MediaPipe Tasks Hand Landmarker 0.10.35 modelComplexity=0
+    MediaPipe Tasks Hand Landmarker 0.10.35
     640x480 ideal camera input
     one in-flight tracker call
     no per-frame network request
