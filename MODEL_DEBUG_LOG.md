@@ -71,6 +71,27 @@ FULL RESTART COMPLETED:
 FINAL STATUS:
     Source-level hardening is complete for the discovered issues; runtime and ML evidence remain explicitly unverified or blocked.
 
+
+---
+
+# 0C. 2026-09-24 — Restart #3
+
+FAILED STEP: post-hardening documentation re-audit
+ERROR FOUND:
+    AGENTS.md retained an obsolete MediaPipe Hands model-complexity description inside the current architecture diary.
+ROOT CAUSE:
+    The earlier historical performance entry was not rewritten when the browser tracker moved to the version-pinned MediaPipe Tasks runtime.
+CORRECTION:
+    Align the diary's executable architecture and performance contract with MediaPipe Tasks Hand Landmarker 0.10.35.
+FIX VERIFIED:
+    Static source re-audit confirms no active MediaPipe Hands configuration remains in the repository documentation checked in this cycle.
+DOWNSTREAM RESULTS INVALIDATED:
+    No model metrics or runtime evidence depended on the stale documentation.
+FULL RESTART COMPLETED:
+    Documentation re-audited after correction.
+FINAL STATUS:
+    Documentation consistency gate passes for the corrected runtime terminology; model, signer, browser, and deployment evidence remain unverified or blocked.
+
 # 1. Active model contract
 
     Input:          126 normalized landmark values
@@ -363,12 +384,12 @@ The hand tracing overlay must remain lightweight: 21-point skeleton + short wris
 
 Known source status:
 
-    Base model code:                 CI VERIFIED
-    Dataset preparation code:        CI VERIFIED
-    Training CLI:                    CI VERIFIED
+    Base model code:                 HISTORICAL CI VERIFIED
+    Dataset preparation code:        HISTORICAL CI VERIFIED
+    Training CLI:                    HISTORICAL CI VERIFIED
     Colab notebook:                  STATIC VERIFIED
-    Few-shot adapter code:           CI VERIFIED
-    Checkpoint compatibility:        CI VERIFIED
+    Few-shot adapter code:           HISTORICAL CI VERIFIED
+    Checkpoint compatibility:        HISTORICAL CI VERIFIED
     Uploaded V3 checkpoint structure: STATIC VERIFIED
     Uploaded V3 checkpoint accuracy:  NOT VERIFIED
     Repository checkpoint install:    PENDING
