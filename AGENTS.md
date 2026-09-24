@@ -1734,3 +1734,30 @@ Iteration 15 outcome:
     RESULT: FAILED
     RESTART REQUIRED: YES
     downstream evidence invalidated: YES
+
+
+### 2026-09-24 — Authoritative-protocol execution iteration 16 (FAILED)
+
+b07a171638869a4960db6f43fe607b43ed1478ae — fix: recover cleanly from tracker send failures
+
+Finding:
+    the MediaPipe animation loop awaited hands.send() without a rejection
+    handler, allowing a tracker failure to become an unhandled promise while
+    the UI could remain in the running state.
+
+Reproduction:
+    a minimal async loop with a rejecting send() produced an unhandled
+    rejection before the repair.
+
+Fix:
+    the tracker loop now catches send failures, clears the active/running
+    state, stops camera tracks, closes the hand tracker, and exits the loop.
+
+Verification:
+    local rejection-path simulation passed with no unhandled rejection and
+    confirmed stream stop + tracker close + running=false.
+
+Iteration 16 outcome:
+    RESULT: FAILED
+    RESTART REQUIRED: YES
+    downstream evidence invalidated: YES
