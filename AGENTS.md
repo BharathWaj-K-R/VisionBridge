@@ -253,12 +253,14 @@ The checkpoint contract includes:
 
 ~~~text
 model_version
+preprocessing_version
+landmark_runtime
 input_dim
 hidden_dim
 embedding_dim
 num_classes
 labels
- dropout
+dropout
 state_dict
 ~~~
 
@@ -315,6 +317,8 @@ embedding dimension: checkpoint-defined
 minimum similarity threshold: 0.35
 confidence: softmax over cosine scores
 base-checkpoint binding: SHA-256
+preprocessing/runtime metadata: required
+raw calibration landmarks: not persisted in adapter payload
 ~~~
 
 The adapter must detect a different base checkpoint and require recalibration rather than mixing incompatible embeddings.
@@ -1203,6 +1207,27 @@ Verification boundary:
     full local test suite                  NOT VERIFIED
     real-data training                     NOT VERIFIED
     signer-independent evaluation          REQUIRED / BLOCKED BY VERIFIED SIGNER METADATA
+### 2026-09-24 — Restart #5: strict metadata and calibration-data minimization
+
+c05e9a2b7221c7240d7d77f4757975cf466c3c4a — fix: enforce model metadata contract
+d48947419af069ffa7981f4abf748e359bb6f875 — fix: enforce adapter metadata contract
+1400f5c7c2ea8d5feaedd44f633adb8f112a49ef — test: enforce required runtime metadata
+516b9b75d8b4a330806c6168aa9d4f54e6a1524f — fix: avoid persisting raw calibration landmarks
+963f85a17ae221182e23a43789717387a80a611f — test: prevent raw calibration data persistence
+
+Findings corrected:
+    missing checkpoint metadata accepted as compatible       FIXED
+    missing adapter metadata accepted as compatible         FIXED
+    raw calibration landmarks stored unnecessarily          REMOVED
+
+Verification boundary:
+    source-level re-audit                     STATIC VERIFIED
+    current CI workflow                      DISABLED / NOT RUN
+    full local test suite                    NOT VERIFIED
+    real-data training                     NOT VERIFIED
+    signer-independent evaluation          REQUIRED / BLOCKED BY VERIFIED SIGNER METADATA
+    browser camera runtime                  NOT VERIFIED
+    live Render verification                NOT VERIFIED
 ## Current correction state
 
     training/browser landmark mismatch      CORRECTED
