@@ -113,6 +113,21 @@ backend/app/models/weights/letter_base_model.pt
 
 The file is intentionally allowed by .gitignore because the production API needs the trained base model locally.
 
+### Migrating a legacy V3 checkpoint
+
+Some V3 checkpoints created before the current metadata contract may contain valid
+learned weights but lack the preprocessing/runtime metadata now required by the
+strict loader. Migrate such a checkpoint without changing its learned tensors:
+
+~~~bash
+PYTHONPATH=backend python -m scripts.migrate_v3_checkpoint   --input /path/to/legacy_v3.pt   --output backend/app/models/weights/letter_base_model.pt
+~~~
+
+The migration utility accepts only the active V3 architecture and A-Z vocabulary,
+adds the versioned preprocessing/runtime metadata, and refuses incompatible or
+non-finite checkpoints. The migrated checkpoint must still pass the canonical
+held-out test evaluation before it is accepted for deployment.
+
 ## Real-time architecture
 
 Recognition is optimized so the per-frame hot path stays inside the browser:
