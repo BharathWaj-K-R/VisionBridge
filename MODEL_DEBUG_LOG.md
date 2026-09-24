@@ -15,6 +15,36 @@ This is the only active ML architecture described here. Model weights are versio
 
 ---
 
+
+---
+
+# 0A. 2026-09-24 — Self-correcting audit restart
+
+RESTART #1
+FAILED STEP: full repository / data / ML contract audit
+ERRORS FOUND:
+    1. Backend adapter loader silently rebuilt prototypes after a base-checkpoint change.
+    2. Calibration used the recognition rate-limit setting instead of the dedicated calibration limit.
+    3. Rate limiting keyed bearer traffic by raw token, allowing fabricated tokens to bypass a shared identity bucket.
+    4. Render retained an unused calibration-minimum environment setting.
+    5. Documentation described the 64D embedding as signer-independent before signer-holdout evidence existed.
+ROOT CAUSE:
+    Adapter lifecycle did not enforce the same strict checkpoint binding as the browser adapter.
+    Rate-limit wiring and identity bucketing were inconsistent with their documented contracts.
+    Documentation overstated an unverified property.
+CORRECTION:
+    Require exact base-model version, SHA-256, embedding dimension, label vocabulary, and adapter method/version.
+    Require explicit calibration throttling and use user identity for valid bearer tokens with IP fallback for invalid tokens.
+    Remove stale deployment configuration and describe signer independence only as a required evaluation gate.
+FIX VERIFIED:
+    Static source re-audit confirms the offending auto-refresh path is removed and the dedicated limiter wiring is present.
+DOWNSTREAM RESULTS INVALIDATED:
+    No real-data model metrics existed, so no model-quality result was reused.
+FULL RESTART COMPLETED:
+    Static repository re-audit completed after corrections.
+FINAL STATUS:
+    Code corrections recorded. Full runtime, real-data, held-out signer, browser, and Render gates remain NOT VERIFIED or BLOCKED as documented.
+
 # 1. Active model contract
 
     Input:          126 normalized landmark values
