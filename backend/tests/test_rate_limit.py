@@ -3,7 +3,7 @@ import time
 
 from fastapi import HTTPException
 
-from app.core.rate_limit import SlidingWindowRateLimiter, make_rate_limit_dependency
+from app.core.rate_limit import SlidingWindowRateLimiter, _client_key, make_rate_limit_dependency
 
 
 def test_limiter_allows_up_to_the_limit_then_blocks():
@@ -55,3 +55,38 @@ def test_dependency_raises_429_with_retry_after_header():
         assert int(exc.headers["Retry-After"]) >= 1
     else:
         raise AssertionError("expected HTTPException on the second call")
+
+
+def test_client_key_uses_user_subject_for_valid_bearer(monkeypatch):
+    monkeypatch.setattr("app.core.rate_limit.decode_access_token", lambda token: "42")
+
+    class Client:
+        host = "203.0.113.5"
+
+    class Request:
+        headers = {"authorization": "Bearer valid-token"}
+        client = Client()
+
+    assert _client_key(Request()) == "user:42"
+
+
+def test_client_key_falls_back_to_ip_for_invalid_bearer(monkeypatch):
+    monkeypatch.setattr("app.core.rate_limit.decode_access_token", lambda token: None)
+
+    class Client:
+        host = "203.0.113.5"
+
+    class Request:
+        headers = {"authorization": "Bearer forged-token"}
+        client = Client()
+
+    assert _client_key(Request()) == "ip:203.0.113.5"
+
+
+def test_letter_routes_use_separate_calibration_and_recognition_limits():
+    from app.api import letter as letter_api
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    assert letter_api._calibration_limiter.limit == settings.CALIBRATION_RATE_LIMIT_PER_MINUTE
+    assert letter_api._recognition_limiter.limit == settings.TRANSLATE_RATE_LIMIT_PER_MINUTE
