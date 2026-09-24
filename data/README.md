@@ -32,3 +32,16 @@ Signer calibration happens later from a small number of real examples and does n
 ## Current training preparation
 
 The active VisionBridge pipeline uses the RealSign ISL A-Z image dataset. The dataset archive is stored with Git LFS, so the Colab notebook downloads the real archive from the Git LFS media endpoint rather than the ordinary raw GitHub file URL. Landmark extraction uses MediaPipe Tasks Hand Landmarker and produces the normalized 126D two-hand representation expected by the base model.
+
+
+Prepared outputs now also include reproducibility manifests:
+
+```text
+visionbridge_letter_data/
+├── train_manifest.jsonl
+├── val_manifest.jsonl
+├── test_manifest.jsonl
+└── duplicate_report.json
+```
+
+The manifests record source paths, class labels, source split, and exact image SHA-256 values. Exact duplicates are kept together during the generated train/validation split; duplicates involving the source test split are reported rather than removed or relabeled.
