@@ -72,13 +72,12 @@ def delete_my_adapter(
             detail="Adapter deletion could not be staged safely",
         ) from exc
 
-    db.query(TranslationLog).filter(TranslationLog.adapter_id == adapter.id).update(
-        {TranslationLog.adapter_id: None},
-        synchronize_session=False,
-    )
-    db.delete(adapter)
-
     try:
+        db.query(TranslationLog).filter(TranslationLog.adapter_id == adapter.id).update(
+            {TranslationLog.adapter_id: None},
+            synchronize_session=False,
+        )
+        db.delete(adapter)
         db.commit()
     except Exception as exc:
         db.rollback()
