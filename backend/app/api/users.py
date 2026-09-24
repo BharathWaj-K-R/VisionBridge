@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
-from app.db.models import SignerAdapter, User
+from app.db.models import SignerAdapter, TranslationLog, User
 from app.db.session import get_db
 from app.schemas.schemas import AdapterOut
 from app.services.letter_fewshot import (
@@ -72,6 +72,10 @@ def delete_my_adapter(
             detail="Adapter deletion could not be staged safely",
         ) from exc
 
+    db.query(TranslationLog).filter(TranslationLog.adapter_id == adapter.id).update(
+        {TranslationLog.adapter_id: None},
+        synchronize_session=False,
+    )
     db.delete(adapter)
 
     try:
