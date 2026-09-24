@@ -118,6 +118,28 @@ FULL RESTART COMPLETED:
 FINAL STATUS:
     Corrected code paths are recorded; full runtime/build/ML/deployment evidence is still bounded by the unavailable local dependency checkout and disabled CI.
 
+
+---
+
+# 0E. 2026-09-24 — Restart #5
+
+FAILED STEP: post-hardening strict-contract audit
+ERRORS FOUND:
+    1. Checkpoint loaders accepted missing preprocessing/runtime metadata.
+    2. Adapter loaders accepted missing preprocessing/runtime metadata.
+    3. Adapter payloads persisted raw calibration landmarks after automatic re-embedding had already been removed.
+CORRECTION:
+    Require exact preprocessing_version and landmark_runtime on checkpoints and adapters.
+    Stop persisting raw calibration landmarks; require explicit recalibration after base-model changes.
+FIX VERIFIED:
+    Static source review confirms exact metadata equality checks and no calibration_samples field in fitted adapters.
+DOWNSTREAM RESULTS INVALIDATED:
+    No real-data model-quality result existed to invalidate.
+FULL RESTART COMPLETED:
+    Source-level repository re-audit completed after corrections.
+FINAL STATUS:
+    Strict model-contract and calibration-data minimization gates are corrected; real-data, signer-holdout, browser, and deployment evidence remain unverified or blocked.
+
 # 1. Active model contract
 
     Input:          126 normalized landmark values
@@ -532,6 +554,13 @@ A checkpoint is accepted only when:
 The runtime must reject missing, malformed, incompatible, or stale checkpoints.
 
 The adapter must remain bound to the exact base checkpoint used to create its prototypes.
+
+The active checkpoint and adapter loaders require exact preprocessing and
+landmark-runtime metadata. Missing metadata is incompatible.
+
+Raw calibration landmarks are not persisted in the active adapter payload,
+because base-model changes require explicit recalibration rather than silent
+re-embedding of stored samples.
 
 No silent fallback to an incompatible model is permitted in real mode.
 
