@@ -1782,3 +1782,26 @@ Iteration 17 outcome:
     RESULT: FAILED
     RESTART REQUIRED: YES
     downstream evidence invalidated: YES
+
+
+### 2026-09-24 — Authoritative-protocol execution iteration 18 (FAILED)
+
+0f6bcfecf1cfa2498c5ab3f87a7c17b650184f62 — fix: ignore stale camera callbacks after stop
+
+Finding:
+    an in-flight MediaPipe callback could arrive after stop(), repopulate the
+    latest frame, and allow the independent recognition timer to process a
+    frame even though the camera session had already been stopped.
+
+Fix:
+    the callback now validates the active start generation and running state
+    before accepting results. Late tracker errors from an obsolete generation
+    are also ignored.
+
+Verification:
+    source verification confirms both generation guards are present.
+
+Iteration 18 outcome:
+    RESULT: FAILED
+    RESTART REQUIRED: YES
+    downstream evidence invalidated: YES
