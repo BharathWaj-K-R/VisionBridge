@@ -21,7 +21,7 @@ COMBINED_HAND_DIM = HAND_DIM * 2
 MIN_SIMILARITY = 0.35
 settings = get_settings()
 _base_model: VisionBridgeLetterBaseModel | None = None
-_base_model_signature: tuple[int, int, int] | None = None
+_base_model_signature: tuple[int, int, int, str] | None = None
 
 
 def _normalize_single_hand(values: np.ndarray) -> np.ndarray:
@@ -75,7 +75,8 @@ def get_letter_base_model() -> VisionBridgeLetterBaseModel:
     if not target.is_file():
         raise FileNotFoundError("Letter base-model checkpoint is missing")
     stat = target.stat()
-    signature = (stat.st_mtime_ns, stat.st_size, stat.st_ino)
+    current_hash = _sha256(target)
+    signature = (stat.st_mtime_ns, stat.st_size, stat.st_ino, current_hash)
     if _base_model is None or _base_model_signature != signature:
         _base_model = load_checkpoint(target)
         _base_model_signature = signature
