@@ -108,7 +108,7 @@ def test_few_shot_adapter_tracks_current_base_version(tmp_path, monkeypatch):
 
     fitted = letter_fewshot.fit_prototype_adapter(
         model,
-        [("A", _pair(1)), ("A", _pair(2)), ("A", _pair(3)), ("B", _pair(4)), ("B", _pair(5)), ("B", _pair(6))],
+        [("A", _pair(1)), ("A", _pair(1)), ("A", _pair(1)), ("B", _pair(2)), ("B", _pair(2)), ("B", _pair(2))],
     )
     adapter_path = letter_fewshot.save_prototype_adapter(fitted["payload"])
     loaded = letter_fewshot.load_prototype_adapter(adapter_path, base)
