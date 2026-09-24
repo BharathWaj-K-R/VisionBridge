@@ -976,3 +976,21 @@ Commit 75992bcad7775cb0c4d3e657978d3d5b27ea7c55 corrected that residue.
 
 Per the authoritative restart protocol, iteration 13 is failed and all
 downstream evidence is invalidated. Iteration 14 restarts from Step 1.
+
+
+## 2026-09-24 — Protocol iteration 14 failure
+
+A real persistence defect was reproduced: with SQLite foreign-key enforcement
+enabled, deleting an adapter that still had TranslationLog rows referencing it
+raised an IntegrityError.
+
+Commit 8fdc265f40651b39a179b84ef43f0cd8763e8420 fixes deletion by clearing the
+adapter reference while preserving the historical log row. A regression test
+was added.
+
+The first version of that regression test used a fake weights path outside the
+managed adapter directory, which correctly triggered the path-safety guard.
+Commit 6f987c20f5af1512a37fefd01a1e2a64e565b984 corrected the fixture.
+
+Iteration 14 is failed under the authoritative restart protocol and its
+downstream evidence is invalidated. Iteration 15 restarts from Step 1.
