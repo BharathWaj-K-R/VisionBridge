@@ -8,8 +8,8 @@ export type BrowserLayer = {
 export type BrowserModelPayload = {
   model_version: string;
   model_sha256: string;
-  preprocessing_version: string;
-  landmark_runtime: string;
+  preprocessing_version?: string;
+  landmark_runtime?: string;
   input_dim: number;
   hidden_dim: number;
   embedding_dim: number;
@@ -36,7 +36,7 @@ export type BrowserAdapterPayload = {
   prototypes: Record<string, number[]>;
   shots: Record<string, number>;
   calibration_samples?: Array<{ letter: string; hand_keypoints: number[] }>;
-  base_model_labels: string[];
+  base_model_labels?: string[];
 };
 
 function gelu(value: number): number {
@@ -278,6 +278,7 @@ export class BrowserLetterAdapter {
     }
 
     if (
+      !payload.base_model_labels ||
       payload.base_model_labels.length !== this.model.labels.length ||
       payload.base_model_labels.some((label, index) => label !== this.model.labels[index])
     ) {
