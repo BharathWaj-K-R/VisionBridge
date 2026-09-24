@@ -5,7 +5,9 @@ services:
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
-    healthCheckPath: /api/v1/ready
+    # Liveness must not depend on the optional trained checkpoint.
+    # /api/v1/ready remains the model-readiness diagnostic endpoint.
+    healthCheckPath: /api/v1/health
     plan: free
     envVars:
       - key: PYTHON_VERSION
