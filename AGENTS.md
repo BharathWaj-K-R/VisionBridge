@@ -1428,6 +1428,33 @@ Iteration 3 outcome:
     RESULT: FAILED
     RESTART REQUIRED: YES
     downstream ML/runtime evidence invalidated: YES
+
+### 2026-09-24 — Authoritative-protocol execution iteration 4 (FAILED)
+
+0207217ddabac7feaf7667f7d74223274d14d150 — fix: make camera startup transactional
+8bfe0549ae0b5fcd2e6c448e36dd1e8943f86b66 — fix: cancel stale camera starts
+c3f48941c24c981b847e55db4d697970e0a9f4af — fix: cancel stale camera activation
+
+Reproduction:
+    A camera start can overlap an explicit stop/unmount while MediaStream acquisition or video.play() is awaiting.
+
+Root cause:
+    The async start path needed a generation boundary after every await that can outlive the component/session.
+
+Correction:
+    Added a starting guard and generation token checks before acquisition, after acquisition, and after video.play().
+    Acquired tracker/stream resources are explicitly closed/stopped on cancellation or failure.
+
+Verification:
+    current source contains the generation check immediately after video.play()
+    current source contains the single-start guard
+    current source has explicit stream/tracker cleanup on failure
+    real browser lifecycle execution remains NOT VERIFIED
+
+Iteration 4 outcome:
+    RESULT: FAILED
+    RESTART REQUIRED: YES
+    downstream runtime evidence invalidated: YES
 ## Current correction state
 
     training/browser landmark mismatch      CORRECTED
