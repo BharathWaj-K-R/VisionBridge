@@ -236,6 +236,43 @@ Protocol result:
     RESTART REQUIRED: YES
     downstream evidence invalidated: YES
 
+
+---
+
+# 13. 2026-09-24 — Authoritative-protocol execution iteration 3 (FAILED)
+
+REPRODUCTION:
+    The supplied V3 checkpoint was loaded through the current strict model loader and failed on missing preprocessing/runtime metadata.
+
+ARTIFACT INSPECTION:
+    model_version = visionbridge-letter-base-v3
+    input_dim = 126
+    hidden_dim = 128
+    embedding_dim = 64
+    num_classes = 26
+    labels = A-Z
+    parameters = 26,582
+    all learned tensors finite
+    supplied SHA-256 = 2b42639e0ffb3c40112bf931f434f6adf5b578fce21399ba53795d3fba0529a
+
+ROOT CAUSE:
+    The supplied checkpoint predates the metadata-bound checkpoint envelope.
+
+FIX:
+    Added backend/scripts/migrate_v3_checkpoint.py to validate the legacy V3 structure and add only the current preprocessing/runtime metadata.
+
+VERIFICATION:
+    migrated artifact loaded with the current strict loader
+    tensor values unchanged
+    model output shape = [16,26]
+    embedding shape = [16,64]
+    logits and embeddings finite
+
+PROTOCOL RESULT:
+    RESULT: FAILED
+    RESTART REQUIRED: YES
+    downstream evidence invalidated: YES
+
 # 1. Active model contract
 
     Input:          126 normalized landmark values
