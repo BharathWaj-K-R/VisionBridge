@@ -86,6 +86,10 @@ function localFit(samples: LetterSample[]) {
   }
   const entries = Object.entries(grouped);
   if (entries.length < 2) throw new Error("Calibrate at least two different letters.");
+  const insufficient = entries.filter(([, values]) => values.length < 3).map(([letter]) => letter);
+  if (insufficient.length) {
+    throw new Error("Each calibrated letter requires at least 3 examples: " + insufficient.join(", "));
+  }
   const prototypes: Record<string, number[]> = {};
   const shots: Record<string, number> = {};
   for (const entry of entries) {
