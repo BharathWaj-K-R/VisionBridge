@@ -394,3 +394,19 @@ def test_calibration_request_rejects_more_than_130_samples():
         LetterCalibrationRequest(user_id=1, samples=samples + [
             {"letter": "C", "hand_keypoints": _pair(999)}
         ])
+
+
+def test_fit_prototype_adapter_requires_three_examples_per_letter(tmp_path, monkeypatch):
+    model = VisionBridgeLetterBaseModel()
+    base = tmp_path / "base.pt"
+    save_checkpoint(model, base)
+
+    monkeypatch.setattr(letter_fewshot.settings, "LETTER_BASE_MODEL_PATH", str(base))
+    monkeypatch.setattr(letter_fewshot.settings, "ADAPTER_WEIGHTS_DIR", str(tmp_path / "adapters"))
+
+    with pytest.raises(ValueError, match="at least 3 examples"):
+        letter_fewshot.fit_prototype_adapter(
+            model,
+            [("A", _pair(1)), ("A", _pair(2)), ("A", _pair(3)),
+             ("B", _pair(4)), ("B", _pair(5))],
+        )
