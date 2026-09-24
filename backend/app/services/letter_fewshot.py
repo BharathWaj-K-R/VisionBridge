@@ -129,10 +129,6 @@ def fit_prototype_adapter(
         "prototypes": {key: value.tolist() for key, value in prototypes.items()},
         "shots": {key: len(value) for key, value in sorted(grouped.items())},
         "base_model_labels": list(base_model.labels),
-        "calibration_samples": [
-            {"letter": letter, "hand_keypoints": normalize_hand_pair(raw).tolist()}
-            for letter, raw in samples
-        ],
     }
     return {
         "payload": payload,
