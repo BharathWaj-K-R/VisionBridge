@@ -6,7 +6,7 @@ The active product is an Indian Sign Language alphabet/fingerspelling letter rec
 
 ~~~text
 Browser camera
- -> MediaPipe Hands
+ -> MediaPipe Tasks Hand Landmarker 0.10.35
  -> normalized 126D two-hand landmark vector
  -> dynamic 26-class VisionBridge letter base model
  -> 64D signer-independent embedding
@@ -157,7 +157,8 @@ Rules:
 - missing hands are zero-filled;
 - feature dimension must remain exactly 126;
 - preprocessing used for training must match preprocessing used at inference;
-- handedness handling must remain consistent between dataset preparation and runtime.
+- handedness handling must remain consistent between dataset preparation and runtime;
+- the active preprocessing contract is `two-hand-wrist-scale-v1` and the active landmark runtime is `mediapipe-hand-landmarker-0.10.35`.
 
 Do not silently change the active 126D contract. Model versions may introduce a new input contract explicitly.
 
@@ -884,3 +885,13 @@ This target is a validation criterion, not a guarantee of perfect recognition fo
 ## 2026-09-23 — MediaPipe training compatibility fix
 
 MediaPipe 0.10.31 and newer no longer expose the legacy Python Solutions surface used by older examples. The training path now uses mp.tasks.vision.HandLandmarker with the versioned Google-hosted hand_landmarker.task model bundle. The Colab notebook installs only mediapipe==0.10.35, downloads the hand model automatically, validates that the Tasks landmarker can initialize, and passes the model path to dataset preparation. Production backend dependencies are not installed in the Colab training environment.
+
+# 17. Evaluation contract
+
+The canonical evaluator is ~~~text
+backend/app/training/evaluate_letter_base.py
+~~~
+
+It must be used for recorded V3/V4/V5 test measurements and reports overall accuracy, macro accuracy, per-letter accuracy, worst-class accuracy, confusion matrix, parameter count, checkpoint size, and model-only latency. The original test split remains measurement-only and is not a tuning input.
+
+Signer-independent evaluation is a separate gate. The current prepared NPZ contract does not contain signer IDs, so a signer-independent result must not be inferred from the random 80/20 split. A future signer-holdout evaluation requires explicit signer metadata or a verified signer manifest.
