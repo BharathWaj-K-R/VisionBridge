@@ -118,7 +118,7 @@ Recognition is optimized so the per-frame hot path stays inside the browser:
 
 ~~~text
 camera
-  -> MediaPipe Hands
+  -> MediaPipe Tasks Hand Landmarker 0.10.35
   -> 126D normalization
   -> browser base-model inference
   -> browser few-shot adapter
@@ -129,7 +129,7 @@ The backend is used for authentication, one-time model/adapter loading, calibrat
 
 The camera also renders a live 21-point hand skeleton plus a short wrist-motion trail.
 
-The tracker uses the lightweight MediaPipe Hands configuration, including model complexity 0. MediaPipe's documentation notes that model complexity affects inference latency and that higher tracking confidence can increase latency.
+The browser tracker uses the version-pinned MediaPipe Tasks Hand Landmarker 0.10.35 configuration documented above.
 
 This targets near-zero network latency, not literal zero milliseconds. The actual result depends on the user's camera, browser, hardware, and tracking workload.
 
