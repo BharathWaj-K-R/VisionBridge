@@ -1207,6 +1207,17 @@ Verification boundary:
     full local test suite                  NOT VERIFIED
     real-data training                     NOT VERIFIED
     signer-independent evaluation          REQUIRED / BLOCKED BY VERIFIED SIGNER METADATA
+
+### 2026-09-24 — Ledger completeness correction
+
+5ac7147b80dc06dbd0b0d8a4e35002084c74f6d6 — fix: prune stale rate limit buckets
+0a01b326006917aa997baff2fe35449efe7c766d — test: cover stale rate limit bucket cleanup
+
+These two commits belong to the preceding rate-limit hardening cycle and are recorded here so the cumulative ledger contains every meaningful repository change made during the current correction run.
+
+Current source status:
+    stale rate-limit bucket cleanup       CODE FIXED
+    cleanup regression coverage            CODE FIXED
 ### 2026-09-24 — Restart #5: strict metadata and calibration-data minimization
 
 c05e9a2b7221c7240d7d77f4757975cf466c3c4a — fix: enforce model metadata contract
