@@ -168,3 +168,30 @@ def test_browser_payload_matches_checkpoint(tmp_path):
 def test_degenerate_input_rejected():
     with pytest.raises(ValueError, match="No visible"):
         letter_fewshot.normalize_hand_pair([0.0] * 126)
+
+
+def test_adapter_rejects_incompatible_preprocessing_metadata(tmp_path, monkeypatch):
+    model = VisionBridgeLetterBaseModel()
+    base = tmp_path / "base.pt"
+    save_checkpoint(model, base)
+
+    monkeypatch.setattr(
+        letter_fewshot.settings,
+        "LETTER_BASE_MODEL_PATH",
+        str(base),
+    )
+    monkeypatch.setattr(
+        letter_fewshot.settings,
+        "ADAPTER_WEIGHTS_DIR",
+        str(tmp_path / "adapters"),
+    )
+
+    fitted = letter_fewshot.fit_prototype_adapter(
+        model,
+        [("A", _pair(1)), ("B", _pair(2))],
+    )
+    fitted["payload"]["preprocessing_version"] = "wrong-contract"
+    path = letter_fewshot.save_prototype_adapter(fitted["payload"])
+
+    with pytest.raises(ValueError, match="preprocessing"):
+        letter_fewshot.load_prototype_adapter(path, base)
