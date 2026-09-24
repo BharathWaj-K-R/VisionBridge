@@ -99,9 +99,23 @@ def calibrate_letters(
         calibration_seconds=payload.calibration_seconds,
         param_count=fitted["param_count"],
     )
-    db.add(row)
-    db.commit()
-    db.refresh(row)
+    try:
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+    except Exception as exc:
+        db.rollback()
+        try:
+            Path(weights_path).unlink(missing_ok=True)
+        except OSError as cleanup_exc:
+            raise HTTPException(
+                status_code=500,
+                detail="Adapter persistence failed and cleanup is pending",
+            ) from cleanup_exc
+        raise HTTPException(
+            status_code=500,
+            detail="Adapter could not be persisted safely",
+        ) from exc
 
     return LetterCalibrationResult(
         adapter_id=row.id,
