@@ -271,7 +271,7 @@ Embedding:     64
 Classes:       26 (A-Z)
 Objective:     cross-entropy
 
-The checkpoint may scale hidden width, embedding width, and class vocabulary.
+The active V3 checkpoint may scale hidden width and embedding width, but its input contract remains 126D and its vocabulary remains A-Z. A future input or vocabulary change requires an explicit new model version and full validation cycle.
 ~~~
 
 Current model structure:
@@ -328,7 +328,7 @@ embedding_dim=64
 classes=26 (A-Z)
 ~~~
 
-These are defaults rather than hard architectural limits. The checkpoint stores the actual dimensions, dropout, and label vocabulary. The training CLI exposes hidden and embedding dimensions so larger models can be trained as the dataset and product scope grow.
+For the active V3 contract, input_dim=126 and the A-Z vocabulary are fixed. Hidden and embedding widths are checkpoint-defined. Future input/vocabulary changes require a new versioned model contract. The checkpoint stores the actual dimensions, dropout, and label vocabulary. The training CLI exposes hidden and embedding dimensions so larger models can be trained as the dataset and product scope grow.
 
 The backend detects checkpoint file changes and hot-reloads the latest compatible model. Existing signer adapters retain the model version and checkpoint hash and require recalibration after an embedding-space change. This prevents silent incompatibility while keeping the system dynamically updatable.
 
