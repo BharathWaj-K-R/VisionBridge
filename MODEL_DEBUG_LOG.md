@@ -1060,3 +1060,18 @@ test file.
 
 Per the authoritative restart protocol, iteration 19 is failed and downstream
 evidence is invalidated. Iteration 20 restarts from Step 1.
+
+
+## 2026-09-24 — Protocol iteration 20 failure
+
+The adapter deletion audit found a transaction boundary defect: the history
+nulling update ran outside the rollback/restore block, so a database failure at
+that point could strand the adapter file as a tombstone while leaving the
+database record intact.
+
+Commit 932d86c51c35c646dbe6c0df0e4eb92ca4bde1f1 encloses the history update,
+adapter delete, and commit in the protected block. Commit
+a0c19d6837dd8d907e801eee585c6fc4c1262a25 adds regression coverage.
+
+Per the authoritative restart protocol, iteration 20 is failed and downstream
+evidence is invalidated. Iteration 21 restarts from Step 1.
