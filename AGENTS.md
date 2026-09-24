@@ -1827,3 +1827,31 @@ Iteration 19 outcome:
     RESULT: FAILED
     RESTART REQUIRED: YES
     downstream evidence invalidated: YES
+
+
+### 2026-09-24 — Authoritative-protocol execution iteration 20 (FAILED)
+
+932d86c51c35c646dbe6c0df0e4eb92ca4bde1f1 — fix: rollback staged adapter delete on DB update failure
+a0c19d6837dd8d907e801eee585c6fc4c1262a25 — test: cover adapter delete rollback boundary
+
+Finding:
+    the adapter deletion history-clearing update occurred outside the protected
+    transaction/restore block. A database failure during that update could
+    leave the adapter file staged as a tombstone while the database state
+    remained unchanged.
+
+Reproduction:
+    simulated a failing history update after file staging and confirmed the
+    tombstone remained while the original file was absent.
+
+Fix:
+    history nulling, ORM delete, and commit now share one rollback/restore block.
+
+Verification:
+    source verification confirms the update and delete occur inside the same
+    protected transaction block, with dedicated regression coverage.
+
+Iteration 20 outcome:
+    RESULT: FAILED
+    RESTART REQUIRED: YES
+    downstream evidence invalidated: YES
