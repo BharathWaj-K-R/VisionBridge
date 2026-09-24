@@ -4,6 +4,7 @@ import torch
 
 from app.models.letter_model import LANDMARK_RUNTIME, PREPROCESSING_VERSION, VisionBridgeLetterBaseModel, build_browser_payload, build_checkpoint, save_checkpoint, load_checkpoint
 from app.schemas.schemas import LetterCalibrationRequest
+from scripts.migrate_v3_checkpoint import migrate_checkpoint
 from app.services import letter_fewshot
 from scripts import prepare_letter_dataset
 
@@ -331,3 +332,29 @@ def test_train_validation_split_rejects_class_without_train_side(tmp_path):
             validation_ratio=0.9,
             seed=42,
         )
+
+
+def test_legacy_v3_checkpoint_migrates_without_weight_changes(tmp_path):
+    source = tmp_path / "legacy.pt"
+    destination = tmp_path / "migrated.pt"
+    model = VisionBridgeLetterBaseModel()
+    save_checkpoint(model, source)
+
+    legacy = torch.load(source, map_location="cpu", weights_only=True)
+    legacy.pop("preprocessing_version")
+    legacy.pop("landmark_runtime")
+    torch.save(legacy, source)
+
+    migrate_checkpoint(source, destination)
+    loaded = load_checkpoint(destination)
+    migrated = torch.load(destination, map_location="cpu", weights_only=True)
+
+    assert loaded.input_dim == 126
+    assert loaded.hidden_dim == 128
+    assert loaded.embedding_dim == 64
+    assert loaded.labels == tuple("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    assert migrated["preprocessing_version"] == PREPROCESSING_VERSION
+    assert migrated["landmark_runtime"] == LANDMARK_RUNTIME
+
+    for key, value in legacy["state_dict"].items():
+        assert torch.equal(value, migrated["state_dict"][key])
