@@ -1890,3 +1890,42 @@ VERIFICATION:
 DOWNSTREAM INVALIDATION:
     Any prior claim that the notebook had passed static verification is invalid.
     No runtime V3 training or evaluation result existed, so no metrics are reused.
+
+
+# 2026-09-25 — Direct-source notebook final hardening
+
+RESTART #40
+
+TRIGGER:
+    Final audit found that the RealSign repository uses the concrete directories
+    "Training (A-Z)", "Validation (A-Z)", and "Testing (A-Z)", while the notebook
+    validation check only recognized the shorter names. That would have produced a
+    false extraction failure even when the archive was correct.
+
+ADDITIONAL HARDENING:
+    1. Pin the RealSign archive to immutable source commit:
+       17c51dcc158b7b6359b7c6667edc51c7f148f3f4
+    2. Confirmed that this commit's Dataset.zip pointer has the expected object:
+       sha256:008cae248e346b8c31fbbea057fcc3f69c6909d29a88e6bb1fb0369f528de2b5
+       size: 656689688 bytes
+    3. Accept the dataset's actual split directory names during post-extraction
+       validation.
+    4. Install PyTorch using the official PyTorch 2.9.0 CPU or CUDA 12.8 index,
+       instead of relying on an ambiguous extra-index resolution.
+    5. Add retry handling to the VisionBridge source clone.
+
+VERIFICATION:
+    The notebook source now has:
+        - immutable RealSign source commit
+        - exact archive integrity contract
+        - actual dataset split-name compatibility
+        - official PyTorch package index selection
+        - clone retry handling
+        - explicit downstream prerequisite checks
+
+DOWNSTREAM INVALIDATION:
+    Previous notebook verification was invalidated by the split-name defect.
+    No runtime V3 metrics existed, so no model-quality evidence is reused.
+
+STATUS:
+    Source-level notebook hardening continues until the static contract is clean.
