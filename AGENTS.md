@@ -382,7 +382,7 @@ SIGNER ADAPTER: fitted from a few runtime examples
 
 # 6. Dataset preparation and training
 
-The default training source is the RealSign Indian Sign Language alphabet dataset. Dataset preprocessing uses the supported MediaPipe Tasks Hand Landmarker API and its versioned hand-landmarker.task model bundle. The source archive is a Git LFS object and the Colab notebook uses the Git LFS media endpoint.
+The default training source is the repository-local RealSign Indian Sign Language alphabet archive at `data/raw/RealSign/Dataset.zip`. It is tracked through a Git LFS pointer and resolved from the published RealSign LFS endpoint via `.lfsconfig`. Dataset preprocessing uses the supported MediaPipe Tasks Hand Landmarker API and its versioned hand-landmarker.task model bundle. The training notebook materializes the archive into the clone before extraction and verifies its exact size and SHA-256.
 
 Dataset preparation converts alphabet images into the same normalized 126D landmark representation used at runtime.
 
