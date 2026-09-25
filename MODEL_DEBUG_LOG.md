@@ -2040,3 +2040,45 @@ DOWNSTREAM INVALIDATION:
 
 STATUS:
     Correction applied. Full static re-audit follows.
+
+
+# 2026-09-25 — Colab PyTorch resolver hardening with fallback builds
+
+RESTART #45
+
+TRIGGER:
+    The user's Colab execution failed before training because uv could not
+    resolve torch==2.9.0+cu128 when PyPI was also in the resolver set.
+    The failure repeated three times without changing the underlying condition.
+    fileciteturn479file0L97-L124
+
+ROOT CAUSE:
+    Package-manager resolver semantics rejected a local-version CUDA package
+    identifier. The official PyTorch 2.9.0 installation instructions instead use
+    torch==2.9.0 with a platform-specific PyTorch index. citeturn410271search0
+
+CORRECTION:
+    The notebook no longer asks uv to solve a +cuXXX/+cpu package version.
+    It uses the isolated environment's pip executable and tries, in order:
+        1. torch==2.9.0 from CUDA 12.8 index when a GPU is detected
+        2. torch==2.9.0 from CUDA 12.6 index
+        3. torch==2.9.0 from the official CPU index
+    Each candidate is import-tested before being accepted.
+    Training is configured for up to 1000 epochs, while retaining the existing
+    early-stop rule when every validation letter reaches the target.
+
+VERIFICATION:
+    Static audit must confirm:
+        - no torch==2.9.0+cu128 or torch==2.9.0+cpu package specifiers
+        - no uv PyTorch installation
+        - official PyTorch indexes only
+        - CPU fallback is present
+        - notebook training argument is 1000
+        - release evidence records epochs=1000
+        - backend CLI default is 1000
+        - README uses 1000 in the active training command
+
+DOWNSTREAM INVALIDATION:
+    The failed dependency installation generated no valid checkpoint or metrics.
+    All downstream V3 evidence remains invalid until a corrected Colab run
+    actually completes.
