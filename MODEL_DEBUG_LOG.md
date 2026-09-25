@@ -1956,3 +1956,37 @@ DOWNSTREAM INVALIDATION:
 STATUS:
     Notebook dependency selection is now explicit and deterministic for the two
     supported Colab execution modes.
+
+# 2026-09-25 — Final Colab dependency-state hardening
+
+RESTART #42
+
+TRIGGER:
+    The final audit discovered that the committed Cell 1 did not contain the
+    intended clone-retry and exact PyTorch-build logic.
+
+ROOT CAUSE:
+    The earlier patch used a source-pattern replacement that did not match the
+    committed Cell 1. The repository therefore retained the older environment
+    implementation.
+
+CORRECTION:
+    Cell 1 was rewritten completely instead of applying a partial text patch.
+    It now:
+        - removes stale Colab source and environment state
+        - clones VisionBridge from main with retries
+        - installs uv with pip retries/timeouts
+        - installs Python 3.12
+        - creates and verifies the isolated interpreter
+        - installs NumPy 2.1.3 and MediaPipe 0.10.35
+        - installs an exact PyTorch 2.9.0+cu128 build for GPU runtimes
+          or 2.9.0+cpu for CPU runtimes from the official PyTorch index
+        - verifies Python, PyTorch, NumPy, MediaPipe, and CUDA state
+
+DOWNSTREAM INVALIDATION:
+    The previous static notebook pass is invalidated by the Cell 1 discrepancy.
+    No V3 runtime metrics existed, so no model-quality result is reused.
+
+STATUS:
+    Cell 1 is now a complete deterministic bootstrap rather than a partial
+    patch layered over stale setup logic.
