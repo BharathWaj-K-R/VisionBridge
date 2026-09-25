@@ -93,7 +93,7 @@ Run:
 notebooks/train_letter_base_colab.ipynb
 ~~~
 
-The notebook downloads the RealSign archive directly from the public source, downloads the versioned MediaPipe Hand Landmarker task model, extracts the two-hand landmarks through the supported MediaPipe Tasks API, builds a stratified 80/20 train-validation split from the dataset's training + validation pools, and automatically iterates base-model training. After each epoch it measures accuracy for every A-Z class on the full validation split. Training can run for up to 500 epochs and stops when every letter reaches the configured target. The dataset's original testing split is kept untouched and measured separately. The best checkpoint is always saved.
+The notebook downloads the RealSign archive directly from the public source, downloads the versioned MediaPipe Hand Landmarker task model, extracts the two-hand landmarks through the supported MediaPipe Tasks API, builds a stratified 80/20 train-validation split from the dataset's training + validation pools, and automatically iterates base-model training. After each epoch it measures accuracy for every A-Z class on the full validation split. Training can run for up to 1000 epochs and stops when every letter reaches the configured target. The dataset's original testing split is kept untouched and measured separately. The best checkpoint is always saved.
 
 Equivalent CLI training command:
 
