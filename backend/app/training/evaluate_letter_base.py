@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import time
 from pathlib import Path
@@ -11,6 +12,14 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset
 
 from app.models.letter_model import INPUT_DIM, LANDMARK_RUNTIME, MODEL_VERSION, PREPROCESSING_VERSION, load_checkpoint
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def load_split(root: Path, name: str) -> tuple[torch.Tensor, torch.Tensor]:
@@ -114,6 +123,7 @@ def evaluate(
 
     report = {
         "checkpoint": str(checkpoint),
+        "checkpoint_sha256": sha256_file(checkpoint),
         "split": split,
         "device": str(device),
         "samples": total,
@@ -176,6 +186,7 @@ def main() -> None:
     )
     print(f"parameters={report['model']['parameters']}")
     print(f"checkpoint_bytes={report['model']['checkpoint_bytes']}")
+    print(f"checkpoint_sha256={report['checkpoint_sha256']}")
     print(
         f"mean_batch_ms={report['latency']['mean_batch_ms']:.3f} "
         f"mean_sample_ms={report['latency']['mean_sample_ms']:.5f}"
