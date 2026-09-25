@@ -1708,3 +1708,92 @@ FINAL STATUS:
 RESTART REQUIRED:
     YES, after a training environment successfully materializes the dataset and
     produces the new real-data evidence state.
+
+
+# 2026-09-25 — Direct-source dataset download migration
+
+RESTART #37
+
+TRIGGER:
+    The Colab training pipeline failed during the repository-local dataset workflow:
+        FileNotFoundError: /content/visionbridge_train_env/bin/python
+        and subsequently:
+        RuntimeError: Not in a Git repository.
+    A later training attempt also correctly stopped because /content/RealSign
+    and /content/visionbridge_letter_data had not been created.
+
+FAILED STEP:
+    Step 1 / Step 2 / Step 3 dependency boundary around notebook workspace setup
+    and repository-local dataset materialization.
+
+REPRODUCTION:
+    A Colab runtime contained a /content/VisionBridge directory without a .git
+    directory. The notebook then attempted:
+        git lfs install --local
+    against that non-Git folder and failed with:
+        Not in a Git repository.
+    A training cell subsequently referenced:
+        /content/visionbridge_letter_data
+    before landmark preparation had succeeded.
+
+ROOT CAUSE:
+    The notebook coupled successful training to two external workspace assumptions:
+        1. /content/VisionBridge must already be a valid Git clone configured for LFS.
+        2. data/raw/RealSign/Dataset.zip must be materialized through that LFS path.
+    Those assumptions were unnecessary for training and made the pipeline brittle
+    after Colab restarts, manual uploads, or non-LFS repository downloads.
+
+DATA-FLOW FINDING:
+    The actual model pipeline only requires:
+        RealSign source archive
+        -> extracted images
+        -> MediaPipe Tasks landmarks
+        -> visionbridge_letter_data
+        -> V3 training
+    No Git-LFS object is needed by the preparation or training modules.
+
+CORRECTION:
+    1. Removed VisionBridge Git-LFS dataset configuration:
+        .gitattributes
+        .lfsconfig
+        data/raw/RealSign/Dataset.zip pointer
+    2. Removed the corresponding .gitignore unignore rules.
+    3. Changed the notebook to clone VisionBridge as an ordinary Git repository.
+    4. Changed dataset acquisition to download Dataset.zip directly from:
+        https://media.githubusercontent.com/media/
+        RealSign62/RealSign-Indian-Sign-Language-Dataset/main/Dataset.zip
+    5. Added exact size, SHA-256, ZIP integrity, and split-folder checks before
+       landmark preparation.
+    6. Added Python-environment fallback guards so notebook stages do not assume
+       the isolated venv exists after an interrupted setup.
+    7. Updated README.md, data/README.md, and the active AGENTS.md source contract.
+
+VERIFICATION:
+    Static notebook validation after the edit confirms:
+        - valid notebook JSON
+        - 12 cells preserved
+        - no active Git-LFS installation or pull commands in the notebook
+        - direct RealSign source URL present
+        - expected archive size and SHA-256 present
+        - dataset extraction precedes landmark preparation
+        - V3 training still consumes /content/visionbridge_letter_data
+        - release evidence records the direct source URL instead of a repository path
+    Repository tree validation confirms:
+        - .gitattributes removed
+        - .lfsconfig removed
+        - data/raw/RealSign/Dataset.zip pointer removed
+        - no active VisionBridge dataset LFS configuration remains
+
+DOWNSTREAM INVALIDATION:
+    All previous repository-local-LFS materialization conclusions are invalidated.
+    No V3 accuracy result existed, so no model-quality metric is reused.
+
+REMAINING VERIFICATION:
+    Actual 656 MB source download, landmark extraction, training, checkpoint
+    loading, test evaluation, browser inference, Render deployment, and the
+    mandatory signer-independent release gate still require a successful runtime
+    execution in an environment with access to the RealSign source.
+
+STATUS:
+    Direct-source implementation is code-complete and statically verified.
+    V3 training remains pending actual runtime execution.
