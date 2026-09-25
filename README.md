@@ -70,7 +70,7 @@ The default training source is the public RealSign Indian Sign Language alphabet
 
 RealSign ISL alphabet dataset: https://github.com/RealSign62/RealSign-Indian-Sign-Language-Dataset
 
-The repository preparation script and browser runtime both use MediaPipe Tasks Hand Landmarker 0.10.35 with the same 21-point normalized landmark contract. The browser uses the version-pinned Tasks Vision package and the same hand-landmarker.task model bundle. The training notebook materializes the repository-local RealSign Git LFS archive at `data/raw/RealSign/Dataset.zip` before extraction and verifies its exact size and SHA-256.
+The repository preparation script and browser runtime both use MediaPipe Tasks Hand Landmarker 0.10.35 with the same 21-point normalized landmark contract. The browser uses the version-pinned Tasks Vision package and the same hand-landmarker.task model bundle. The training notebook downloads the RealSign `Dataset.zip` archive directly from the public RealSign source media endpoint, then verifies its exact size and SHA-256 before extraction. VisionBridge does not require Git LFS for the training dataset.
 
 ## Active API
 
@@ -93,7 +93,7 @@ Run:
 notebooks/train_letter_base_colab.ipynb
 ~~~
 
-The notebook materializes the repository-local RealSign Git LFS archive, downloads the versioned MediaPipe Hand Landmarker task model, extracts the two-hand landmarks through the supported MediaPipe Tasks API, builds a stratified 80/20 train-validation split from the dataset's training + validation pools, and automatically iterates base-model training. After each epoch it measures accuracy for every A-Z class on the full validation split. Training can run for up to 500 epochs and stops when every letter reaches the configured target. The dataset's original testing split is kept untouched and measured separately. The best checkpoint is always saved.
+The notebook downloads the RealSign archive directly from the public source, downloads the versioned MediaPipe Hand Landmarker task model, extracts the two-hand landmarks through the supported MediaPipe Tasks API, builds a stratified 80/20 train-validation split from the dataset's training + validation pools, and automatically iterates base-model training. After each epoch it measures accuracy for every A-Z class on the full validation split. Training can run for up to 500 epochs and stops when every letter reaches the configured target. The dataset's original testing split is kept untouched and measured separately. The best checkpoint is always saved.
 
 Equivalent CLI training command:
 
