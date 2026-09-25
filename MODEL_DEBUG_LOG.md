@@ -2082,3 +2082,46 @@ DOWNSTREAM INVALIDATION:
     The failed dependency installation generated no valid checkpoint or metrics.
     All downstream V3 evidence remains invalid until a corrected Colab run
     actually completes.
+
+
+# 2026-09-25 — A-Z label vocabulary type mismatch
+
+RESTART #46
+
+TRIGGER:
+    Training failed in backend/app/training/letter_base.py while validating
+    the dataset label vocabulary before DataLoader construction.
+
+REPRODUCTION:
+    labels.json is loaded and converted with tuple(...), while
+    LETTER_LABELS is a tuple defined by letter_model.py.
+    The previous condition compared the tuple to list(LETTER_LABELS).
+    With a correct A-Z vocabulary:
+        labels == list(LETTER_LABELS)  -> False
+        labels == LETTER_LABELS         -> True
+    Therefore the old condition raised:
+        ValueError: Dataset must define the active A-Z label vocabulary
+
+ROOT CAUSE:
+    A type mismatch in the label-vocabulary equality check. The code normalized
+    the dataset labels to tuple, then compared that tuple against a list.
+
+CORRECTION:
+    Changed:
+        if labels != list(LETTER_LABELS) or len(labels) != NUM_CLASSES:
+    to:
+        if labels != LETTER_LABELS or len(labels) != NUM_CLASSES:
+
+VERIFICATION:
+    The corrected source must preserve the existing strict A-Z content and
+    26-class cardinality checks. The exact failing comparison was reproduced
+    with a valid A-Z tuple and the corrected comparison evaluates as true.
+
+DOWNSTREAM INVALIDATION:
+    The previous failed training attempt produced no valid V3 checkpoint or
+    metrics. Any downstream training/evaluation conclusion remains invalid
+    until Cell 8 is rerun against the corrected repository.
+
+STATUS:
+    Repository defect corrected and committed. Colab execution from Cell 8
+    remains the required runtime verification.
