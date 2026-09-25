@@ -1591,3 +1591,120 @@ FINAL STATUS:
 RESTART REQUIRED:
     YES, after the real-data training/checkpoint step produces a new evidence
     state. The full protocol must then be rerun from Step 1.
+
+
+---
+
+# 2026-09-25 — Repository-local V3 dataset integration
+
+ITERATION: 35
+RESULT: FAILED
+FAILED STEP: Step 1 — post-change documentation audit
+
+FINDING:
+    After adding the repository-local RealSign source pointer, data/README.md still
+    contained the old instruction that the repository should not contain the raw
+    dataset.
+
+ROOT CAUSE:
+    Dataset-source documentation was not updated in the same change set as the
+    repository-local LFS source integration.
+
+FIX:
+    data/README.md now documents data/raw/RealSign/Dataset.zip as the canonical
+    repository-local training source and explains that its 656 MB content is
+    materialized through Git LFS rather than duplicated in ordinary Git history.
+
+VERIFICATION:
+    The contradiction is removed.
+
+DOWNSTREAM RESULTS INVALIDATED:
+    No V3 model-quality evidence existed.
+
+RESTART REQUIRED: YES
+
+
+# 2026-09-25 — Corrected repository-local dataset audit
+
+ITERATION: 36
+RESULT: BLOCKED, SOURCE CLEAN
+
+STEP 1:
+    VisionBridge main contains:
+        .gitattributes
+        .lfsconfig
+        data/raw/RealSign/Dataset.zip
+    The dataset pointer records:
+        oid sha256:008cae248e346b8c31fbbea057fcc3f69c6909d29a88e6bb1fb0369f528de2b5
+        size 656689688
+    The pointer blob was directly verified against the published RealSign
+    Dataset.zip LFS pointer. The source object identity therefore matches.
+
+STEP 2:
+    Repository-local materialization is configured through:
+        git lfs install --local
+        git lfs pull --include data/raw/RealSign/Dataset.zip
+    The notebook then verifies the exact byte size and SHA-256 and refuses to
+    continue if the materialized file is absent, malformed, or mismatched.
+
+STEP 3:
+    The repository-local source boundary is:
+        data/raw/RealSign/Dataset.zip
+    It feeds the notebook extraction stage, which produces /content/RealSign,
+    and the existing preparation script converts the images into the canonical
+    normalized 126D train/validation/test artifacts.
+
+STEP 4:
+    Final V3 training data flow:
+        repo-local LFS archive
+        -> extracted RealSign images
+        -> MediaPipe Tasks Hand Landmarker 0.10.35
+        -> normalized 126D two-hand vectors
+        -> stratified train/validation preparation
+        -> untouched source test split
+        -> V3 trainer
+
+STEP 5/6:
+    Training code and model implementation were not changed by the dataset-source
+    integration. The existing V3 architecture, strict checkpoint loader, adapter
+    binding, evaluator, and browser contract remain active.
+
+STEP 7:
+    Corrected-state source checks:
+        dataset pointer present: PASS
+        LFS attributes present: PASS
+        external LFS endpoint configured: PASS
+        pointer OID/size match published source: PASS
+        notebook uses repository-local archive: PASS
+        notebook verifies dataset size/SHA: PASS
+        training input remains /content/visionbridge_letter_data: PASS
+        GitHub Actions workflows: none
+        branch set: main only
+
+    Environment limitation:
+        direct runtime access to GitHub is unavailable in this execution
+        environment, so actual 656 MB LFS materialization could not be executed
+        here. The GitHub-connected source audit verified the pointer and the
+        exact repository wiring, but this is NOT runtime verification of the
+        LFS download.
+
+STEP 8:
+    No generated dataset, NPZ artifacts, or checkpoint were added to ordinary
+    Git history. The large source archive remains an LFS-backed repository file.
+
+STEP 9:
+    README.md, AGENTS.md, data/README.md, and the Colab notebook now describe the
+    repository-local dataset source consistently.
+
+FINAL STATUS:
+    REPOSITORY-LOCAL TRAINING SOURCE: CONFIGURED
+    DATASET POINTER IN REPO: VERIFIED
+    ACTUAL LFS MATERIALIZATION: NOT VERIFIED IN THIS ENVIRONMENT
+    V3 CHECKPOINT: STILL ABSENT
+    V3 ACCURACY: NOT VERIFIED
+    SIGNER-INDEPENDENT GATE: BLOCKED
+    FULL V3 RELEASE: NOT COMPLETE
+
+RESTART REQUIRED:
+    YES, after a training environment successfully materializes the dataset and
+    produces the new real-data evidence state.
