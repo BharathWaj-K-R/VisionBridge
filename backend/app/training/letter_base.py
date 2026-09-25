@@ -114,7 +114,7 @@ def train_model(
             (root / "labels.json").read_text(encoding="utf-8")
         )["labels"]
     )
-    if labels != list(LETTER_LABELS) or len(labels) != NUM_CLASSES:
+    if labels != LETTER_LABELS or len(labels) != NUM_CLASSES:
         raise ValueError("Dataset must define the active A-Z label vocabulary")
 
     train = DataLoader(
