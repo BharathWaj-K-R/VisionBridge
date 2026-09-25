@@ -24,7 +24,7 @@ visionbridge_letter_data/
 └── labels.json
 ```
 
-The repository should not contain the raw dataset. Keep large datasets and generated training outputs in Colab or the local training workspace.
+The repository tracks the RealSign training archive through a Git LFS pointer. The 656 MB object is resolved from the published RealSign LFS endpoint and materialized locally when training starts; the binary is not duplicated in ordinary Git history. Generated landmark arrays and training outputs remain in the training workspace.
 
 Signer calibration happens later from a small number of real examples and does not require a separate offline adapter-training job.
 
