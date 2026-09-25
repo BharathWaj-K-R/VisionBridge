@@ -1990,3 +1990,53 @@ DOWNSTREAM INVALIDATION:
 STATUS:
     Cell 1 is now a complete deterministic bootstrap rather than a partial
     patch layered over stale setup logic.
+
+
+# 2026-09-25 — PyTorch resolver failure and 1000-epoch update
+
+RESTART #43
+
+TRIGGER:
+    Colab Cell 1 failed during the PyTorch installation before any model training.
+    The supplied execution log reports:
+        torch==2.9.0+cu128
+        no solution found when resolving dependencies
+    The resolver explicitly reported that torch was found first on PyPI and that
+    the requested local-version CUDA build was not available under that first index.
+
+REPRODUCTION:
+    GPU runtime was detected.
+    The notebook requested:
+        torch==2.9.0+cu128
+        --index-url https://download.pytorch.org/whl/cu128
+        --extra-index-url https://pypi.org/simple
+    uv selected PyPI as the first package source and rejected the local-version
+    requirement. The failure occurred three times before the cell aborted.
+
+ROOT CAUSE:
+    The notebook used uv's multi-index resolution semantics for a PyTorch
+    platform-tagged local version. This was unnecessarily different from the
+    official PyTorch installation pattern, which uses pip with:
+        torch==2.9.0
+        --index-url <official PyTorch platform index>
+
+CORRECTION:
+    1. Removed uv from the PyTorch installation command.
+    2. Use the isolated environment's own pip executable.
+    3. Install torch==2.9.0 from the official CPU index or CUDA 12.8 index.
+    4. Keep NumPy 2.1.3 and MediaPipe 0.10.35 pinned separately.
+    5. Increase the V3 training cap from 500 to 1000 epochs in the notebook,
+       backend CLI default, README, and release evidence.
+
+VERIFICATION TARGET:
+    Re-audit that the notebook no longer contains a local-version torch package
+    specifier, contains the official PyTorch index selection, and all training
+    epoch references are 1000.
+
+DOWNSTREAM INVALIDATION:
+    Any previous notebook runtime conclusion is invalidated.
+    No model-quality metrics existed because failure occurred during dependency
+    installation, before landmark preparation and training.
+
+STATUS:
+    Correction applied. Full static re-audit follows.
