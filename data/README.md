@@ -24,14 +24,14 @@ visionbridge_letter_data/
 └── labels.json
 ```
 
-The repository tracks the RealSign training archive through a Git LFS pointer. The 656 MB object is resolved from the published RealSign LFS endpoint and materialized locally when training starts; the binary is not duplicated in ordinary Git history. Generated landmark arrays and training outputs remain in the training workspace.
+The RealSign training archive is not stored in the VisionBridge repository. The Colab notebook downloads the 656 MB archive directly from the public RealSign source and verifies its exact size and SHA-256 before extraction. Generated landmark arrays and training outputs remain in the training workspace.
 
 Signer calibration happens later from a small number of real examples and does not require a separate offline adapter-training job.
 
 
 ## Current training preparation
 
-The active VisionBridge pipeline uses the RealSign ISL A-Z image dataset. The dataset archive is stored with Git LFS, so the Colab notebook downloads the real archive from the Git LFS media endpoint rather than the ordinary raw GitHub file URL. Landmark extraction uses MediaPipe Tasks Hand Landmarker and produces the normalized 126D two-hand representation expected by the base model.
+The active VisionBridge pipeline uses the RealSign ISL A-Z image dataset. The Colab notebook downloads the archive directly from the RealSign source media endpoint rather than from a VisionBridge Git-LFS pointer. Landmark extraction uses MediaPipe Tasks Hand Landmarker and produces the normalized 126D two-hand representation expected by the base model.
 
 
 Prepared outputs now also include reproducibility manifests:
@@ -47,14 +47,22 @@ visionbridge_letter_data/
 The manifests record source paths, class labels, source split, and exact image SHA-256 values. Exact duplicates are kept together during the generated train/validation split; duplicates involving the source test split are reported rather than removed or relabeled.
 
 
-## Repository-local RealSign training source
+## RealSign source training input
 
-The training archive is tracked at `data/raw/RealSign/Dataset.zip` through Git LFS. The pointer is bound to the published RealSign LFS object:
+The training archive is downloaded directly from the public RealSign repository:
 
 ~~~text
-source: RealSign62/RealSign-Indian-Sign-Language-Dataset
-object: sha256:008cae248e346b8c31fbbea057fcc3f69c6909d29a88e6bb1fb0369f528de2b5
-size: 656689688 bytes
+source repository:
+https://github.com/RealSign62/RealSign-Indian-Sign-Language-Dataset
+
+source URL:
+https://media.githubusercontent.com/media/RealSign62/RealSign-Indian-Sign-Language-Dataset/main/Dataset.zip
+
+expected size:
+656689688 bytes
+
+expected SHA-256:
+008cae248e346b8c31fbbea057fcc3f69c6909d29a88e6bb1fb0369f528de2b5
 ~~~
 
-The repository uses `.lfsconfig` to resolve this immutable object from the public RealSign LFS endpoint. A fresh clone with Git LFS installed can materialize the archive locally; the training notebook explicitly runs the LFS pull before extraction. The large binary is not duplicated in ordinary Git history.
+The notebook verifies the size, SHA-256, and ZIP structure before extraction. The VisionBridge repository does not track the dataset archive and does not require Git LFS.
