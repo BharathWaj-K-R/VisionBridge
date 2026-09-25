@@ -1797,3 +1797,61 @@ REMAINING VERIFICATION:
 STATUS:
     Direct-source implementation is code-complete and statically verified.
     V3 training remains pending actual runtime execution.
+
+
+# 2026-09-25 — Notebook runtime hardening after direct-source migration
+
+RESTART #38
+
+TRIGGER:
+    Direct-source migration exposed a second notebook defect: an incomplete
+    Cell 1 rewrite had removed the clone/environment setup, while downstream
+    cells assumed those runtime objects already existed.
+
+REPRODUCTION:
+    Cell 8 attempted /content/visionbridge_train_env/bin/python and failed when
+    that executable had not been created. A subsequent recovery attempt found
+    /content/RealSign missing. Static inspection then showed Cell 1 itself had
+    been truncated.
+
+ROOT CAUSE:
+    The notebook's state-transition contract was not atomic. Downstream cells
+    assumed successful upstream side effects without a complete, verified Cell 1.
+
+CORRECTION:
+    Rewrote Cell 1 completely.
+    Added explicit environment, repository, dataset, model, prepared-data,
+    checkpoint, and evaluation prerequisite checks.
+    Added retrying atomic downloads for external model assets.
+    Kept RealSign acquisition direct from its public source media endpoint.
+    Preserved exact dataset size, SHA-256, ZIP, and split verification.
+    Preserved the V3 training configuration and release-evidence flow.
+
+VERIFICATION:
+    Static verification performed after correction:
+        - notebook parses as JSON
+        - 12 cells remain
+        - every code cell compiles
+        - Cell 1 creates the Git source workspace
+        - Cell 1 creates Python 3.12 environment and installs dependencies
+        - direct RealSign source URL is present
+        - no active Git-LFS setup/pull commands remain
+        - dataset download precedes extraction
+        - extraction precedes landmark preparation
+        - landmark preparation precedes training
+        - training precedes checkpoint verification
+        - checkpoint verification precedes test evaluation
+        - evaluation precedes release evidence
+
+DOWNSTREAM INVALIDATION:
+    Any earlier runtime result from the broken notebook is invalidated.
+    No V3 accuracy result existed, so no model-quality metric is reused.
+
+RUNTIME LIMITATION:
+    Actual external downloads cannot be executed in this environment because
+    external DNS resolution is unavailable. The RealSign source repository was
+    independently verified as publicly documenting Dataset.zip and the expected
+    Training / Testing / Validation structure.
+
+STATUS:
+    Source repair is ready for fresh Colab execution.
