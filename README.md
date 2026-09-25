@@ -70,7 +70,7 @@ The default training source is the public RealSign Indian Sign Language alphabet
 
 RealSign ISL alphabet dataset: https://github.com/RealSign62/RealSign-Indian-Sign-Language-Dataset
 
-The repository preparation script and browser runtime both use MediaPipe Tasks Hand Landmarker 0.10.35 with the same 21-point normalized landmark contract. The browser uses the version-pinned Tasks Vision package and the same hand-landmarker.task model bundle. The training notebook downloads the RealSign `Dataset.zip` archive directly from the public RealSign source media endpoint, then verifies its exact size and SHA-256 before extraction. VisionBridge does not require Git LFS for the training dataset.
+The repository preparation script and browser runtime both use MediaPipe Tasks Hand Landmarker 0.10.35 with the same 21-point normalized landmark contract. The browser uses the version-pinned Tasks Vision package and the same hand-landmarker.task model bundle. The training notebook downloads the RealSign `Dataset.zip` archive directly from an immutable RealSign source commit via the public source media endpoint, then verifies its exact size and SHA-256 before extraction. VisionBridge does not require Git LFS for the training dataset.
 
 ## Active API
 
