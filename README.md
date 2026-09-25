@@ -101,7 +101,7 @@ Equivalent CLI training command:
 PYTHONPATH=backend python -m app.training.letter_base \
   --data-dir /content/visionbridge_letter_data \
   --output backend/app/models/weights/letter_base_model.pt \
-  --epochs 500 \
+  --epochs 1000 \
   --target-class-accuracy 1.0
 ~~~
 
