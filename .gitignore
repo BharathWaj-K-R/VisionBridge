@@ -28,3 +28,8 @@ backend/app/models/weights/adapters/*.pth
 !backend/app/models/weights/.gitkeep
 !backend/app/models/weights/adapters/.gitkeep
 !backend/app/models/weights/letter_base_model.pt
+
+# Keep the immutable RealSign training archive as a Git-LFS object/pointer.
+!data/raw/
+!data/raw/RealSign/
+!data/raw/RealSign/Dataset.zip
