@@ -45,3 +45,16 @@ visionbridge_letter_data/
 ```
 
 The manifests record source paths, class labels, source split, and exact image SHA-256 values. Exact duplicates are kept together during the generated train/validation split; duplicates involving the source test split are reported rather than removed or relabeled.
+
+
+## Repository-local RealSign training source
+
+The training archive is tracked at `data/raw/RealSign/Dataset.zip` through Git LFS. The pointer is bound to the published RealSign LFS object:
+
+~~~text
+source: RealSign62/RealSign-Indian-Sign-Language-Dataset
+object: sha256:008cae248e346b8c31fbbea057fcc3f69c6909d29a88e6bb1fb0369f528de2b5
+size: 656689688 bytes
+~~~
+
+The repository uses `.lfsconfig` to resolve this immutable object from the public RealSign LFS endpoint. A fresh clone with Git LFS installed can materialize the archive locally; the training notebook explicitly runs the LFS pull before extraction. The large binary is not duplicated in ordinary Git history.
