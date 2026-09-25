@@ -382,7 +382,7 @@ SIGNER ADAPTER: fitted from a few runtime examples
 
 # 6. Dataset preparation and training
 
-The default training source is the repository-local RealSign Indian Sign Language alphabet archive at `data/raw/RealSign/Dataset.zip`. It is tracked through a Git LFS pointer and resolved from the published RealSign LFS endpoint via `.lfsconfig`. Dataset preprocessing uses the supported MediaPipe Tasks Hand Landmarker API and its versioned hand-landmarker.task model bundle. The training notebook materializes the archive into the clone before extraction and verifies its exact size and SHA-256.
+The default training source is the public RealSign Indian Sign Language alphabet archive downloaded directly from the RealSign source media endpoint. VisionBridge does not track the dataset archive and does not require Git LFS. Dataset preprocessing uses the supported MediaPipe Tasks Hand Landmarker API and its versioned hand-landmarker.task model bundle. The training notebook downloads the archive directly, verifies its exact size and SHA-256, and extracts it before preprocessing.
 
 Dataset preparation converts alphabet images into the same normalized 126D landmark representation used at runtime.
 
