@@ -1855,3 +1855,38 @@ RUNTIME LIMITATION:
 
 STATUS:
     Source repair is ready for fresh Colab execution.
+
+
+# 2026-09-25 — Post-verification defect in V3 notebook
+
+RESTART #39
+
+TRIGGER:
+    During the required final static verification of the direct-source notebook,
+    Cell 10 (test evaluation) referenced CHECKPOINT before defining it.
+
+REPRODUCTION:
+    The cell contained a prerequisite check against CHECKPOINT without first
+    creating:
+        CHECKPOINT = /content/VisionBridge/backend/app/models/weights/letter_base_model.pt
+    A top-to-bottom notebook run would therefore raise NameError before evaluation.
+
+ROOT CAUSE:
+    The direct-source migration hardened the surrounding stages but did not fully
+    re-audit variable initialization in the downstream evaluation cell.
+
+CORRECTION:
+    Define CHECKPOINT, DATA_DIR, and OUTPUT_JSON explicitly at the beginning of
+    Cell 10.
+    Add repository, checkpoint, checkpoint-size, and prepared-data guards.
+    Replace check=True evaluation invocation with captured stdout/stderr and an
+    explicit exit-code check so failures remain reproducible.
+    Add the same missing-output verification after landmark preparation.
+
+VERIFICATION:
+    The corrected notebook must pass JSON parsing and Python syntax compilation
+    for every code cell before the implementation is considered clean.
+
+DOWNSTREAM INVALIDATION:
+    Any prior claim that the notebook had passed static verification is invalid.
+    No runtime V3 training or evaluation result existed, so no metrics are reused.
