@@ -1434,3 +1434,160 @@ Iteration 31 result:
     runtime execution remains BLOCKED by container DNS/network access
     real RealSign training and held-out accuracy remain outstanding
 
+
+
+---
+
+# 2026-09-25 — V3 release-hardening restart
+
+ITERATION: 32
+RESULT: FAILED
+FAILED STEP: Step 1 — inventory / contract audit
+
+FINDING:
+    Browser V3 inference accepted a model payload without requiring the active
+    V3 model_version identifier. A future same-shaped checkpoint could therefore
+    reach the V3 browser implementation without an explicit version guard.
+
+ROOT CAUSE:
+    Browser payload validation checked input/output dimensions and preprocessing
+    metadata but did not bind the payload to the active V3 model version.
+
+FIX:
+    frontend/src/browserModel.ts now requires:
+        model_version == visionbridge-letter-base-v3
+        model_sha256 is present
+        preprocessing_version == two-hand-wrist-scale-v1
+        landmark_runtime == mediapipe-hand-landmarker-0.10.35
+
+VERIFICATION:
+    Corrected source contains the exact V3 version guard and checksum guard.
+    Comparison against the pre-fix head shows only frontend/src/browserModel.ts
+    changed in this iteration.
+
+DOWNSTREAM RESULTS INVALIDATED:
+    No real-data model-quality evidence existed.
+
+RESTART REQUIRED: YES
+
+
+# 2026-09-25 — V3 release-evidence restart
+
+ITERATION: 33
+RESULT: FAILED
+FAILED STEP: Step 1 — inventory / release-evidence audit
+
+FINDING:
+    The canonical evaluator did not emit the checkpoint SHA-256 required by the
+    model release evidence contract, and the Colab notebook did not generate a
+    final machine-readable V3 release-evidence manifest.
+
+ROOT CAUSE:
+    Checkpoint integrity was validated at load time, but the evaluator/report
+    contract did not persist the content hash. The notebook ended after test
+    evaluation without consolidating the training configuration, checkpoint
+    hash, metrics, and signer-gate status.
+
+FIX:
+    backend/app/training/evaluate_letter_base.py now reports checkpoint_sha256.
+    notebooks/train_letter_base_colab.ipynb now generates
+    /content/visionbridge_v3_release_evidence.json containing:
+        model contract
+        training configuration
+        checkpoint bytes and SHA-256
+        held-out test evaluation
+        signer-independent status
+
+VERIFICATION:
+    Evaluator source contains the SHA-256 helper, report field, and printed hash.
+    Notebook remains valid JSON with 12 cells; its final cell is executable and
+    writes the release-evidence manifest.
+
+DOWNSTREAM RESULTS INVALIDATED:
+    No real-data model-quality evidence existed.
+
+RESTART REQUIRED: YES
+
+
+# 2026-09-25 — V3 corrected-state full audit
+
+ITERATION: 34
+RESULT: BLOCKED, SOURCE CLEAN
+
+STEP 1:
+    Current main head: 1832f3559369c1e89bb21cd3d11709b3af57b9ec
+    Tracked tree inventory: 86 files
+    Python files: 35
+    TypeScript/TSX files: 9
+    Training notebook: present
+    GitHub Actions workflows: none
+    V3 checkpoint: absent
+    V3 critical-path files: present
+
+STEP 2:
+    Known V3 release blocker reproduced from repository state:
+        backend/app/models/weights/letter_base_model.pt is not present.
+    The repository therefore cannot truthfully claim a trained V3 checkpoint,
+    held-out test accuracy, or production-ready real-model inference.
+
+STEP 3:
+    The missing checkpoint is an execution-state blocker rather than a source
+    implementation failure. The training notebook creates it only after a real
+    RealSign training run.
+
+STEP 4:
+    Static data-flow audit remains:
+        RealSign images
+        -> MediaPipe Tasks Hand Landmarker 0.10.35
+        -> raw Tasks left/right handedness
+        -> wrist-relative + scale normalization
+        -> 126D vector
+        -> VisionBridgeLetterBaseModel
+        -> 64D embedding
+        -> few-shot signer adapter
+        -> A-Z + confidence
+
+STEP 5/6:
+    V3 implementation is present, versioned, checkpoint-validated, and browser
+    serialized. No additional code defect was discovered in the corrected-state
+    audit after the two release-hardening fixes.
+
+STEP 7:
+    Source-level checks:
+        V3 architecture contract: present in notebook
+        A-Z/126D contract: present
+        checkpoint strict loading: present
+        adapter checksum binding: present
+        browser V3 version binding: present
+        evaluator checkpoint SHA-256: present
+        current GitHub Actions: none
+
+    Runtime checks:
+        Real-data training: NOT VERIFIED in this environment
+        Held-out V3 accuracy: NOT VERIFIED
+        Held-out signer evaluation: BLOCKED pending verified signer metadata
+        Browser real-model inference: NOT VERIFIED
+        Render real-model verification: NOT VERIFIED
+
+    The local environment could not clone the public repository because direct
+    outbound GitHub DNS/network access is unavailable. Repository source was
+    therefore audited through the connected GitHub interface rather than a local
+    runtime checkout.
+
+STEP 8:
+    No cleanup beyond the targeted V3 release-hardening changes was performed.
+
+STEP 9:
+    This entry records the corrected source state and the remaining external
+    gates. No accuracy number is claimed.
+
+FINAL STATUS:
+    V3 SOURCE IMPLEMENTATION: COMPLETE
+    V3 RELEASE ARTIFACT: BLOCKED — real trained checkpoint does not yet exist
+    V3 HELD-OUT ACCURACY: NOT VERIFIED
+    SIGNER-INDEPENDENT RELEASE GATE: BLOCKED
+    FULL PROJECT COMPLETION: NOT COMPLETE
+
+RESTART REQUIRED:
+    YES, after the real-data training/checkpoint step produces a new evidence
+    state. The full protocol must then be rerun from Step 1.
