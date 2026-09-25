@@ -87,6 +87,7 @@ function flatten(rows: number[][]): Float32Array {
   return Float32Array.from(rows.flat());
 }
 
+const MODEL_VERSION = "visionbridge-letter-base-v3";
 const PREPROCESSING_VERSION = "two-hand-wrist-scale-v1";
 const LANDMARK_RUNTIME = "mediapipe-hand-landmarker-0.10.35";
 
@@ -119,6 +120,12 @@ export class BrowserLetterModel {
       throw new Error("Browser model label metadata is invalid");
     }
 
+    if (payload.model_version !== MODEL_VERSION) {
+      throw new Error("Unsupported browser model version");
+    }
+    if (!payload.model_sha256) {
+      throw new Error("Browser model checksum is missing");
+    }
     if (payload.preprocessing_version !== PREPROCESSING_VERSION) {
       throw new Error("Browser model preprocessing is incompatible");
     }
