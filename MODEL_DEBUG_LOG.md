@@ -1929,3 +1929,30 @@ DOWNSTREAM INVALIDATION:
 
 STATUS:
     Source-level notebook hardening continues until the static contract is clean.
+
+
+# 2026-09-25 — Exact PyTorch build selection
+
+RESTART #41
+
+TRIGGER:
+    Final dependency audit identified that a bare torch==2.9.0 requirement can
+    resolve to a different platform build when multiple package indexes are used.
+
+CORRECTION:
+    The notebook now requests torch==2.9.0+cu128 from the official CUDA 12.8
+    index on GPU runtimes, and torch==2.9.0+cpu from the official CPU index on
+    CPU runtimes. PyPI remains an extra index only for transitive dependencies.
+
+VERIFICATION:
+    Current PyTorch distribution indexes publish both exact cp312 Linux builds,
+    and the official PyTorch documentation lists the corresponding 2.9.0 install
+    commands for CPU and CUDA 12.8.
+
+DOWNSTREAM INVALIDATION:
+    Previous dependency-resolution assumptions are invalidated. No V3 metrics
+    existed, so no model-quality evidence is reused.
+
+STATUS:
+    Notebook dependency selection is now explicit and deterministic for the two
+    supported Colab execution modes.
