@@ -56,7 +56,7 @@ source repository:
 https://github.com/RealSign62/RealSign-Indian-Sign-Language-Dataset
 
 source URL:
-https://media.githubusercontent.com/media/RealSign62/RealSign-Indian-Sign-Language-Dataset/main/Dataset.zip
+https://media.githubusercontent.com/media/RealSign62/RealSign-Indian-Sign-Language-Dataset/17c51dcc158b7b6359b7c6667edc51c7f148f3f4/Dataset.zip
 
 expected size:
 656689688 bytes
