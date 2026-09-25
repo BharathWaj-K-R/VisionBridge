@@ -1,0 +1,2 @@
+# VisionBridge large training artifacts
+/data/raw/RealSign/Dataset.zip filter=lfs diff=lfs merge=lfs -text
