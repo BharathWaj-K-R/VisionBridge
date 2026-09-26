@@ -58,3 +58,28 @@ def test_evaluator_requires_all_a_z_classes(tmp_path):
 
     with pytest.raises(ValueError, match="missing required A-Z classes"):
         evaluate(checkpoint, data_dir, "test", 26)
+
+
+def test_production_rejects_ephemeral_sqlite():
+    from app.core.config import Settings
+
+    settings = Settings()
+    settings.ENV = "production"
+    settings.SECRET_KEY = "production-secret"
+    settings.DATABASE_URL = "sqlite:///./visionbridge.db"
+
+    with pytest.raises(RuntimeError, match="durable database"):
+        settings.validate_for_runtime()
+
+
+def test_production_rejects_local_cors_origin():
+    from app.core.config import Settings
+
+    settings = Settings()
+    settings.ENV = "production"
+    settings.SECRET_KEY = "production-secret"
+    settings.DATABASE_URL = "postgresql://example"
+    settings.ALLOWED_ORIGINS = ["https://visionbridge-2c7h.onrender.com", "http://localhost:5173"]
+
+    with pytest.raises(RuntimeError, match="localhost origins"):
+        settings.validate_for_runtime()
