@@ -2125,3 +2125,56 @@ DOWNSTREAM INVALIDATION:
 STATUS:
     Repository defect corrected and committed. Colab execution from Cell 8
     remains the required runtime verification.
+
+
+# 2026-09-26 — V3 runtime verification after label-check correction
+
+RESTART #47
+
+TRIGGER:
+    Corrected the tuple/list label-vocabulary defect from RESTART #46 and
+    received the resulting V3 checkpoint and evaluation/release evidence.
+
+RUNTIME EVIDENCE:
+    The submitted checkpoint has SHA-256:
+        03bcb9f08d44025a025f78a08d68b2303b231270395117815ffcb322ca090cdf
+    It is the configured VisionBridge letter-base-v3 model with:
+        input_dim=126
+        hidden_dim=128
+        embedding_dim=64
+        num_classes=26
+        preprocessing_version=two-hand-wrist-scale-v1
+        landmark_runtime=mediapipe-hand-landmarker-0.10.35
+
+TEST RESULT:
+    The submitted evaluation reports the untouched test split on CUDA:
+        samples=4633
+        overall_accuracy=0.9814375134901792
+        macro_accuracy=0.9816798074640047
+        worst_letter=W
+        worst_letter_accuracy=0.7262569832402235
+    The test confusion matrix contains 4547 correct predictions and 86 errors.
+
+INTERPRETATION:
+    The label-vocabulary defect is no longer blocking training.
+    The base model completed training/evaluation successfully enough to produce
+    a loadable checkpoint and test metrics.
+    The W class remains a material weakness in the current test evidence.
+    Signer-independent validation remains blocked because verified signer IDs
+    are not exposed by the active source folder structure.
+
+DOWNSTREAM STATUS:
+    The uploaded checkpoint/evaluation evidence is valid as evidence for the
+    submitted run. Any claim of signer-independent generalization remains
+    unsupported and must not be treated as passed.
+
+NEXT RELEASE GATE:
+    Keep the exact checkpoint hash bound to the browser adapter.
+    If this checkpoint is replaced, recalibration is required.
+    Treat W-class improvement and signer-independent evaluation as separate
+    follow-up gates rather than silently folding them into the overall score.
+
+STATUS:
+    Base-model training and untouched-test evaluation evidence received and
+    recorded. Deployment/live-camera verification is still a separate runtime
+    step.
