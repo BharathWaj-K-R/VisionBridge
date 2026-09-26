@@ -56,8 +56,13 @@ class Settings:
     )
 
     def validate_for_runtime(self) -> None:
-        if self.ENV.lower() == "production" and self.SECRET_KEY == "dev-secret-change-me":
-            raise RuntimeError("SECRET_KEY must be set to a non-default value in production")
+        if self.ENV.lower() == "production":
+            if self.SECRET_KEY == "dev-secret-change-me":
+                raise RuntimeError("SECRET_KEY must be set to a non-default value in production")
+            if self.DATABASE_URL.startswith("sqlite"):
+                raise RuntimeError("DATABASE_URL must point to a durable database in production")
+            if any(origin.startswith(("http://localhost", "http://127.0.0.1")) for origin in self.ALLOWED_ORIGINS):
+                raise RuntimeError("ALLOWED_ORIGINS must not contain localhost origins in production")
 
         if self.TRANSLATE_RATE_LIMIT_PER_MINUTE < 1:
             raise RuntimeError("TRANSLATE_RATE_LIMIT_PER_MINUTE must be at least 1")
