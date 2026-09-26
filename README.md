@@ -188,6 +188,53 @@ VITE_API_BASE_URL=http://127.0.0.1:8000/api/v1
 
 The browser fetches the current model once, fetches the selected signer adapter once, and performs frame-by-frame prediction locally. The backend prediction endpoint remains available for diagnostics and fallback.
 
+
+## Production deployment
+
+VisionBridge is deployed on Render as two services:
+
+~~~text
+Frontend  https://visionbridge-2c7h.onrender.com
+Backend   https://silentbridge-backend-qpsn.onrender.com
+~~~
+
+The checked-in `render.yaml` is the deployment contract. The frontend is explicitly configured for the real API (`VITE_LOCAL_MODE=false`) and the backend exposes a health endpoint at `/api/v1/health`.
+
+### Required backend environment
+
+Set these in the Render backend service. Never commit secret values:
+
+~~~text
+ENV=production
+SECRET_KEY=<human-only secret>
+DATABASE_URL=<human-only durable PostgreSQL URL>
+ALLOWED_ORIGINS=https://visionbridge-2c7h.onrender.com
+ACCESS_TOKEN_EXPIRE_MINUTES=60
+~~~
+
+The backend now fails closed at startup when production uses the default development secret, an ephemeral SQLite database, or localhost CORS origins. This prevents an accidental demo configuration from being mistaken for durable production infrastructure.
+
+### Release verification
+
+Before calling a release product-ready, verify all of these against the deployed service:
+
+1. `GET /api/v1/health` returns HTTP 200.
+2. `GET /api/v1/ready` returns HTTP 200 with a ready model.
+3. Browser camera permission works over HTTPS.
+4. A new user can register, calibrate a signer adapter, translate letters, and view history.
+5. The deployed database is durable PostgreSQL.
+6. Signer-independent evaluation has verified signer metadata.
+
+The repository deliberately does not invent model, signer, latency, or reliability claims when those measurements have not been verified.
+
+## Local environment
+
+Copy `.env.example` to `.env` for local development and replace values as needed. Production secrets belong in the deployment platform, not in Git.
+
+## Support and versioning
+
+Release-level changes are recorded in `CHANGELOG.md`. Keep the changelog focused on user-visible behavior, deployment changes, and release blockers rather than internal commit noise.
+
 ## Frontend
 
 The active UI is:
