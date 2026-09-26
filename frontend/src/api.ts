@@ -9,9 +9,9 @@ const LOCAL_USER_KEY = "visionbridge_user";
 const LOCAL_LETTER_ADAPTERS_KEY = "visionbridge_letter_adapters";
 const LOCAL_HISTORY_KEY = "visionbridge_letter_history";
 
-export function getToken(): string | null { return localStorage.getItem("visionbridge_token"); }
-export function setToken(token: string): void { localStorage.setItem("visionbridge_token", token); }
-export function clearToken(): void { localStorage.removeItem("visionbridge_token"); localStorage.removeItem(LOCAL_USER_KEY); }
+export function getToken(): string | null { return sessionStorage.getItem("visionbridge_token"); }
+export function setToken(token: string): void { sessionStorage.setItem("visionbridge_token", token); localStorage.removeItem("visionbridge_token"); }
+export function clearToken(): void { sessionStorage.removeItem("visionbridge_token"); localStorage.removeItem("visionbridge_token"); localStorage.removeItem(LOCAL_USER_KEY); }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);

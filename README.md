@@ -204,7 +204,7 @@ The old sentence translation screens are no longer the active product flow.
 
 ## Verification boundary
 
-The repository's GitHub Actions regression workflow is currently disabled. Historical CI runs verified the application code, frontend build, and backend tests, but no current CI result should be treated as active verification. Training still reports held-out validation and test measurements directly from the notebook.
+The repository's GitHub Actions regression workflow is active on pushes to `main` and pull requests targeting `main`. It runs the frontend typecheck/build and the backend pytest suite. Deployment verification remains separate from CI. Training still reports held-out validation and test measurements directly from the notebook.
 
 Two separate measurements matter:
 
