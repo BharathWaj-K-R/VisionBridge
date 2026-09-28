@@ -1,10 +1,12 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import auth, dashboard, health, history, letter, users
 from app.core.config import get_settings
+from app.core.csrf import validate_csrf
 from app.db.session import Base, engine
 
 settings = get_settings()
@@ -24,9 +26,24 @@ app.add_middleware(
     allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_headers=["Authorization", "Content-Type", "X-CSRF-Token"],
     max_age=600,
 )
+
+
+@app.middleware("http")
+async def enforce_csrf(request: Request, call_next):
+    try:
+        validate_csrf(request)
+    except Exception as exc:
+        from fastapi import HTTPException
+        if isinstance(exc, HTTPException):
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={"detail": exc.detail},
+            )
+        raise
+    return await call_next(request)
 
 
 @app.middleware("http")
