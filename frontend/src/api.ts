@@ -6,22 +6,81 @@ export type ApiError = Error & { status?: number };
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "/api/v1").replace(/\/$/, "");
 const LOCAL_MODE = import.meta.env.VITE_LOCAL_MODE !== "false";
 const LOCAL_USER_KEY = "visionbridge_user";
+const LOCAL_AUTH_KEY = "visionbridge_local_auth";
 const LOCAL_LETTER_ADAPTERS_KEY = "visionbridge_letter_adapters";
 const LOCAL_HISTORY_KEY = "visionbridge_letter_history";
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
-export function getToken(): string | null { return localStorage.getItem("visionbridge_token"); }
-export function setToken(token: string): void { localStorage.setItem("visionbridge_token", token); }
-export function clearToken(): void { localStorage.removeItem("visionbridge_token"); localStorage.removeItem(LOCAL_USER_KEY); }
+let csrfTokenMemory: string | null = null;
+
+export function isLocalAuthenticated(): boolean {
+  return LOCAL_MODE && localStorage.getItem(LOCAL_AUTH_KEY) === "1";
+}
+
+export function clearLocalAuth(): void {
+  localStorage.removeItem(LOCAL_AUTH_KEY);
+  localStorage.removeItem(LOCAL_USER_KEY);
+  csrfTokenMemory = null;
+}
+
+async function ensureCsrfToken(): Promise<string> {
+  if (csrfTokenMemory) return csrfTokenMemory;
+
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), 20_000);
+  try {
+    const response = await fetch(API_BASE + "/auth/csrf", {
+      method: "GET",
+      credentials: "include",
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      const error = new Error("CSRF bootstrap failed (" + response.status + ")") as ApiError;
+      error.status = response.status;
+      throw error;
+    }
+    const payload = await response.json() as { csrf_token?: unknown };
+    if (typeof payload.csrf_token !== "string" || !payload.csrf_token) {
+      throw new Error("CSRF bootstrap returned an invalid token");
+    }
+    csrfTokenMemory = payload.csrf_token;
+    return csrfTokenMemory;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   if (!headers.has("Content-Type") && init.body) headers.set("Content-Type", "application/json");
-  const token = getToken();
-  if (token) headers.set("Authorization", "Bearer " + token);
+  const method = (init.method || "GET").toUpperCase();
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), 20_000);
+
   try {
-    const response = await fetch(API_BASE + path, { ...init, headers, signal: init.signal || controller.signal });
+    if (!SAFE_METHODS.has(method)) {
+      headers.set("X-CSRF-Token", await ensureCsrfToken());
+    }
+
+    let response = await fetch(API_BASE + path, {
+      ...init,
+      headers,
+      credentials: "include",
+      signal: init.signal || controller.signal,
+    });
+
+    if (response.status === 403 && !SAFE_METHODS.has(method) && path !== "/auth/csrf") {
+      csrfTokenMemory = null;
+      headers.set("X-CSRF-Token", await ensureCsrfToken());
+      response = await fetch(API_BASE + path, {
+        ...init,
+        headers,
+        credentials: "include",
+        signal: init.signal || controller.signal,
+      });
+    }
+
     if (!response.ok) {
       let detail = "Request failed (" + response.status + ")";
       try {
@@ -120,8 +179,16 @@ export const api = {
   register: async (username: string, password: string): Promise<User> =>
     LOCAL_MODE ? localUser(username) : request<User>("/auth/register", { method: "POST", body: JSON.stringify({ username, password }) }),
   login: async (username: string, password: string): Promise<Token> => {
-    if (LOCAL_MODE) { localUser(username); return { access_token: "visionbridge-local-token", token_type: "bearer" }; }
+    if (LOCAL_MODE) { localUser(username); localStorage.setItem(LOCAL_AUTH_KEY, "1"); return { access_token: "visionbridge-local-token", token_type: "bearer" }; }
     return request<Token>("/auth/login", { method: "POST", body: JSON.stringify({ username, password }) });
+  },
+  logout: async (): Promise<void> => {
+    if (LOCAL_MODE) {
+      clearLocalAuth();
+      return;
+    }
+    await request<{ logged_out: boolean }>("/auth/logout", { method: "POST" });
+    csrfTokenMemory = null;
   },
   me: async (): Promise<User> => LOCAL_MODE ? localUser() : request<User>("/users/me"),
   dashboard: async () => {
@@ -145,10 +212,9 @@ export const api = {
       const body = rows.map((row) => [row.id, row.created_at, row.predicted_text, row.confidence, row.latency_ms, row.used_adapter].join(",")).join("\n");
       return new Blob([header, body], { type: "text/csv" });
     }
-    const headers = new Headers();
-    const token = getToken();
-    if (token) headers.set("Authorization", "Bearer " + token);
-    const response = await fetch(API_BASE + "/history/export.csv", { headers });
+    const response = await fetch(API_BASE + "/history/export.csv", {
+      credentials: "include",
+    });
     if (!response.ok) throw new Error("Request failed (" + response.status + ")");
     return response.blob();
   },
