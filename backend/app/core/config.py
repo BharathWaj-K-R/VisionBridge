@@ -67,6 +67,12 @@ class Settings:
         if self.ENV.lower() == "production" and self.SECRET_KEY == "dev-secret-change-me":
             raise RuntimeError("SECRET_KEY must be set to a non-default value in production")
 
+        if self.AUTH_COOKIE_SAMESITE not in {"lax", "strict", "none"}:
+            raise RuntimeError("AUTH_COOKIE_SAMESITE must be lax, strict, or none")
+
+        if self.AUTH_COOKIE_SAMESITE == "none" and not self.AUTH_COOKIE_SECURE:
+            raise RuntimeError("AUTH_COOKIE_SECURE must be true when AUTH_COOKIE_SAMESITE is none")
+
         if self.TRANSLATE_RATE_LIMIT_PER_MINUTE < 1:
             raise RuntimeError("TRANSLATE_RATE_LIMIT_PER_MINUTE must be at least 1")
 
