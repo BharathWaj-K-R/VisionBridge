@@ -23,6 +23,14 @@ class Settings:
     )
     JWT_ALGORITHM = "HS256"
 
+    AUTH_COOKIE_NAME = "__Host-visionbridge_session"
+    CSRF_COOKIE_NAME = "__Host-visionbridge_csrf"
+    AUTH_COOKIE_SECURE = os.getenv(
+        "AUTH_COOKIE_SECURE",
+        "true" if ENV.lower() == "production" else "false",
+    ).lower() == "true"
+    AUTH_COOKIE_SAMESITE = os.getenv("AUTH_COOKIE_SAMESITE", "lax").lower()
+
     ALLOWED_ORIGINS = [
         origin.strip()
         for origin in os.getenv(
