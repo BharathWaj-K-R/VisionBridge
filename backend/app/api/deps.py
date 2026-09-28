@@ -1,21 +1,27 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.security import decode_access_token
 from app.db.models import User
 from app.db.session import get_db
 
 _bearer = HTTPBearer(auto_error=False)
+settings = get_settings()
 
 
 def _user_from_credentials(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None,
     db: Session,
 ) -> User | None:
-    if credentials is None or credentials.scheme.lower() != "bearer":
+    token = request.cookies.get(settings.AUTH_COOKIE_NAME)
+    if token is None and credentials is not None and credentials.scheme.lower() == "bearer":
+        token = credentials.credentials
+    if token is None:
         return None
-    subject = decode_access_token(credentials.credentials)
+    subject = decode_access_token(token)
     if subject is None:
         return None
     try:
@@ -26,6 +32,7 @@ def _user_from_credentials(
 
 
 def get_optional_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
     db: Session = Depends(get_db),
 ) -> User | None:
@@ -34,14 +41,15 @@ def get_optional_current_user(
     Anonymous base-model translation remains supported for the public demo,
     but invalid/malformed credentials are not treated as an authenticated user.
     """
-    return _user_from_credentials(credentials, db)
+    return _user_from_credentials(request, credentials, db)
 
 
 def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
     db: Session = Depends(get_db),
 ) -> User:
-    user = _user_from_credentials(credentials, db)
+    user = _user_from_credentials(request, credentials, db)
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
