@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import { api, clearToken, getToken, setToken, type LetterSample } from "./api";
+import { api, clearLocalAuth, isLocalAuthenticated, type LetterSample } from "./api";
 import { BrowserLetterAdapter } from "./browserModel";
 import { useLandmarkSession } from "./useLandmarkSession";
 
@@ -36,7 +36,7 @@ function Auth({ onAuthed }: { onAuthed: () => void }) {
   const [username, setUsername] = useState(""); const [password, setPassword] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
   const submit = async (event: FormEvent) => {
     event.preventDefault(); setBusy(true); setError("");
-    try { if (mode === "register") await api.register(username, password); const token = await api.login(username, password); setToken(token.access_token); onAuthed(); }
+    try { if (mode === "register") await api.register(username, password); await api.login(username, password); onAuthed(); }
     catch (err) { setError(err instanceof Error ? err.message : "Authentication failed"); }
     finally { setBusy(false); }
   };
@@ -277,9 +277,40 @@ function Settings() {
 }
 
 export default function App() {
-  const [authed, setAuthed] = useState(Boolean(getToken())); const [username, setUsername] = useState<string>(); const navigate = useNavigate();
-  useEffect(() => { if (authed) api.me().then((user) => setUsername(user.username)).catch(() => { clearToken(); setAuthed(false); }); }, [authed]);
-  const logout = () => { clearToken(); setAuthed(false); navigate("/login"); };
+  const localMode = import.meta.env.VITE_LOCAL_MODE !== "false";
+  const [authed, setAuthed] = useState(localMode ? isLocalAuthenticated() : false);
+  const [authChecking, setAuthChecking] = useState(!localMode);
+  const [username, setUsername] = useState<string>();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (localMode) {
+      if (authed) api.me().then((user) => setUsername(user.username)).catch(() => {
+        clearLocalAuth();
+        setAuthed(false);
+      });
+      return;
+    }
+
+    api.me().then((user) => {
+      setUsername(user.username);
+      setAuthed(true);
+    }).catch(() => {
+      clearLocalAuth();
+      setAuthed(false);
+    }).finally(() => setAuthChecking(false));
+  }, [authed, localMode]);
+
+  const logout = () => {
+    void api.logout().then(() => {
+      clearLocalAuth();
+      setUsername(undefined);
+      setAuthed(false);
+      navigate("/login");
+    });
+  };
+
+  if (authChecking) return <Loading />;
   if (!authed) return <Routes><Route path="*" element={<Auth onAuthed={() => setAuthed(true)} />} /></Routes>;
   return <Shell username={username} onLogout={logout}><Routes>
     <Route path="/" element={<Navigate to="/dashboard" replace />} />
