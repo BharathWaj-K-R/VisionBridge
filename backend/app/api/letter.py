@@ -25,6 +25,7 @@ from app.services.letter_fewshot import (
     get_letter_base_model,
     letter_model_status,
     load_prototype_adapter,
+    predict_base_letter,
     predict_letter,
     save_prototype_adapter,
 )
@@ -165,22 +166,24 @@ def log_letter_event(
     if not math.isfinite(latency_ms) or latency_ms < 0:
         raise HTTPException(status_code=422, detail="Invalid latency")
 
-    adapter = (
-        db.query(SignerAdapter)
-        .filter(SignerAdapter.id == adapter_id, SignerAdapter.owner_id == current_user.id)
-        .first()
-    )
-    if not adapter or not Path(adapter.weights_path).name.startswith("letter_adapter_"):
-        raise HTTPException(status_code=404, detail="Adapter not found")
+    adapter = None
+    if adapter_id is not None:
+        adapter = (
+            db.query(SignerAdapter)
+            .filter(SignerAdapter.id == adapter_id, SignerAdapter.owner_id == current_user.id)
+            .first()
+        )
+        if not adapter or not Path(adapter.weights_path).name.startswith("letter_adapter_"):
+            raise HTTPException(status_code=404, detail="Adapter not found")
 
     db.add(
         TranslationLog(
             user_id=current_user.id,
-            adapter_id=adapter_id,
+            adapter_id=adapter.id if adapter else None,
             predicted_text=predicted_letter,
             confidence=confidence,
             latency_ms=latency_ms,
-            used_adapter=1,
+            used_adapter=1 if adapter else 0,
         )
     )
     db.commit()
@@ -196,21 +199,32 @@ def predict_letter_endpoint(
         raise HTTPException(status_code=403, detail="user_id does not match the authenticated user")
     _validate_vector(payload.hand_keypoints)
 
-    row = db.query(SignerAdapter).filter(SignerAdapter.id == payload.adapter_id).first()
-    if not row:
-        raise HTTPException(status_code=404, detail="Adapter not found")
-    if row.owner_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Adapter does not belong to the authenticated user")
+    row = None
+    if payload.adapter_id is not None:
+        row = (
+            db.query(SignerAdapter)
+            .filter(SignerAdapter.id == payload.adapter_id)
+            .first()
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="Adapter not found")
+        if row.owner_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Adapter does not belong to the authenticated user")
 
     started = time.perf_counter()
     try:
         base_model = get_letter_base_model()
-        adapter = load_prototype_adapter(row.weights_path, settings.LETTER_BASE_MODEL_PATH)
-        letter, confidence, _ = predict_letter(
-            base_model,
-            adapter,
-            payload.hand_keypoints,
-        )
+        if row:
+            adapter = load_prototype_adapter(row.weights_path, settings.LETTER_BASE_MODEL_PATH)
+            letter, confidence, _ = predict_letter(
+                base_model,
+                adapter,
+                payload.hand_keypoints,
+            )
+            mode = "adapter"
+        else:
+            letter, confidence = predict_base_letter(base_model, payload.hand_keypoints)
+            mode = "base"
     except FileNotFoundError as exc:
         raise HTTPException(status_code=503, detail="Letter base model or adapter is unavailable") from exc
     except ValueError as exc:
@@ -223,16 +237,17 @@ def predict_letter_endpoint(
         predicted_letter=letter,
         confidence=confidence,
         latency_ms=latency_ms,
-        adapter_id=row.id,
+        adapter_id=row.id if row else None,
+        mode=mode,
     )
     db.add(
         TranslationLog(
             user_id=current_user.id,
-            adapter_id=row.id,
+            adapter_id=row.id if row else None,
             predicted_text=letter,
             confidence=confidence,
             latency_ms=latency_ms,
-            used_adapter=1,
+            used_adapter=1 if row else 0,
         )
     )
     db.commit()
