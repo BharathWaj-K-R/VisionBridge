@@ -21,6 +21,7 @@ export const DEFAULT_AVATAR: AvatarPreferences = {
 };
 
 const STORAGE_KEY = "visionbridge_avatar_preferences";
+// Retained for compatibility with older callers. Controlled profile state is the source of truth.
 
 export function loadAvatarPreferences(): AvatarPreferences {
   try {
@@ -48,7 +49,6 @@ export default function AvatarCustomizer({
     const next = { ...draft, ...patch };
     setDraft(next);
     onChange(next);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   };
 
   return (
