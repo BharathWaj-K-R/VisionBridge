@@ -105,11 +105,10 @@ function Face({
   const brows = expression === "question" ? { left: -8, right: 8 } : expression === "emphasis" ? { left: 8, right: -8 } : { left: 0, right: 0 };
   return (
     <g className="face-layer">
+      {hair === "long" && <g className="hair-back"><path d="M192 145C180 214 200 245 224 258L238 176Z" fill={hairColor} /><path d="M328 145C340 214 320 245 296 258L282 176Z" fill={hairColor} /></g>}
       <circle cx="260" cy="160" r="72" fill={skin} stroke="var(--avatar-outline)" strokeWidth="2" />
       <path d="M194 155C186 102 212 76 260 76C309 76 336 105 326 156C306 134 286 124 260 124C234 124 213 135 194 155Z" fill={hairColor} className={"hair-front hair-" + hair} />
       {hair === "curly" && <g className="hair-curls">{[198,220,244,270,294,316].map((x, i) => <circle key={i} cx={x} cy={100 + (i % 2) * 7} r="17" fill={hairColor} />)}</g>}
-      {hair === "long" && <g className="hair-back"><path d="M192 145C180 214 200 245 224 258L238 176Z" fill={hairColor} /><path d="M328 145C340 214 320 245 296 258L282 176Z" fill={hairColor} /></g>}
-
       <g className="expression-layer">
         <path d={"M218 144q18 " + brows.left + " 36 0"} fill="none" stroke="#1a1715" strokeWidth="5" strokeLinecap="round" />
         <path d={"M266 144q18 " + brows.right + " 36 0"} fill="none" stroke="#1a1715" strokeWidth="5" strokeLinecap="round" />
@@ -152,16 +151,17 @@ export default function SignAvatar({ letter, preferences, playing, view, express
   const outline = preferences.highContrast ? "#38d9ff" : "#3a302b";
   const bodyScale = BODY_SCALE[preferences.bodyShape];
   const crop = view === "close" ? "76 55 368 390" : "0 0 520 520";
+  const displaySign = letter === " " ? "SPACE" : letter || "READY";
   const stageClass = preferences.highContrast ? "sign-avatar high-contrast" : "sign-avatar";
 
   return (
     <div className={playing ? stageClass + " playing" : stageClass} data-letter={letter || ""}>
       <div className="avatar-stage-label">
-        <div><span className="eyebrow">CURRENT SIGN</span><strong>{letter || "READY"}</strong></div>
+        <div><span className="eyebrow">CURRENT SIGN</span><strong>{displaySign}</strong></div>
         <span className="avatar-expression-tag">{expression.toUpperCase()}</span>
       </div>
 
-      <svg viewBox={crop} role="img" aria-label={"2D signing avatar, current sign " + (letter || "ready")}>
+      <svg viewBox={crop} role="img" aria-label={"2D signing avatar, current sign " + (displaySign === "SPACE" ? "space" : displaySign.toLowerCase())}>
         <defs>
           <linearGradient id="avatar-shirt-refined" x1="0" x2="1">
             <stop offset="0" stopColor={preferences.shirtColor} />
@@ -176,7 +176,7 @@ export default function SignAvatar({ letter, preferences, playing, view, express
         <rect x="0" y="0" width="520" height="520" fill="url(#avatar-stage-refined)" />
         <circle cx="260" cy="210" r="190" fill="var(--avatar-glow)" />
 
-        <g className="avatar-root" style={{ transform: "scaleX(" + bodyScale + ") translateX(" + (260 * (1 - bodyScale)) + "px)" }}>
+        <g className="avatar-root" style={{ transform: "translateX(" + (260 * (1 - bodyScale)) + "px) scaleX(" + bodyScale + ")" }}>
           <Apparel kind={preferences.apparel} color={preferences.shirtColor} bodyScale={bodyScale} />
 
           <path d="M210 286L184 308L154 370" fill="none" stroke={preferences.skinTone} strokeWidth="31" strokeLinecap="round" />
