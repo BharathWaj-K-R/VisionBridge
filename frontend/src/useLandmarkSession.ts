@@ -145,17 +145,17 @@ export function useLandmarkSession(
           }
           const currentSettings = trackerSettingsRef.current;
           let trackerMeta = trackerMetaRef.current;
-          const now = performance.now();
+          const colorNow = performance.now();
           if (
             currentSettings.mode === "adaptive" &&
-            now - lastAdaptiveColorSampleRef.current >= 140
+            colorNow - lastAdaptiveColorSampleRef.current >= 140
           ) {
             adaptiveColorsRef.current = getAdaptiveTrackerColors(
               currentVideo,
               frame.leftLandmarks,
               frame.rightLandmarks,
             );
-            lastAdaptiveColorSampleRef.current = now;
+            lastAdaptiveColorSampleRef.current = colorNow;
           }
           if (currentSettings.mode !== "adaptive") {
             adaptiveColorsRef.current = {};
