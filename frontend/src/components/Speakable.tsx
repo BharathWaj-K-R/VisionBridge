@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "../api";
 import { usePersonalization } from "./PersonalizationContext";
 
@@ -6,9 +6,10 @@ type Props = {
   text: string;
   className?: string;
   label?: string;
+  children?: ReactNode;
 };
 
-export default function Speakable({ text, className = "", label }: Props) {
+export default function Speakable({ text, className = "", label, children }: Props) {
   const [speaking, setSpeaking] = useState(false);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const { activeProfile, voices } = usePersonalization();
@@ -53,7 +54,7 @@ export default function Speakable({ text, className = "", label }: Props) {
       aria-pressed={speaking}
       title={"Speak: " + text}
     >
-      <span>{text}</span>
+      {children || <span>{text}</span>}
       <small aria-hidden="true">{speaking ? "●" : "◌"}</small>
     </button>
   );
