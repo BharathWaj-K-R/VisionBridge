@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { DEFAULT_VOCABULARY } from "../data/vocabulary";
 import SpeechRecognizer from "../components/SpeechRecognizer";
 import SignAvatar from "../components/SignAvatar";
 import AvatarCustomizer, { DEFAULT_AVATAR, loadAvatarPreferences, type AvatarPreferences } from "../components/AvatarCustomizer";
@@ -16,16 +17,31 @@ export default function VoiceToSign() {
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(Number(localStorage.getItem("visionbridge_sign_speed") || "1"));
   const [lastPhrase, setLastPhrase] = useState("");
+  const lastQueuedPhraseRef = useRef("");
 
   const normalizedTranscript = useMemo(() => normalizeSignText(transcript), [transcript]);
   const normalizedInterim = useMemo(() => normalizeSignText(interimTranscript), [interimTranscript]);
+  const vocabularyMatches = useMemo(() => normalizedTranscript.split(" ").filter(Boolean).filter((word) => DEFAULT_VOCABULARY.some((item) => item.phrase.toUpperCase() === word)), [normalizedTranscript]);
 
   useEffect(() => {
-    if (!normalizedTranscript) return;
-    const next = toSignQueue(normalizedTranscript);
-    setQueue(next);
-    setCurrentIndex(next.length ? 0 : -1);
-    setPlaying(next.length > 0);
+    const previous = lastQueuedPhraseRef.current;
+    if (!normalizedTranscript || normalizedTranscript === previous) return;
+
+    if (previous && normalizedTranscript.startsWith(previous)) {
+      const delta = normalizedTranscript.slice(previous.length);
+      const additions = toSignQueue(delta);
+      if (additions.length) {
+        setQueue((items) => items.concat(additions));
+        setPlaying(true);
+      }
+    } else {
+      const next = toSignQueue(normalizedTranscript);
+      setQueue(next);
+      setCurrentIndex(next.length ? 0 : -1);
+      setPlaying(next.length > 0);
+    }
+
+    lastQueuedPhraseRef.current = normalizedTranscript;
     setLastPhrase(normalizedTranscript);
   }, [normalizedTranscript]);
 
@@ -106,7 +122,8 @@ export default function VoiceToSign() {
               <span className="status-pill">{playing ? "ANIMATING" : "STANDBY"}</span>
             </div>
             <SignAvatar letter={queue[currentIndex] || ""} preferences={avatar || DEFAULT_AVATAR} playing={playing} />
-            <p className="avatar-note">Each queued character drives a distinct arm and hand motion. This lightweight build uses fingerspelling as the baseline sign representation.</p>
+            <p className="avatar-note">Each queued character drives a distinct arm and hand motion. Vocabulary matches are identified, but the current avatar still fingerspells them because no validated word-level ISL motion library is bundled.</p>
+            {vocabularyMatches.length > 0 && <div className="vocabulary-match-note"><span className="eyebrow">VOCABULARY MATCH</span><strong>{vocabularyMatches.join(" · ")}</strong></div>}
           </section>
 
           <AvatarCustomizer value={avatar || DEFAULT_AVATAR} onChange={setAvatar} />
