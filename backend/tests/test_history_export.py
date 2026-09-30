@@ -15,9 +15,10 @@ client.__enter__()
 
 
 def _register_and_login(username: str, password: str = "correct horse battery staple") -> str:
-    register_resp = client.post("/api/v1/auth/register", json={"username": username, "password": password})
+    email = f"{username}@example.com"
+    register_resp = client.post("/api/v1/auth/register", json={"username": username, "email": email, "password": password})
     assert register_resp.status_code == 200, register_resp.text
-    login_resp = client.post("/api/v1/auth/login", json={"username": username, "password": password})
+    login_resp = client.post("/api/v1/auth/login", json={"identifier": username, "password": password})
     assert login_resp.status_code == 200, login_resp.text
     return login_resp.json()["access_token"]
 
