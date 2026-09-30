@@ -2,6 +2,7 @@ import datetime as dt
 import json
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -66,8 +67,12 @@ def create_custom_word(
         raise HTTPException(status_code=409, detail="That custom phrase already exists.")
     item = CommunicationWord(user_id=current_user.id, phrase=phrase, category=category)
     db.add(item)
-    db.commit()
-    db.refresh(item)
+    try:
+        db.commit()
+        db.refresh(item)
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="That custom phrase already exists.") from exc
     return _word(item)
 
 
@@ -104,8 +109,12 @@ def update_custom_word(
 
     item.phrase = phrase
     item.category = category
-    db.commit()
-    db.refresh(item)
+    try:
+        db.commit()
+        db.refresh(item)
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="That custom phrase already exists.") from exc
     return _word(item)
 
 
@@ -221,8 +230,12 @@ def create_profile(
         config_json=payload.config.model_dump_json(),
     )
     db.add(item)
-    db.commit()
-    db.refresh(item)
+    try:
+        db.commit()
+        db.refresh(item)
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="A profile with that name already exists.") from exc
     return _profile(item)
 
 
@@ -263,8 +276,12 @@ def update_profile(
 
     item.config_json = payload.config.model_dump_json()
     item.updated_at = dt.datetime.now(dt.timezone.utc)
-    db.commit()
-    db.refresh(item)
+    try:
+        db.commit()
+        db.refresh(item)
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="A profile with that name already exists.") from exc
     return _profile(item)
 
 
