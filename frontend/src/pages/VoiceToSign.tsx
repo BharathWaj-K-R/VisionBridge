@@ -4,7 +4,7 @@ import { DEFAULT_VOCABULARY } from "../data/vocabulary";
 import { buildSubtitleUnits } from "../data/signSequence";
 import SpeechRecognizer from "../components/SpeechRecognizer";
 import SignAvatar from "../components/SignAvatar";
-import AvatarCustomizer from "../components/AvatarCustomizer";
+import AvatarCustomizer, { DEFAULT_AVATAR } from "../components/AvatarCustomizer";
 import SignQueue, { normalizeSignText, toSignQueue } from "../components/SignQueue";
 import SignSubtitle from "../components/SignSubtitle";
 import { usePersonalization } from "../components/PersonalizationContext";
@@ -178,7 +178,7 @@ export default function VoiceToSign() {
 
             <SignAvatar
               letter={queue[currentIndex] || ""}
-              preferences={avatar || ({} as any)}
+              preferences={avatar || DEFAULT_AVATAR}
               playing={playing}
               view={view}
               expression={expression}
@@ -199,7 +199,7 @@ export default function VoiceToSign() {
           </section>
 
           <AvatarCustomizer
-            value={avatar || ({} as any)}
+            value={avatar || DEFAULT_AVATAR}
             onChange={(next) => void updateConfig({ avatar: next })}
             onResetView={() => setView("full")}
           />
