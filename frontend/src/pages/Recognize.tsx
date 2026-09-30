@@ -29,8 +29,8 @@ export default function Recognize() {
   const lastEventRef = useRef({ letter: "", time: 0 });
 
   useEffect(() => {
-    api.me().then((u) => setUserId(u.id));
-    api.letterAdapters().then((items) => setAdapters(items)).catch(() => setAdapters([]));
+    void api.me().then((u) => setUserId(u.id)).catch(() => setError("Authentication session could not be verified. Please sign in again."));
+    void api.letterAdapters().then((items) => setAdapters(items)).catch((error) => setError(error instanceof Error ? error.message : "Signer adapters could not be loaded."));
   }, []);
 
   useEffect(() => {
