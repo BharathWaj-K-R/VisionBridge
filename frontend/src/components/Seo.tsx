@@ -38,10 +38,10 @@ export default function Seo() {
     setMeta("robots", pathname === "/" || pathname === "/login" ? "index,follow" : "noindex,nofollow");
     setProperty("og:title", meta.title); setProperty("og:description", meta.description);
     setProperty("og:type", "website"); setProperty("og:url", canonical);
-    setProperty("og:image", SITE + "/social-share.svg"); setProperty("og:image:width", "1200"); setProperty("og:image:height", "630");
+    setProperty("og:image", SITE + "/social-share.png"); setProperty("og:image:width", "1200"); setProperty("og:image:height", "630");
     setProperty("og:site_name", "VisionBridge");
     setMeta("twitter:card", "summary_large_image"); setMeta("twitter:title", meta.title);
-    setMeta("twitter:description", meta.description); setMeta("twitter:image", SITE + "/social-share.svg");
+    setMeta("twitter:description", meta.description); setMeta("twitter:image", SITE + "/social-share.png");
     setLink("canonical", canonical);
     document.getElementById("visionbridge-structured-data")?.remove();
     const script = document.createElement("script");
@@ -52,7 +52,7 @@ export default function Seo() {
       { "@type":"ListItem", position:2, name, item:canonical },
     ];
     script.textContent = JSON.stringify([
-      { "@context":"https://schema.org", "@type":"WebApplication", name:"VisionBridge", applicationCategory:"EducationalApplication", operatingSystem:"Web", url:SITE+"/", description:META["/"].description },
+      { "@context":"https://schema.org", "@type":"SoftwareApplication", name:"VisionBridge", applicationCategory:"EducationalApplication", operatingSystem:"Web", url:SITE+"/", description:META["/"].description },
       { "@context":"https://schema.org", "@type":"BreadcrumbList", itemListElement:breadcrumbItems },
     ]);
     document.head.appendChild(script);
