@@ -176,7 +176,8 @@ export default function SignAvatar({ letter, preferences, playing, view, express
         <rect x="0" y="0" width="520" height="520" fill="url(#avatar-stage-refined)" />
         <circle cx="260" cy="210" r="190" fill="var(--avatar-glow)" />
 
-        <g className="avatar-root" style={{ transform: "translateX(" + (260 * (1 - bodyScale)) + "px) scaleX(" + bodyScale + ")" }}>
+        <g className={playing ? "avatar-motion-sign" : "avatar-motion-idle"}>
+          <g className="avatar-root" style={{ transform: "translateX(" + (260 * (1 - bodyScale)) + "px) scaleX(" + bodyScale + ")" }}>
           <Apparel kind={preferences.apparel} color={preferences.shirtColor} bodyScale={bodyScale} />
 
           <path d="M210 286L184 308L154 370" fill="none" stroke={preferences.skinTone} strokeWidth="31" strokeLinecap="round" />
@@ -186,7 +187,7 @@ export default function SignAvatar({ letter, preferences, playing, view, express
             <path d="M184 308L146 358" fill="none" stroke="var(--avatar-sleeve)" strokeWidth="34" strokeLinecap="round" opacity=".84" />
             <g style={{ transform: "rotate(" + leftElbow + "deg)", transformOrigin: "146px 358px" }}>
               <path d="M146 358L116 223" fill="none" stroke={preferences.skinTone} strokeWidth="25" strokeLinecap="round" />
-              <g transform="translate(116 222) rotate(-12)">
+              <g transform={"translate(116 222) rotate(" + (pose.leftWrist - 12) + ")"}>
                 <HandRig side="left" fingers={pose.leftHand} skin={preferences.skinTone} outline={outline} highContrast={preferences.highContrast} />
               </g>
             </g>
@@ -196,7 +197,7 @@ export default function SignAvatar({ letter, preferences, playing, view, express
             <path d="M336 308L374 358" fill="none" stroke="var(--avatar-sleeve)" strokeWidth="34" strokeLinecap="round" opacity=".84" />
             <g style={{ transform: "rotate(" + rightElbow + "deg)", transformOrigin: "374px 358px" }}>
               <path d="M374 358L404 223" fill="none" stroke={preferences.skinTone} strokeWidth="25" strokeLinecap="round" />
-              <g transform="translate(404 222) rotate(12)">
+              <g transform={"translate(404 222) rotate(" + (pose.rightWrist + 12) + ")"}>
                 <HandRig side="right" fingers={pose.rightHand} skin={preferences.skinTone} outline={outline} highContrast={preferences.highContrast} />
               </g>
             </g>
@@ -204,6 +205,7 @@ export default function SignAvatar({ letter, preferences, playing, view, express
 
           <path d="M205 294C214 281 232 274 260 274C288 274 306 281 315 294L310 316C286 325 234 325 210 316Z" fill={preferences.skinTone} opacity=".96" />
           <Face skin={preferences.skinTone} hair={preferences.hair} hairColor={preferences.hairColor} expression={expression} />
+          </g>
         </g>
 
         {preferences.highContrast && (
