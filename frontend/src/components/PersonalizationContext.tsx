@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { api } from "../api";
+import { api, clearSessionHint } from "../api";
 import { DEFAULT_AVATAR, type AvatarPreferences } from "./AvatarCustomizer";
 
 export const PROFILE_SPEEDS = [0.5, 0.75, 1] as const;
@@ -42,6 +42,7 @@ type ProfileContextValue = {
   isFavorite: (phrase: string) => boolean;
   refreshMostUsed: () => Promise<void>;
   mostUsed: Array<{ phrase: string; usage_count: number; last_used_at?: string }>;
+  error: string;
 };
 
 const PersonalizationContext = createContext<ProfileContextValue | null>(null);
@@ -108,6 +109,7 @@ export function PersonalizationProvider({ children }: { children: ReactNode }) {
   const [saving, setSaving] = useState(false);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [mostUsed, setMostUsed] = useState<Array<{ phrase: string; usage_count: number; last_used_at?: string }>>([]);
+  const [error, setError] = useState("");
   const bootstrapRef = useRef(false);
 
   const loadVoices = () => {
@@ -146,6 +148,14 @@ export function PersonalizationProvider({ children }: { children: ReactNode }) {
       const nextId = normalized.some((item) => item.id === stored) ? stored : normalized[0].id;
       setActiveId(nextId);
       localStorage.setItem(localActiveKey(), String(nextId));
+      setError("");
+    } catch (reason) {
+      setProfiles([]);
+      setActiveId(null);
+      if (typeof reason === "object" && reason && "status" in reason && Number((reason as { status?: number }).status) === 401) {
+        clearSessionHint();
+      }
+      setError(reason instanceof Error ? reason.message : "Personalization could not be loaded.");
     } finally {
       setLoading(false);
       bootstrapRef.current = false;
@@ -212,13 +222,17 @@ export function PersonalizationProvider({ children }: { children: ReactNode }) {
 
   const updateConfig = async (patch: Partial<PersonalizationConfig>) => {
     if (!activeProfile) return;
-    const nextConfig = normalizeConfig({ ...activeProfile.config, ...patch });
+    const previousConfig = activeProfile.config;
+    const nextConfig = normalizeConfig({ ...previousConfig, ...patch });
     setSaving(true);
     setProfiles((items) => items.map((item) => item.id === activeProfile.id ? { ...item, config: nextConfig } : item));
     try {
       const updated = await api.updateProfile(activeProfile.id, activeProfile.name, nextConfig);
       const profile = { ...updated, config: normalizeConfig(updated.config) } as PersonalizationProfile;
       setProfiles((items) => items.map((item) => item.id === profile.id ? profile : item));
+    } catch (reason) {
+      setProfiles((items) => items.map((item) => item.id === activeProfile.id ? { ...item, config: previousConfig } : item));
+      throw reason;
     } finally {
       setSaving(false);
     }
@@ -251,7 +265,7 @@ export function PersonalizationProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo(() => ({
     profiles, activeProfile, loading, saving, voices, refresh, switchProfile, createProfile,
-    renameProfile, deleteProfile, updateConfig, toggleFavorite, isFavorite, refreshMostUsed, mostUsed,
+    renameProfile, deleteProfile, updateConfig, toggleFavorite, isFavorite, refreshMostUsed, mostUsed, error,
   }), [profiles, activeProfile, loading, saving, voices, mostUsed]);
 
   return <PersonalizationContext.Provider value={value}>{children}</PersonalizationContext.Provider>;
