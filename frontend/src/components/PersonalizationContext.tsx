@@ -61,6 +61,35 @@ function normalizeConfig(raw: Partial<PersonalizationConfig> | undefined): Perso
   };
 }
 
+function legacyProfileSeed(): { avatar: AvatarPreferences; quickAccess: Array<string | null> } {
+  const avatar = (() => {
+    try {
+      const raw = localStorage.getItem("visionbridge_avatar_preferences");
+      if (!raw) return DEFAULT_AVATAR;
+      return { ...DEFAULT_AVATAR, ...(JSON.parse(raw) as Partial<AvatarPreferences>) };
+    } catch {
+      return DEFAULT_AVATAR;
+    }
+  })();
+
+  const quickAccess = (() => {
+    try {
+      const raw = localStorage.getItem("visionbridge_user");
+      let suffix = "anonymous";
+      if (raw) {
+        const user = JSON.parse(raw) as { username?: string };
+        if (user.username) suffix = encodeURIComponent(user.username);
+      }
+      const stored = JSON.parse(localStorage.getItem("visionbridge_quick_access:" + suffix) || "[]");
+      return Array.from({ length: 10 }, (_, index) => stored[index] || null);
+    } catch {
+      return Array<string | null>(10).fill(null);
+    }
+  })();
+
+  return { avatar, quickAccess };
+}
+
 function localActiveKey(): string {
   const raw = localStorage.getItem("visionbridge_user");
   if (!raw) return ACTIVE_PROFILE_KEY + ":anonymous";
@@ -99,9 +128,14 @@ export function PersonalizationProvider({ children }: { children: ReactNode }) {
     try {
       let items = (await api.profiles()) as PersonalizationProfile[];
       if (!items.length) {
-        const created = await api.createProfile("Home", {
+        const legacy = import.meta.env.VITE_LOCAL_MODE !== "false" ? legacyProfileSeed() : {
           avatar: DEFAULT_AVATAR,
+          quickAccess: Array<string | null>(10).fill(null),
+        };
+        const created = await api.createProfile("Home", {
+          avatar: legacy.avatar,
           ...PROFILE_DEFAULTS,
+          quickAccess: legacy.quickAccess,
         });
         items = [created as PersonalizationProfile];
       }
