@@ -86,7 +86,11 @@ export default function App() {
   }, [authed, localMode]);
   const logout = () => void api.logout().then(() => { clearLocalAuth(); clearSessionHint(); setUsername(undefined); setAuthed(false); navigate("/login"); });
   if (authChecking) return <><Seo /><LoadingFallback /></>;
-  if (!authed) return <Routes><Route path="/login" element={<Auth onAuthed={() => setAuthed(true)} />} /><Route path="*" element={<Auth onAuthed={() => setAuthed(true)} />} /></Routes>;
+  if (!authed) return <Routes>
+    <Route path="/" element={<Navigate to="/login" replace />} />
+    <Route path="/login" element={<Auth onAuthed={() => setAuthed(true)} />} />
+    <Route path="*" element={<Auth onAuthed={() => setAuthed(true)} />} />
+  </Routes>;
   return <Shell username={username} onLogout={logout}><Suspense fallback={<LoadingFallback />}><Routes>
     <Route path="/" element={<Navigate to="/dashboard" replace />} />
     <Route path="/login" element={<Navigate to="/dashboard" replace />} />
