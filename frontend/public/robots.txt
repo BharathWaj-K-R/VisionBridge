@@ -8,6 +8,7 @@ Disallow: /history
 Disallow: /settings
 Disallow: /voice-to-sign
 Disallow: /word-bank
+Disallow: /personalization
 Disallow: /api/
 
 Sitemap: https://visionbridge-2c7h.onrender.com/sitemap.xml
