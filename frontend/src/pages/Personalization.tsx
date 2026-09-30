@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import AvatarCustomizer from "../components/AvatarCustomizer";
 import Speakable from "../components/Speakable";
@@ -32,10 +32,15 @@ export default function Personalization() {
   const [newName, setNewName] = useState("");
   const [nameDraft, setNameDraft] = useState(activeProfile?.name || "");
   const [message, setMessage] = useState("");
+  const [slotDrafts, setSlotDrafts] = useState<Array<string | null>>(slots);
 
   useEffect(() => {
     if (activeProfile) setNameDraft(activeProfile.name);
   }, [activeProfile?.id, activeProfile?.name]);
+
+  useEffect(() => {
+    setSlotDrafts(slots);
+  }, [activeProfile?.id, slots.join("|")]);
 
   if (loading || !activeProfile) {
     return <Page title="My Profile" subtitle="Loading your personal communication workspace."><div className="loading-page">Loading profile…</div></Page>;
@@ -80,9 +85,9 @@ export default function Personalization() {
     }
   }
 
-  async function saveSlot(slot: number, phrase: string) {
+  async function saveSlot(slot: number) {
     try {
-      await assign(slot, phrase || null);
+      await assign(slot, slotDrafts[slot] || null);
       setMessage("Quick Access saved.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Quick Access could not be saved.");
@@ -181,13 +186,15 @@ export default function Personalization() {
               <div className="quick-profile-row" key={index}>
                 <strong>{String(index + 1).padStart(2, "0")}</strong>
                 <input
-                  value={slots[index] || ""}
-                  onChange={(event) => void saveSlot(index, event.target.value)}
+                  value={slotDrafts[index] || ""}
+                  onChange={(event) => setSlotDrafts((current) => { const next = [...current]; next[index] = event.target.value || null; return next; })}
+                  onBlur={() => void saveSlot(index)}
+                  onKeyDown={(event) => { if (event.key === "Enter") { event.currentTarget.blur(); } }}
                   maxLength={200}
                   placeholder="Assign a phrase"
                   list="visionbridge-wordbank-options"
                 />
-                <Speakable text={slots[index] || "Empty slot"} className="quick-profile-speak" />
+                <Speakable text={slotDrafts[index] || "Empty slot"} className="quick-profile-speak" />
                 <button type="button" className="small-icon-btn" onClick={() => void move(index, index - 1)} disabled={index === 0}>↑</button>
                 <button type="button" className="small-icon-btn" onClick={() => void move(index, index + 1)} disabled={index === 9}>↓</button>
                 <button type="button" className="small-icon-btn danger-icon" onClick={() => void clear(index)} disabled={!slots[index]}>×</button>
