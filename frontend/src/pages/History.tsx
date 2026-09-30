@@ -10,7 +10,7 @@ export default function History() {
   const [clearing, setClearing] = useState(false);
   const [message, setMessage] = useState("");
 
-  const refresh = () => api.history().then(setData).catch(() => setData({ items: [] }));
+  const refresh = () => api.history().then(setData).catch((err) => { setData({ items: [] }); setMessage(err instanceof Error ? err.message : "History could not be loaded."); });
 
   useEffect(() => { void refresh(); }, []);
 
