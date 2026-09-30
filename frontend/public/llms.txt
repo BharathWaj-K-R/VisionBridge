@@ -26,3 +26,5 @@ VisionBridge uses React, TypeScript, Vite, React Router, MediaPipe Hand Landmark
 
 ## Access
 Most application routes require authentication.
+- My Profile: https://visionbridge-2c7h.onrender.com/personalization
+- Personalization stores named context profiles with avatar, Quick Access, favorites, signing speed, and preferred speech voice.
