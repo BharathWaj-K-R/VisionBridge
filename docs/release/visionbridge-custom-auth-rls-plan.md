@@ -1,61 +1,54 @@
-# VisionBridge custom-auth RLS plan
+# VisionBridge custom-auth RLS implementation
 
-## Current state
+## Implemented state
 
-Supabase PostgreSQL is the durable production database, but the application currently connects as the `postgres` role. Supabase documents that the table owner and roles with `BYPASSRLS` are not constrained by RLS. RLS is therefore intentionally still disabled while the application authentication model is custom FastAPI JWT/HttpOnly-cookie authentication rather than Supabase Auth.
+Production Supabase PostgreSQL now has RLS enabled on all seven VisionBridge application tables.
 
-## Required design
+The FastAPI service does not use Supabase Auth. It keeps its existing JWT/HttpOnly-cookie authentication and binds the authenticated integer user id to a transaction-local PostgreSQL setting with `set_config(..., true)`.
 
-1. **Use a dedicated application database role**
-   - Create a login role such as `visionbridge_app`.
-   - It must have `NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS`.
-   - Grant only the schema/table/sequence privileges required by FastAPI.
-   - Store its password only in Render's secret `DATABASE_URL`.
-   - Use Supabase's IPv4-capable session pooler because Render is IPv4-only.
+The Render connection authenticates with the existing database role and immediately executes `SET ROLE visionbridge_app`. The effective execution role is non-bypass: `rolbypassrls=false`.
 
-2. **Bind FastAPI JWT identity to a transaction-local PostgreSQL setting**
-   - The JWT `sub` is the VisionBridge integer user id.
-   - Before any authenticated ORM query, execute `SELECT set_config('app.user_id', :user_id, true)`.
-   - Keep the third argument `true`, making the identity transaction-local and preventing pooled-connection leakage.
-   - Anonymous requests do not receive an application user context.
-   - `get_current_user` should establish this context before querying `users`.
+## Implemented controls
 
-3. **Policies use custom context, not `auth.uid()`**
-   - Use `current_setting('app.user_id', true)` in policies.
-   - Enforce ownership on `users.id`, `signer_adapters.owner_id`, `translation_logs.user_id`, `communication_words.user_id`, `quick_access_slots.user_id`, `personalization_profiles.user_id`, and `communication_usage.user_id`.
-   - Define explicit SELECT, INSERT, UPDATE, and DELETE policies as appropriate.
+- Dedicated execution role: `visionbridge_app`
+- Effective production role: `visionbridge_app`
+- `BYPASSRLS=false`
+- Transaction-local `app.user_id`
+- Transaction-local auth-operation context for login/registration
+- Owner policies for adapters, history, custom words, quick access, profiles, and usage
+- User-row policy permitting only the authenticated user's own row, the specific login identifier being checked, or the specific username/email being checked during registration
+- `anon`, `authenticated`, and `PUBLIC` table privileges revoked from the seven application tables
+- Sequence privileges granted only to the application role as required
 
-4. **Registration is an explicit exception**
-   - Registration is unauthenticated, so `users` needs an INSERT policy permitting account creation.
-   - No anonymous SELECT, UPDATE, or DELETE access is granted.
+## Verification
 
-5. **Grants and RLS are one migration**
-   - Enable RLS on all seven application tables.
-   - Revoke unnecessary privileges from `anon` and `authenticated`.
-   - Grant only required privileges to `visionbridge_app`.
-   - Keep administrative access separate from the application role.
+Production verification is recorded in `docs/release/visionbridge-custom-auth-rls-verification.json`.
 
-6. **Prove isolation before production cutover**
-   - Test two users and verify each can access only its own rows.
-   - Test cross-user SELECT/UPDATE/DELETE denial for every user-owned table.
-   - Test missing/invalid user context.
-   - Verify `rolbypassrls = false` for the application role.
-   - Run authenticated smoke tests after enabling RLS.
+Observed runtime evidence:
+- Render database host: `aws-0-ap-southeast-1.pooler.supabase.com:5432`
+- Database: `postgres`
+- Render startup effective role: `current_user=visionbridge_app`, `session_user=postgres`
+- All seven tables report RLS enabled.
+- The application role reports `bypassrls=false`.
+- Login lookup succeeded under the custom operation context.
+- Registration INSERT policy accepted a transactional probe, which was rolled back.
+- Owner-scoped reads were verified under two user contexts.
 
-## Cutover order
+## Important security property
 
-1. Create the dedicated non-bypass role.
-2. Grant least-privilege table and sequence access.
-3. Implement transaction-local `app.user_id` context in FastAPI.
-4. Add and run RLS policy tests against the real Supabase database.
-5. Enable RLS in one migration.
-6. Change Render `DATABASE_URL` to the dedicated role/pooler URL.
-7. Deploy and verify authenticated smoke tests.
-8. Only then mark the RLS gate passed.
+The identity settings use transaction-local scope. This matters because SQLAlchemy pools connections. A request's user identity therefore cannot persist into the next transaction on the same pooled connection.
 
-## Explicit non-goals
+The application never uses `auth.uid()`. That would describe Supabase Auth identity, which VisionBridge does not use.
 
-- Do not use `auth.uid()`: VisionBridge does not use Supabase Auth.
-- Do not grant `BYPASSRLS` to the application role.
-- Do not enable RLS first and discover afterward that the current `postgres` connection bypasses it.
-- Do not expose database credentials or the application role password in logs, source, or API responses.
+## Versioned migration
+
+The reproducible migration is `supabase/migrations/20260930103000_custom_auth_rls.sql`.
+
+## Remaining test work
+
+The production RLS implementation is active and runtime-verified. A dedicated pgTAP suite should be added to the repository and run through the Supabase CLI in CI as a follow-up release-maintenance task. The current release evidence is based on direct production SQL verification plus application runtime startup evidence, not a claimed pgTAP run.
+
+## Explicit limitations
+
+- Signer-independent evaluation remains blocked because verified signer IDs are not exposed by the active RealSign metadata.
+- W remains the weakest recorded letter at 72.625698% accuracy.
