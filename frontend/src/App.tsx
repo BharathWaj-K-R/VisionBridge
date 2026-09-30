@@ -78,6 +78,7 @@ export default function App() {
   if (!authed) return <Routes><Route path="/login" element={<Auth onAuthed={() => setAuthed(true)} />} /><Route path="*" element={<Auth onAuthed={() => setAuthed(true)} />} /></Routes>;
   return <Shell username={username} onLogout={logout}><Suspense fallback={<LoadingFallback />}><Routes>
     <Route path="/" element={<Navigate to="/dashboard" replace />} />
+    <Route path="/login" element={<Navigate to="/dashboard" replace />} />
     <Route path="/dashboard" element={<Dashboard />} />
     <Route path="/translate" element={<Recognize />} />
     <Route path="/calibration" element={<Calibration />} />
