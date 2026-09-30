@@ -7,7 +7,6 @@ export default function SignSubtitle({
   queue: string[];
   currentIndex: number;
 }) {
-  const phrase = queue.join("");
   if (!phrase) {
     return (
       <div className="sign-subtitle empty" aria-live="polite">
