@@ -13,7 +13,7 @@ type Props = {
 const BODY_SCALE = { slim: 0.88, average: 1, athletic: 1.08 } as const;
 
 function fingerRotation(value: number): string {
-  return "rotate(" + value + "deg)";
+  return "rotate(" + value + ")";
 }
 
 function HandRig({
@@ -187,7 +187,7 @@ export default function SignAvatar({ letter, preferences, playing, view, express
             <path d="M184 308L146 358" fill="none" stroke="var(--avatar-sleeve)" strokeWidth="34" strokeLinecap="round" opacity=".84" />
             <g style={{ transform: "rotate(" + leftElbow + "deg)", transformOrigin: "146px 358px" }}>
               <path d="M146 358L116 223" fill="none" stroke={preferences.skinTone} strokeWidth="25" strokeLinecap="round" />
-              <g transform={"translate(116 222) rotate(" + (pose.leftWrist - 12) + "deg)"}>
+              <g transform={"translate(116 222) rotate(" + (pose.leftWrist - 12) + ")"}>
                 <HandRig side="left" fingers={pose.leftHand} skin={preferences.skinTone} outline={outline} highContrast={preferences.highContrast} />
               </g>
             </g>
@@ -197,7 +197,7 @@ export default function SignAvatar({ letter, preferences, playing, view, express
             <path d="M336 308L374 358" fill="none" stroke="var(--avatar-sleeve)" strokeWidth="34" strokeLinecap="round" opacity=".84" />
             <g style={{ transform: "rotate(" + rightElbow + "deg)", transformOrigin: "374px 358px" }}>
               <path d="M374 358L404 223" fill="none" stroke={preferences.skinTone} strokeWidth="25" strokeLinecap="round" />
-              <g transform={"translate(404 222) rotate(" + (pose.rightWrist + 12) + "deg)"}>
+              <g transform={"translate(404 222) rotate(" + (pose.rightWrist + 12) + ")"}>
                 <HandRig side="right" fingers={pose.rightHand} skin={preferences.skinTone} outline={outline} highContrast={preferences.highContrast} />
               </g>
             </g>
