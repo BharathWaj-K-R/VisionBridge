@@ -84,7 +84,11 @@ export default function App() {
     if (!hasSessionHint()) { setAuthChecking(false); return; }
     api.me().then(user => { setUsername(user.username); setAuthed(true); }).catch(() => { clearSessionHint(); setAuthed(false); }).finally(() => setAuthChecking(false));
   }, [authed, localMode]);
-  const logout = () => void api.logout().then(() => { clearLocalAuth(); clearSessionHint(); setUsername(undefined); setAuthed(false); navigate("/login"); });
+  const logout = () => void api.logout().then(() => {
+    clearLocalAuth(); clearSessionHint(); setUsername(undefined); setAuthed(false); navigate("/login");
+  }).catch(() => {
+    clearSessionHint(); setUsername(undefined); setAuthed(false); navigate("/login");
+  });
   if (authChecking) return <><Seo /><LoadingFallback /></>;
   if (!authed) return <Routes>
     <Route path="/" element={<Navigate to="/login" replace />} />
