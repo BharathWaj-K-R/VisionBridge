@@ -10,6 +10,7 @@ export default function Settings() {
   const [cameraFps, setCameraFps] = useState(localStorage.getItem("visionbridge_camera_fps") || "30");
   const [autoStart, setAutoStart] = useState(localStorage.getItem("visionbridge_auto_camera") === "1");
   const [saved, setSaved] = useState(false);
+  const [message, setMessage] = useState("");
   const refresh = () => Promise.all([api.me(), api.letterAdapters()]).then(([u,a]) => { setUser(u); setAdapters(a); }).catch(() => { setUser(undefined); setAdapters([]); });
   useEffect(() => { void refresh(); }, []);
   const savePreferences = () => {
@@ -21,7 +22,7 @@ export default function Settings() {
   };
   return <Page title="Settings" subtitle="Account, appearance, camera behavior, and signer profile controls.">
     <div className="settings-grid">
-      <section className="panel"><div className="eyebrow">ACCOUNT</div><h2>{user?.username || "Loading…"}</h2><p className="muted">{user?.email || "No email on this account yet."}</p><p className="mono">Account ID {user?.id ?? "—"}</p><div className="button-row"><button className="ghost-btn" onClick={() => void api.logout().then(() => { clearLocalAuth(); clearSessionHint(); window.location.assign("/login"); })}>Sign out</button></div></section>
+      <section className="panel"><div className="eyebrow">ACCOUNT</div><h2>{user?.username || "Loading…"}</h2><p className="muted">{user?.email || "No email on this account yet."}</p><p className="mono">Account ID {user?.id ?? "—"}</p><div className="button-row"><button className="ghost-btn" onClick={() => void api.logout().then(() => { clearLocalAuth(); clearSessionHint(); window.location.assign("/login"); }).catch((err) => setMessage(err instanceof Error ? err.message : "Sign out failed. Please try again."))}>Sign out</button></div></section>
       <section className="panel"><div className="panel-head"><div><div className="eyebrow">APPEARANCE</div><h2>Interface</h2></div></div><div className="settings-form">
         <label>Theme<select value={theme} onChange={e => setTheme(e.target.value)}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
         <label>Recognition FPS<select value={cameraFps} onChange={e => setCameraFps(e.target.value)}><option value="15">15 FPS · battery friendly</option><option value="30">30 FPS · balanced</option><option value="60">60 FPS · high performance</option></select></label>
