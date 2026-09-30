@@ -230,7 +230,10 @@ export const api = {
     return request<any>("/dashboard");
   },
   history: async (_params = "") => LOCAL_MODE ? { items: localHistory().reverse() } : request<any>("/history" + (_params ? "?" + _params : "")),
-  customWords: async (): Promise<any[]> => LOCAL_MODE ? localCustomWords() : request<any[]>("/communication/words"),
+  customWords: async (): Promise<any[]> => {
+    if (LOCAL_MODE) return localCustomWords();
+    try { return await request<any[]>("/communication/words"); } catch { return localCustomWords(); }
+  },
   createCustomWord: async (phrase: string, category: string): Promise<any> => {
     if (LOCAL_MODE) {
       const items = localCustomWords();
@@ -240,7 +243,16 @@ export const api = {
       saveLocalCustomWords([...items, item]);
       return item;
     }
-    return request<any>("/communication/words", { method: "POST", body: JSON.stringify({ phrase, category }) });
+    try {
+      return await request<any>("/communication/words", { method: "POST", body: JSON.stringify({ phrase, category }) });
+    } catch (error) {
+      const items = localCustomWords();
+      const exists = items.some((item) => String(item.phrase).toLowerCase() === phrase.trim().toLowerCase());
+      if (exists) throw error;
+      const item = { id: Date.now(), phrase: phrase.trim(), category: category.trim(), created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+      saveLocalCustomWords([...items, item]);
+      return item;
+    }
   },
   updateCustomWord: async (id: number, phrase: string, category: string): Promise<any> => {
     if (LOCAL_MODE) {
@@ -249,27 +261,45 @@ export const api = {
       saveLocalCustomWords(next);
       return next.find((item) => item.id === id);
     }
-    return request<any>("/communication/words/" + id, { method: "PUT", body: JSON.stringify({ phrase, category }) });
+    try {
+      return await request<any>("/communication/words/" + id, { method: "PUT", body: JSON.stringify({ phrase, category }) });
+    } catch (error) {
+      const items = localCustomWords();
+      const next = items.map((item) => item.id === id ? { ...item, phrase: phrase.trim(), category: category.trim(), updated_at: new Date().toISOString() } : item);
+      saveLocalCustomWords(next);
+      const updated = next.find((item) => item.id === id);
+      if (!updated) throw error;
+      return updated;
+    }
   },
   deleteCustomWord: async (id: number): Promise<void> => {
     if (LOCAL_MODE) {
       saveLocalCustomWords(localCustomWords().filter((item) => item.id !== id));
       return;
     }
-    await request<any>("/communication/words/" + id, { method: "DELETE" });
+    try { await request<any>("/communication/words/" + id, { method: "DELETE" }); }
+    catch { saveLocalCustomWords(localCustomWords().filter((item) => item.id !== id)); }
   },
-  quickAccess: async (): Promise<{ slots: Array<string | null> }> =>
-    LOCAL_MODE ? { slots: localQuickAccess() } : request<{ slots: Array<string | null> }>("/communication/quick-access"),
+  quickAccess: async (): Promise<{ slots: Array<string | null> }> => {
+    if (LOCAL_MODE) return { slots: localQuickAccess() };
+    try { return await request<{ slots: Array<string | null> }>("/communication/quick-access"); }
+    catch { return { slots: localQuickAccess() }; }
+  },
   saveQuickAccess: async (slots: Array<string | null>): Promise<{ slots: Array<string | null> }> => {
     const normalized = Array.from({ length: 10 }, (_, index) => slots[index] || null);
     if (LOCAL_MODE) {
       saveLocalQuickAccess(normalized);
       return { slots: normalized };
     }
-    return request<{ slots: Array<string | null> }>("/communication/quick-access", {
-      method: "PUT",
-      body: JSON.stringify({ slots: normalized }),
-    });
+    try {
+      return await request<{ slots: Array<string | null> }>("/communication/quick-access", {
+        method: "PUT",
+        body: JSON.stringify({ slots: normalized }),
+      });
+    } catch {
+      saveLocalQuickAccess(normalized);
+      return { slots: normalized };
+    }
   },
   clearHistory: async (): Promise<{ deleted: number; storage: "database" | "browser" }> => {
     if (LOCAL_MODE) {
