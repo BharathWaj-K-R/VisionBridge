@@ -6,15 +6,23 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
-class UserCreate(BaseModel):
+class RegisterRequest(BaseModel):
     username: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_.-]+$")
+    email: str = Field(min_length=3, max_length=320)
     password: str = Field(min_length=8, max_length=72)
+
+
+class LoginRequest(BaseModel):
+    identifier: str = Field(min_length=1, max_length=320)
+    password: str = Field(min_length=8, max_length=72)
+
 
 
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
     username: str
+    email: str | None = None
     created_at: dt.datetime
 
 
