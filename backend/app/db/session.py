@@ -14,6 +14,14 @@ connect_args = {"check_same_thread": False} if settings.DATABASE_URL.startswith(
 
 engine = create_engine(settings.DATABASE_URL, connect_args=connect_args)
 
+if settings.ENV.lower() == "production" and settings.DATABASE_URL.startswith("postgresql"):
+    @event.listens_for(engine, "connect")
+    def _set_production_database_role(dbapi_connection, connection_record):
+        """Drop the production connection into the least-privileged app role."""
+        cursor = dbapi_connection.cursor()
+        cursor.execute("SET ROLE visionbridge_app")
+        cursor.close()
+
 
 if settings.DATABASE_URL.startswith("sqlite"):
     @event.listens_for(engine, "connect")
