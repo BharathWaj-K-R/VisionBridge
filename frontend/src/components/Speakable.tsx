@@ -41,7 +41,7 @@ export default function Speakable({ text, className = "", label }: Props) {
     utterance.onerror = finish;
     utteranceRef.current = utterance;
     window.speechSynthesis.speak(utterance);
-    void api.recordUsage(text, activeProfile?.id);
+    void api.recordUsage(text, activeProfile?.id).finally(() => window.dispatchEvent(new Event("visionbridge:usage-changed")));
   };
 
   return (
