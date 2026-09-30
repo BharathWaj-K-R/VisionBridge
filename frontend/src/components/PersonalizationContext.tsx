@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api } from "../api";
 import { DEFAULT_AVATAR, type AvatarPreferences } from "./AvatarCustomizer";
 
@@ -79,6 +79,7 @@ export function PersonalizationProvider({ children }: { children: ReactNode }) {
   const [saving, setSaving] = useState(false);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [mostUsed, setMostUsed] = useState<Array<{ phrase: string; usage_count: number; last_used_at?: string }>>([]);
+  const bootstrapRef = useRef(false);
 
   const loadVoices = () => {
     if (!("speechSynthesis" in window)) return;
@@ -92,6 +93,8 @@ export function PersonalizationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refresh = async () => {
+    if (bootstrapRef.current) return;
+    bootstrapRef.current = true;
     setLoading(true);
     try {
       let items = (await api.profiles()) as PersonalizationProfile[];
@@ -111,6 +114,7 @@ export function PersonalizationProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(localActiveKey(), String(nextId));
     } finally {
       setLoading(false);
+      bootstrapRef.current = false;
     }
   };
 
