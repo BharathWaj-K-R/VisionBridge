@@ -4,11 +4,12 @@ import {
   drawHands,
   frameFromResults,
   type LandmarkFrame,
+  type TrackerVisual,
 } from "./landmarks";
 
 const TRACE_POINTS = 28;
 
-export function useLandmarkSession(sampleFps: number) {
+export function useLandmarkSession(sampleFps: number, trackerVisual: TrackerVisual = "neon") {
   const targetFps = Number.isFinite(sampleFps) ? Math.min(60, Math.max(1, sampleFps)) : 30;
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -82,7 +83,7 @@ export function useLandmarkSession(sampleFps: number) {
             canvas.width = width;
             canvas.height = height;
           }
-          drawHands(canvas, frame.leftLandmarks, frame.rightLandmarks, traceRef.current);
+          drawHands(canvas, frame.leftLandmarks, frame.rightLandmarks, traceRef.current, true, trackerVisual);
         }
 
         const now = performance.now();
@@ -189,7 +190,7 @@ export function useLandmarkSession(sampleFps: number) {
     } finally {
       startingRef.current = false;
     }
-  }, [targetFps, stop]);
+  }, [targetFps, stop, trackerVisual]);
 
   const snapshot = useCallback(() => [...framesRef.current], []);
   const latestFrame = useCallback(() => latestFrameRef.current, []);
