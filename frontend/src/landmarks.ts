@@ -331,14 +331,14 @@ function drawAnatomyHand(
     context.stroke();
   }
 
-  const callouts: Array<[number, number, number, number]> = [
-    [2, 1, 3, 17],
-    [6, 5, 7, 9],
-    [10, 9, 11, 13],
-    [14, 13, 15, 17],
+  const callouts: Array<[number, number, number]> = [
+    [2, 1, 3],
+    [6, 5, 7],
+    [10, 9, 11],
+    [14, 13, 15],
   ];
   context.font = "700 9px Space Mono, monospace";
-  for (const [a, center, b, offsetSign] of callouts) {
+  for (const [a, center, b] of callouts) {
     const angle = angleAt(landmarks, a, center, b);
     const [x, y] = point(center);
     const direction = x < width / 2 ? -1 : 1;
