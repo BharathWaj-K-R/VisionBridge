@@ -7,7 +7,10 @@ const labels: Record<string, string> = {
   "/translate": "Live Translate",
   "/calibration": "Few-Shot Calibration",
   "/history": "Letter History",
-  "/settings": "Signer Profiles",
+  "/settings": "Settings",
+  "/voice-to-sign": "Voice to Sign",
+  "/word-bank": "Word Bank",
+  "/personalization": "My Profile",
 };
 
 export function Breadcrumbs() {
