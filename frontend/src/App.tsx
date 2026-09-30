@@ -4,7 +4,7 @@ import { api, clearLocalAuth, clearSessionHint, hasSessionHint, setSessionHint, 
 import NotFound from "./NotFound";
 import Seo from "./components/Seo";
 import QuickAccessBar from "./components/QuickAccessBar";
-import { PersonalizationProvider, usePersonalization } from "./components/PersonalizationContext";
+import { PersonalizationProvider } from "./components/PersonalizationContext";
 import ProfileSwitcher from "./components/ProfileSwitcher";
 import { QuickAccessProvider } from "./components/QuickAccessContext";
 
