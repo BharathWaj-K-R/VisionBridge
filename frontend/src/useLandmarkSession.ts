@@ -4,12 +4,17 @@ import {
   drawHands,
   frameFromResults,
   type LandmarkFrame,
+  type TrackerOverlayMeta,
   type TrackerVisual,
 } from "./landmarks";
 
 const TRACE_POINTS = 28;
 
-export function useLandmarkSession(sampleFps: number, trackerVisual: TrackerVisual = "neon") {
+export function useLandmarkSession(
+  sampleFps: number,
+  trackerVisual: TrackerVisual = "neon",
+  trackerMeta: TrackerOverlayMeta = {},
+) {
   const targetFps = Number.isFinite(sampleFps) ? Math.min(60, Math.max(1, sampleFps)) : 30;
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -25,6 +30,11 @@ export function useLandmarkSession(sampleFps: number, trackerVisual: TrackerVisu
     left: Array<[number, number]>;
     right: Array<[number, number]>;
   }>({ left: [], right: [] });
+  const trackerMetaRef = useRef<TrackerOverlayMeta>(trackerMeta);
+
+  useEffect(() => {
+    trackerMetaRef.current = trackerMeta;
+  }, [trackerMeta]);
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState("Ready");
   const [fps, setFps] = useState(0);
@@ -83,7 +93,15 @@ export function useLandmarkSession(sampleFps: number, trackerVisual: TrackerVisu
             canvas.width = width;
             canvas.height = height;
           }
-          drawHands(canvas, frame.leftLandmarks, frame.rightLandmarks, traceRef.current, true, trackerVisual);
+          drawHands(
+            canvas,
+            frame.leftLandmarks,
+            frame.rightLandmarks,
+            traceRef.current,
+            true,
+            trackerVisual,
+            trackerMetaRef.current,
+          );
         }
 
         const now = performance.now();
