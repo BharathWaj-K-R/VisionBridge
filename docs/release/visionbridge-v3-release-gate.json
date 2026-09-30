@@ -29,15 +29,47 @@
     "per_letter_accuracy": "recorded in visionbridge_letter_evaluation.json",
     "confusion_matrix": "recorded in visionbridge_letter_evaluation.json"
   },
+  "browser_pytorch_parity": {
+    "source": "docs/release/visionbridge-v3-browser-parity.json",
+    "samples": 32,
+    "embedding_max_abs_error": 0.0000019669532775878906,
+    "logits_max_abs_error": 0.000003814697265625,
+    "tolerance": 0.00001,
+    "passed": true,
+    "execution_run_id": 36694299109,
+    "execution_job_id": 109818465532,
+    "execution_commit": "52da908f6bb17863bb49f1a63aaaa4f52ce0038f"
+  },
+  "release_hardening_tests": {
+    "source": "backend/tests/test_release_hardening.py",
+    "tests": 5,
+    "passed": 5,
+    "failed": 0,
+    "execution_run_id": 36694299109,
+    "execution_job_id": 109818465532
+  },
+  "production_database_binding": {
+    "status": "PENDING_LIVE_LOG_VERIFICATION",
+    "non_sqlite_production_runtime": true,
+    "reason": "The live service already passed production startup with SQLite explicitly rejected. A sanitized database-target startup log was added; the next live deploy must be checked for the Supabase hostname before this gate is passed."
+  },
   "signer_independent_evaluation": {
     "status": "BLOCKED",
     "reason": "The active RealSign dataset metadata does not expose verified signer IDs."
   },
+  "limitations": {
+    "worst_letter": "W",
+    "worst_letter_accuracy": 0.7262569832402235
+  },
+  "rls": {
+    "status": "BLOCKED",
+    "plan": "docs/release/visionbridge-custom-auth-rls-plan.md",
+    "reason": "Current production database role is postgres with BYPASSRLS. A dedicated non-bypass application role and transaction-local custom-auth context are required before enabling policies."
+  },
   "remaining_release_gates": [
-    "Run repository-runtime pytest suite and record pass/fail evidence.",
-    "Run browser/PyTorch numerical parity against the verified checkpoint and record tolerance evidence.",
-    "Verify production Render runtime is bound to durable Supabase PostgreSQL.",
-    "Resolve the custom-auth/RLS security design before enabling row-level policies."
+    "Verify the new sanitized Render database-target startup log shows the VisionBridge Supabase host.",
+    "Implement and validate the dedicated non-bypass application role and custom-auth RLS policy suite.",
+    "Do not claim signer-independent evaluation without verified signer IDs."
   ],
-  "release_rule": "Do not mark this release ready until runtime tests, browser/PyTorch parity, and production persistence are verified. Do not claim signer-independent evaluation without verified signer IDs."
+  "release_rule": "Do not mark this release ready until production Supabase binding is explicitly verified and custom-auth RLS is safely enforced. Runtime tests and browser/PyTorch parity are passed. Do not claim signer-independent evaluation without verified signer IDs."
 }
