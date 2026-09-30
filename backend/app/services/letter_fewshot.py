@@ -165,11 +165,10 @@ def fit_prototype_adapter(
 
 
 def save_prototype_adapter(payload: dict) -> str:
-    root = Path(settings.ADAPTER_WEIGHTS_DIR).resolve()
-    root.mkdir(parents=True, exist_ok=True)
-    target = root / "letter_adapter_{}.json".format(uuid.uuid4().hex)
-    target.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    return str(target)
+    """Return a durable database locator; adapter payload is persisted in SignerAdapter.payload_json."""
+    if not isinstance(payload, dict) or not payload.get("prototypes"):
+        raise ValueError("Cannot persist an empty letter adapter")
+    return "database://signer_adapters/{}".format(uuid.uuid4().hex)
 
 
 def validate_prototype_adapter_payload(payload: dict, base_model_path: str | Path) -> dict:
@@ -218,6 +217,9 @@ def validate_prototype_adapter_payload(payload: dict, base_model_path: str | Pat
 
 
 def load_prototype_adapter(weights_path: str, base_model_path: str | Path) -> dict:
+    """Legacy filesystem loader retained only for old records; new adapters use payload_json."""
+    if weights_path.startswith("database://"):
+        raise FileNotFoundError("Database-backed adapter payload must be loaded from SignerAdapter.payload_json")
     root = Path(settings.ADAPTER_WEIGHTS_DIR).resolve()
     candidate = Path(weights_path).resolve()
     if root not in candidate.parents or not candidate.is_file():
