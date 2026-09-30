@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../api";
 import { DEFAULT_VOCABULARY, VOCABULARY_CATEGORIES, type VocabularyCategory, type VocabularyItem } from "../data/vocabulary";
 import Speakable from "../components/Speakable";
@@ -6,7 +7,7 @@ import { QUICK_ACCESS_SLOTS, useQuickAccess } from "../components/QuickAccessCon
 import { usePersonalization } from "../components/PersonalizationContext";
 import { Empty, Loading, Page } from "../components/Page";
 
-type CustomWord = VocabularyItem & { id: number; custom: true };
+type CustomWord = VocabularyItem & { custom: true; customId: number };
 
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
@@ -31,7 +32,8 @@ export default function WordBank() {
     try {
       const items = await api.customWords();
       setCustomWords(items.map((item: any) => ({
-        id: Number(item.id),
+        id: "custom-" + Number(item.id),
+        customId: Number(item.id),
         phrase: String(item.phrase),
         category: item.category as VocabularyCategory,
         custom: true,
@@ -88,7 +90,8 @@ export default function WordBank() {
     try {
       const item = await api.createCustomWord(next, customCategory);
       setCustomWords((items) => [...items, {
-        id: Number(item.id),
+        id: "custom-" + Number(item.id),
+        customId: Number(item.id),
         phrase: String(item.phrase),
         category: item.category as VocabularyCategory,
         custom: true,
@@ -115,7 +118,7 @@ export default function WordBank() {
     setMessage("");
     try {
       const item = await api.updateCustomWord(editingId, editPhrase.trim(), editCategory);
-      setCustomWords((items) => items.map((existing) => existing.id === editingId ? {
+      setCustomWords((items) => items.map((existing) => existing.customId === editingId ? {
         ...existing,
         phrase: String(item.phrase),
         category: item.category as VocabularyCategory,
@@ -134,7 +137,7 @@ export default function WordBank() {
     setSaving(true);
     setMessage("");
     try {
-      const target = customWords.find((item) => item.id === id);
+      const target = customWords.find((item) => item.customId === id);
       await api.deleteCustomWord(id);
       setCustomWords((items) => items.filter((item) => item.id !== id));
       if (target) {
@@ -260,7 +263,7 @@ export default function WordBank() {
                       {custom && (
                         <div className="custom-word-actions">
                           <button type="button" className="text-btn" onClick={() => beginEdit(item as CustomWord)}>Edit</button>
-                          <button type="button" className="text-btn danger-text" onClick={() => void removeCustomWord((item as CustomWord).id)} disabled={saving}>Delete</button>
+                          <button type="button" className="text-btn danger-text" onClick={() => void removeCustomWord((item as CustomWord).customId)} disabled={saving}>Delete</button>
                         </div>
                       )}
                     </article>
