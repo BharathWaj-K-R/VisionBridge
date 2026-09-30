@@ -44,7 +44,7 @@ function Auth({ onAuthed }: { onAuthed: () => void }) {
     try {
       if (mode === "register") { if (password !== confirmPassword) throw new Error("Passwords do not match."); await api.register(username, email, password); await api.login(username, password); }
       else await api.login(identifierMode === "email" ? email : username, password);
-      setSessionHint(); onAuthed();
+      setSessionHint(); onAuthed(); navigate("/dashboard", { replace: true });
     } catch (err) { setError(err instanceof Error ? err.message : "Authentication failed"); }
     finally { setBusy(false); }
   };
