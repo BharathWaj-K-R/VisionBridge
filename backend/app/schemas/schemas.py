@@ -1,6 +1,7 @@
 """Pydantic API contracts for VisionBridge."""
 import datetime as dt
 from collections import Counter
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -64,7 +65,7 @@ class LetterCalibrationResult(BaseModel):
 
 class LetterPredictionRequest(BaseModel):
     user_id: int = Field(gt=0)
-    adapter_id: int = Field(gt=0)
+    adapter_id: int | None = Field(default=None, gt=0)
     hand_keypoints: list[float] = Field(min_length=126, max_length=126)
 
 
@@ -72,12 +73,13 @@ class LetterPredictionResult(BaseModel):
     predicted_letter: str
     confidence: float
     latency_ms: float
-    adapter_id: int
+    adapter_id: int | None
+    mode: Literal["base", "adapter"]
 
 
 class LetterRecognitionEvent(BaseModel):
     user_id: int = Field(gt=0)
-    adapter_id: int = Field(gt=0)
+    adapter_id: int | None = Field(default=None, gt=0)
     predicted_letter: str = Field(min_length=1, max_length=1, pattern=r"^(?:[A-Za-z]|\?)$")
     confidence: float = Field(ge=0, le=1)
     latency_ms: float = Field(ge=0)
