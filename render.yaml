@@ -16,6 +16,8 @@ services:
         generateValue: true
       - key: ALLOWED_ORIGINS
         value: https://visionbridge-2c7h.onrender.com
+      - key: DATABASE_URL
+        sync: false
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
         value: "60"
 
