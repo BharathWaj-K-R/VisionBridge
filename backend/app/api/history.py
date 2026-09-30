@@ -62,6 +62,20 @@ def list_history(
     return {"items": [_serialize(item) for item in items], "count": total_count}
 
 
+@router.delete("")
+def clear_history(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    deleted = (
+        db.query(TranslationLog)
+        .filter(TranslationLog.user_id == current_user.id)
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    return {"deleted": deleted, "storage": "database"}
+
+
 @router.get("/export.csv")
 def export_history_csv(
     db: Session = Depends(get_db),
