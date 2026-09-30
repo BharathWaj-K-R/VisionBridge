@@ -11,7 +11,7 @@ type ErrorBoundaryState = { error: Error | null };
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   state: ErrorBoundaryState = { error: null };
   static getDerivedStateFromError(error: Error): ErrorBoundaryState { return { error }; }
-  componentDidCatch(error: Error, info: ErrorInfo) { console.error("VisionBridge frontend runtime error", error, info); }
+  componentDidCatch(error: Error, info: ErrorInfo) { if (import.meta.env.DEV) console.error("VisionBridge frontend runtime error", error, info); }
   render() {
     if (this.state.error) {
       const message = this.state.error.message || "Unknown frontend error";
@@ -21,7 +21,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 }
 
-const knownPaths = new Set(["/", "/login", "/dashboard", "/translate", "/calibration", "/history", "/evaluation", "/settings"]);
+const knownPaths = new Set(["/", "/login", "/dashboard", "/translate", "/calibration", "/history", "/settings"]);
 function RouteGuard() {
   const { pathname } = useLocation();
   return knownPaths.has(pathname) ? <App /> : <NotFound />;
