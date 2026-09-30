@@ -301,7 +301,8 @@ export const api = {
   letterPredict: async (userId: number, adapterId: number | undefined, handKeypoints: number[]): Promise<LetterPredictionResult> => {
     const started = performance.now();
     if (LOCAL_MODE) {
-      if (adapterId == null) throw new Error("The local demo does not bundle the V3 base-model weights; use the deployed browser runtime for base-model inference.");\n      const adapter = localLetterAdapters().find((item) => item.id === adapterId);
+      if (adapterId == null) throw new Error("The local demo does not bundle the V3 base-model weights; use the deployed browser runtime for base-model inference.");
+      const adapter = localLetterAdapters().find((item) => item.id === adapterId);
       if (!adapter) throw new Error("Choose a calibrated signer adapter first.");
       const result = localPredict(adapter, handKeypoints);
       const latency = performance.now() - started;
