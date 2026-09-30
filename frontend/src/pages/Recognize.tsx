@@ -30,6 +30,7 @@ export default function Recognize() {
   const adapterRef = useRef<BrowserLetterAdapter | null>(null);
   const candidateRef = useRef({ letter: "", since: 0, confidence: 0 });
   const readyToCommitRef = useRef(true);
+  const lastCommittedLetterRef = useRef("");
   const lastLoggedAtRef = useRef(0);
   const STABLE_COMMIT_MS = 700;
   const COMMIT_CONFIDENCE = 0.70;
@@ -113,9 +114,13 @@ export default function Recognize() {
         }
 
         candidateRef.current.confidence = Math.max(candidate.confidence, score);
-        if (now - candidate.since < STABLE_COMMIT_MS || !readyToCommitRef.current) return;
+        if (
+          now - candidate.since < STABLE_COMMIT_MS ||
+          (!readyToCommitRef.current && letter === lastCommittedLetterRef.current)
+        ) return;
 
         readyToCommitRef.current = false;
+        lastCommittedLetterRef.current = letter;
         const committedConfidence = candidateRef.current.confidence;
         setBuffer((items) => [...items.slice(-5), letter]);
 
