@@ -201,6 +201,11 @@ export function PersonalizationProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => { if (activeProfile) void refreshMostUsed(); }, [activeProfile?.id]);
+  useEffect(() => {
+    const refresh = () => { if (activeProfile) void refreshMostUsed(); };
+    window.addEventListener("visionbridge:usage-changed", refresh);
+    return () => window.removeEventListener("visionbridge:usage-changed", refresh);
+  }, [activeProfile?.id]);
 
   const value = useMemo(() => ({
     profiles, activeProfile, loading, saving, voices, refresh, switchProfile, createProfile,
