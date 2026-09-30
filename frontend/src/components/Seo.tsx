@@ -41,10 +41,10 @@ export default function Seo() {
     setMeta("robots", pathname === "/" || pathname === "/login" ? "index,follow" : "noindex,nofollow");
     setProperty("og:title", meta.title); setProperty("og:description", meta.description);
     setProperty("og:type", "website"); setProperty("og:url", canonical);
-    setProperty("og:image", SITE + "/social-share.png"); setProperty("og:image:secure_url", SITE + "/social-share.png"); setProperty("og:image:type", "image/png"); setProperty("og:image:width", "1200"); setProperty("og:image:height", "630"); setProperty("og:image:alt", "VisionBridge Indian Sign Language recognition social preview");
+    setProperty("og:image", SITE + "/social-share.svg"); setProperty("og:image:secure_url", SITE + "/social-share.svg"); setProperty("og:image:type", "image/svg+xml"); setProperty("og:image:width", "1200"); setProperty("og:image:height", "630"); setProperty("og:image:alt", "VisionBridge Indian Sign Language recognition social preview");
     setProperty("og:site_name", "VisionBridge");
     setMeta("twitter:card", "summary_large_image"); setMeta("twitter:title", meta.title);
-    setMeta("twitter:description", meta.description); setMeta("twitter:image", SITE + "/social-share.png"); setMeta("twitter:image:alt", "VisionBridge Indian Sign Language recognition social preview");
+    setMeta("twitter:description", meta.description); setMeta("twitter:image", SITE + "/social-share.svg"); setMeta("twitter:image:alt", "VisionBridge Indian Sign Language recognition social preview");
     setLink("canonical", canonical);
     document.getElementById("visionbridge-structured-data")?.remove();
     const script = document.createElement("script");
