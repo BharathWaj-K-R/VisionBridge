@@ -33,19 +33,19 @@ export const VOCABULARY_CATEGORIES: VocabularyCategory[] = [
 const rows: Array<[VocabularyCategory, string[]]> = [
   ["Greetings & Social", [
     "Hello", "Hi", "Good morning", "Good afternoon", "Good evening", "Good night",
-    "Please", "Thank you", "You are welcome", "Sorry", "Excuse me", "Goodbye", "See you", "Take care", "Nice to meet you",
+    "Please", "Thank you", "You are welcome", "Sorry", "Excuse me", "Goodbye", "See you", "Take care", "Nice to meet you", "How are you", "I am fine", "Congratulations", "Happy birthday", "Good luck",
   ]],
   ["Basic Needs", [
     "I need help", "I need water", "I need food", "I am hungry", "I am thirsty", "I need the bathroom",
-    "I need medicine", "I need rest", "I am cold", "I am hot", "I have pain", "Please wait",
+    "I need medicine", "I need rest", "I am cold", "I am hot", "I have pain", "Please wait", "I need privacy", "I need a break", "I feel dizzy", "I cannot hear you",
   ]],
   ["Food & Drink", [
     "Water", "Tea", "Coffee", "Milk", "Juice", "Breakfast", "Lunch", "Dinner", "Rice", "Bread",
-    "Fruit", "Vegetables", "More", "Enough", "The bill please", "No spicy food",
+    "Fruit", "Vegetables", "More", "Enough", "The bill please", "No spicy food", "No onion", "No dairy", "Vegetarian", "I have an allergy", "Breakfast time", "Lunch time",
   ]],
   ["Family & People", [
     "Mother", "Father", "Brother", "Sister", "Child", "Family", "Friend", "Partner", "Baby",
-    "Doctor", "Nurse", "Teacher", "Manager", "Customer", "Neighbor",
+    "Doctor", "Nurse", "Teacher", "Manager", "Customer", "Neighbor", "Staff", "Driver", "Security", "Receptionist", "Relative", "Parent",
   ]],
   ["Time & Calendar", [
     "Today", "Tomorrow", "Yesterday", "Now", "Later", "Soon", "Morning", "Afternoon", "Evening",
@@ -53,25 +53,25 @@ const rows: Array<[VocabularyCategory, string[]]> = [
   ]],
   ["Places & Travel", [
     "Home", "Work", "School", "Hospital", "Pharmacy", "Shop", "Market", "Restaurant", "Hotel",
-    "Bus stop", "Train station", "Airport", "Bathroom", "Office", "Parking", "Go home",
+    "Bus stop", "Train station", "Airport", "Bathroom", "Office", "Parking", "Bus", "Train", "Auto", "Taxi", "Gate", "Entrance", "Exit", "Go home", "I am here", "Where is the lift",
   ]],
   ["Feelings & Emergency", [
     "I am happy", "I am sad", "I am tired", "I am worried", "I am scared", "I am angry",
     "I am okay", "I feel sick", "Emergency", "Call the police", "Call an ambulance", "I am lost",
-    "I need a doctor", "Please stay with me",
+    "I need a doctor", "Please stay with me", "I need urgent help", "Call my family", "Call my emergency contact", "I am safe", "I am not safe",
   ]],
   ["Common Verbs & Questions", [
     "I want", "I need", "I like", "I do not like", "Go", "Come", "Wait", "Stop", "Start", "Help",
     "Open", "Close", "Call", "Send", "Show me", "What", "Where", "When", "Who", "Why", "How",
-    "Do you understand", "I understand", "I do not understand", "Please repeat",
+    "Do you understand", "I understand", "I do not understand", "Please repeat", "Can you help me", "Can you wait", "Can you write that", "What does this mean", "Where should I go", "Can you show me",
   ]],
   ["Daily Life", [
     "Phone", "Message", "Call me", "Money", "Ticket", "Key", "Door", "Book", "Bag", "Ready",
-    "Finished", "Again", "Yes", "No", "Maybe", "One moment", "Come with me", "Thank you for waiting",
+    "Finished", "Again", "Yes", "No", "Maybe", "One moment", "Come with me", "Thank you for waiting", "Please call me", "Send me the address", "Send me the details", "I will come later",
   ]],
   ["Accessibility", [
     "Please write it down", "Please speak slowly", "Please face me", "I am Deaf", "I am hard of hearing",
-    "I use sign language", "Please use captions", "Please type here", "I need an interpreter", "Can you repeat that",
+    "I use sign language", "Please use captions", "Please type here", "I need an interpreter", "Can you repeat that", "Please use a text message", "Please use a screen", "Please get my attention", "I can read lips",
   ]],
 ];
 
