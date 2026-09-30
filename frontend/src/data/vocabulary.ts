@@ -66,12 +66,12 @@ const rows: Array<[VocabularyCategory, string[]]> = [
     "Do you understand", "I understand", "I do not understand", "Please repeat", "Can you help me", "Can you wait", "Can you write that", "What does this mean", "Where should I go", "Can you show me",
   ]],
   ["Daily Life", [
-    "Phone", "Message", "Call me", "Money", "Ticket", "Key", "Door", "Book", "Bag", "Ready",
-    "Finished", "Again", "Yes", "No", "Maybe", "One moment", "Come with me", "Thank you for waiting", "Please call me", "Send me the address", "Send me the details", "I will come later",
+    "Phone", "Message", "Call me", "Money", "Ticket", "Key", "Door", "Book", "Bag", "Ready", "Meeting", "Appointment", "Deadline", "Break", "Class", "Lesson", "Exam",
+    "Finished", "Again", "Yes", "No", "Maybe", "One moment", "Come with me", "Thank you for waiting", "Please call me", "Send me the address", "Send me the details", "I will come later", "I will call you", "I am on my way", "I am running late", "Please send the time", "Please send the location",
   ]],
   ["Accessibility", [
     "Please write it down", "Please speak slowly", "Please face me", "I am Deaf", "I am hard of hearing",
-    "I use sign language", "Please use captions", "Please type here", "I need an interpreter", "Can you repeat that", "Please use a text message", "Please use a screen", "Please get my attention", "I can read lips",
+    "I use sign language", "Please use captions", "Please type here", "I need an interpreter", "Can you repeat that", "Please use a text message", "Please use a screen", "Please get my attention", "I can read lips", "I need captions", "The audio is not clear", "Please face me when speaking",
   ]],
 ];
 
