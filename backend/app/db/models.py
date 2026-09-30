@@ -118,10 +118,11 @@ class CommunicationUsage(Base):
     """Per-user phrase usage counters for the Most Used section."""
 
     __tablename__ = "communication_usage"
-    __table_args__ = (UniqueConstraint("user_id", "phrase", name="uq_communication_usage_user_phrase"),)
+    __table_args__ = (UniqueConstraint("user_id", "profile_id", "phrase", name="uq_communication_usage_user_profile_phrase"),)
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    profile_id = Column(Integer, ForeignKey("personalization_profiles.id"), nullable=True, index=True)
     phrase = Column(String(200), nullable=False)
     usage_count = Column(Integer, nullable=False, default=0)
     last_used_at = Column(DateTime, default=lambda: dt.datetime.now(dt.timezone.utc))
