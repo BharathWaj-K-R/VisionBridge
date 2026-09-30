@@ -3,8 +3,6 @@ import { api } from "../api";
 import { DEFAULT_VOCABULARY } from "../data/vocabulary";
 import { buildSubtitleUnits } from "../data/signSequence";
 import SpeechRecognizer from "../components/SpeechRecognizer";
-import SignAvatar3D from "../components/SignAvatar3D";
-import AvatarCustomizer, { DEFAULT_AVATAR } from "../components/AvatarCustomizer";
 import SignQueue, { normalizeSignText, toSignQueue } from "../components/SignQueue";
 import SignSubtitle from "../components/SignSubtitle";
 import { usePersonalization } from "../components/PersonalizationContext";
@@ -21,8 +19,6 @@ export default function VoiceToSign() {
   const [currentIndex, setCurrentIndex] = useState(-1);
   const [playing, setPlaying] = useState(false);
   const [lastPhrase, setLastPhrase] = useState("");
-  const [view, setView] = useState<"full" | "close">("full");
-  const [expression, setExpression] = useState<"neutral" | "question" | "emphasis">("neutral");
   const lastQueuedPhraseRef = useRef("");
 
   useEffect(() => {
@@ -101,8 +97,19 @@ export default function VoiceToSign() {
   };
 
   const supported = Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
-  const avatar = activeProfile?.config.avatar;
   const speed = activeProfile?.config.signingSpeed || 1;
+  const currentSign = queue[currentIndex] && /^[A-Z]$/.test(queue[currentIndex]) ? queue[currentIndex] : "";
+  const currentSignIndex = currentSign ? currentSign.charCodeAt(0) - 65 : -1;
+  const atlasColumn = currentSignIndex >= 0 ? currentSignIndex % 7 : 0;
+  const atlasRow = currentSignIndex >= 0 ? Math.floor(currentSignIndex / 7) : 0;
+  const atlasPosition = currentSignIndex >= 0
+    ? (atlasColumn / 6) * 100 + "% " + (atlasRow / 3) * 100 + "%"
+    : "50% 50%";
+
+  useEffect(() => {
+    const image = new Image();
+    image.src = "/signs/sign-atlas.webp";
+  }, []);
 
   return (
     <Page
@@ -139,44 +146,36 @@ export default function VoiceToSign() {
           <section className="panel avatar-panel">
             <div className="avatar-panel-head">
               <div>
-                <div className="eyebrow">HOLOGRAPHIC AVATAR</div>
-                <h2>3D signing viewport</h2>
+                <div className="eyebrow">SIGN REFERENCE</div>
+                <h2>A–Z signing sequence</h2>
               </div>
-              <span className="status-pill">{playing ? "ANIMATING" : "STANDBY"}</span>
+              <span className="status-pill">{playing ? "CYCLING" : "STANDBY"}</span>
             </div>
 
-            <div className="avatar-blueprint-strip">
-              <span>BLUEPRINT 03</span>
-              <strong>HOLOGRAPHIC GEOMETRIC ENVELOPE</strong>
-              <small>Low-poly shell · neon joints · confidence field</small>
+            <div className="sign-reference-meta">
+              <span>UPLOADED A–Z REFERENCE</span>
+              <strong>{currentSign || "—"}</strong>
+              <small>{currentSignIndex >= 0 ? String(currentSignIndex + 1).padStart(2, "0") + " / 26" : "READY"}</small>
             </div>
 
-            <div className="avatar-tool-row">
-              <div className="avatar-segment">
-                <span className="eyebrow">VIEW</span>
-                <button type="button" className={view === "full" ? "active" : ""} onClick={() => setView("full")}>FULL BODY</button>
-                <button type="button" className={view === "close" ? "active" : ""} onClick={() => setView("close")}>HAND + FACE</button>
-              </div>
-              <div className="avatar-segment">
-                <span className="eyebrow">EXPRESSION</span>
-                {(["neutral", "question", "emphasis"] as const).map((item) => (
-                  <button type="button" key={item} className={expression === item ? "active" : ""} onClick={() => setExpression(item)}>{item.toUpperCase()}</button>
-                ))}
-              </div>
+            <div className="sign-reference-stage">
+              <div
+                className={"sign-reference-frame" + (currentSign ? " active" : "")}
+                role="img"
+                aria-label={currentSign ? "ISL reference image for letter " + currentSign : "ISL reference image waiting for speech"}
+                style={{ backgroundPosition: atlasPosition }}
+              />
+              <div className="sign-reference-crosshair" />
+              <div className="sign-reference-corner top-left">REFERENCE · 26 LETTERS</div>
+              <div className="sign-reference-corner top-right">{playing ? "AUTO CYCLE" : "PAUSED"}</div>
+              <div className="sign-reference-corner bottom-left">ENHANCED SOURCE · IMAGE ATLAS</div>
+              <div className="sign-reference-corner bottom-right">{currentSign || "IDLE"}</div>
             </div>
-
-            <SignAvatar3D
-              letter={queue[currentIndex] || ""}
-              preferences={avatar || DEFAULT_AVATAR}
-              playing={playing}
-              view={view}
-              expression={expression}
-            />
 
             <SignSubtitle units={subtitleUnits} currentIndex={currentIndex} />
 
             <p className="avatar-note">
-              The 3D signer uses the existing letter-pose rig and renders it as a holographic volumetric avatar. Unknown words still fall back to letter-by-letter fingerspelling until validated word-level ISL motion assets are available.
+              The signing viewport cycles through the uploaded A–Z hand-reference images in queue order. Each source tile was cropped from the supplied sheet, enlarged and sharpened for clearer display. The images are visual references and do not claim additional word-level ISL motion validation.
             </p>
 
             {vocabularyMatches.length > 0 && (
@@ -186,12 +185,6 @@ export default function VoiceToSign() {
               </div>
             )}
           </section>
-
-          <AvatarCustomizer
-            value={avatar || DEFAULT_AVATAR}
-            onChange={(next) => void updateConfig({ avatar: next })}
-            onResetView={() => setView("full")}
-          />
         </div>
       </div>
 
