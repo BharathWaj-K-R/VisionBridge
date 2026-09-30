@@ -106,7 +106,7 @@ export default function WordBank() {
   }
 
   function beginEdit(item: CustomWord) {
-    setEditingId(item.id);
+    setEditingId(item.customId);
     setEditPhrase(item.phrase);
     setEditCategory(item.category);
     setMessage("");
@@ -139,7 +139,7 @@ export default function WordBank() {
     try {
       const target = customWords.find((item) => item.customId === id);
       await api.deleteCustomWord(id);
-      setCustomWords((items) => items.filter((item) => item.id !== id));
+      setCustomWords((items) => items.filter((item) => item.customId !== id));
       if (target) {
         for (let index = 0; index < slots.length; index += 1) {
           if (slots[index] === target.phrase) await clear(index);
