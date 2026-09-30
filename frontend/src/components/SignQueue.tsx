@@ -1,3 +1,5 @@
+import Speakable from "./Speakable";
+
 export function normalizeSignText(input: string): string {
   return input
     .toUpperCase()
@@ -46,9 +48,7 @@ export default function SignQueue({
 
       <div className="queue-strip" aria-live="polite">
         {queue.length ? queue.map((item, index) => (
-          <span key={item + "-" + index} className={index === currentIndex ? "queue-token current" : index < currentIndex ? "queue-token done" : "queue-token"}>
-            {item === " " ? "·" : item}
-          </span>
+          <Speakable key={item + "-" + index} text={item === " " ? "space" : item} className={index === currentIndex ? "queue-token current" : index < currentIndex ? "queue-token done" : "queue-token"} label={"Speak letter " + (item === " " ? "space" : item)} />
         )) : <span className="empty">Speak a phrase, then the letters will be queued here.</span>}
       </div>
 
@@ -72,7 +72,7 @@ export default function SignQueue({
 
       <div className="current-sign-banner">
         <span className="eyebrow">ACTIVE LETTER</span>
-        <strong>{current ? (current === " " ? "SPACE" : current) : "READY"}</strong>
+        <Speakable text={current && current !== " " ? current : current === " " ? "space" : "ready"} className="current-sign-speakable" label={current ? "Speak current sign " + (current === " " ? "space" : current) : "Speak current sign status"} />
       </div>
     </section>
   );
