@@ -25,6 +25,7 @@ export default function Recognize() {
   }, []);
   const [prediction, setPrediction] = useState("—");
   const [confidence, setConfidence] = useState(0);
+  const session = useLandmarkSession(configuredFps, trackerVisual, { prediction, confidence });
   const [latency, setLatency] = useState<number | null>(null);
   const [similarity, setSimilarity] = useState<number | null>(null);
   const [error, setError] = useState("");
