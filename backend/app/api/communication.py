@@ -288,6 +288,11 @@ def delete_profile(
     if remaining == 0:
         raise HTTPException(status_code=409, detail="Keep at least one profile. Create another profile before deleting the last one.")
 
+    db.query(CommunicationUsage).filter(
+        CommunicationUsage.user_id == current_user.id,
+        CommunicationUsage.profile_id == item.id,
+    ).delete(synchronize_session=False)
+
     db.delete(item)
     db.commit()
     return {"deleted": True, "profile_id": profile_id}
