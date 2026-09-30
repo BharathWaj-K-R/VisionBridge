@@ -1,7 +1,7 @@
 """Database models for users, signer adapters, and prediction history."""
 import datetime as dt
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
@@ -58,4 +58,39 @@ class TranslationLog(Base):
     created_at = Column(
         DateTime,
         default=lambda: dt.datetime.now(dt.timezone.utc),
+    )
+
+
+class CommunicationWord(Base):
+    """A user-created word or phrase for the daily communication word bank."""
+
+    __tablename__ = "communication_words"
+    __table_args__ = (UniqueConstraint("user_id", "phrase", name="uq_communication_word_user_phrase"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    phrase = Column(String(200), nullable=False)
+    category = Column(String(80), nullable=False, default="Custom")
+    created_at = Column(DateTime, default=lambda: dt.datetime.now(dt.timezone.utc))
+    updated_at = Column(
+        DateTime,
+        default=lambda: dt.datetime.now(dt.timezone.utc),
+        onupdate=lambda: dt.datetime.now(dt.timezone.utc),
+    )
+
+
+class QuickAccessSlot(Base):
+    """One of exactly ten persistent quick-access slots for a user."""
+
+    __tablename__ = "quick_access_slots"
+    __table_args__ = (UniqueConstraint("user_id", "slot", name="uq_quick_access_user_slot"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    slot = Column(Integer, nullable=False)
+    phrase = Column(String(200), nullable=True)
+    updated_at = Column(
+        DateTime,
+        default=lambda: dt.datetime.now(dt.timezone.utc),
+        onupdate=lambda: dt.datetime.now(dt.timezone.utc),
     )
