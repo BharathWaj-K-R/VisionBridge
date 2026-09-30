@@ -201,7 +201,8 @@ export function PersonalizationProvider({ children }: { children: ReactNode }) {
     Boolean(activeProfile?.config.favorites.some((item) => item.toLowerCase() === phrase.toLowerCase()));
 
   const refreshMostUsed = async () => {
-    setMostUsed((await api.mostUsed()) as typeof mostUsed);
+    if (!activeProfile) return;
+    setMostUsed((await api.mostUsed(activeProfile.id)) as typeof mostUsed);
   };
 
   useEffect(() => { if (activeProfile) void refreshMostUsed(); }, [activeProfile?.id]);
