@@ -38,6 +38,8 @@ class AdapterOut(BaseModel):
     calibration_seconds: float
     param_count: int | None
     accuracy_gain_pct: float | None
+    letters: list[str] = Field(default_factory=list)
+    shots: dict[str, int] = Field(default_factory=dict)
     created_at: dt.datetime
 
 
