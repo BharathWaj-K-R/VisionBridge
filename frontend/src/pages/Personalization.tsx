@@ -1,10 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import AvatarCustomizer from "../components/AvatarCustomizer";
 import Speakable from "../components/Speakable";
 import { QUICK_ACCESS_SLOTS, useQuickAccess } from "../components/QuickAccessContext";
 import { PROFILE_DEFAULTS, PROFILE_SPEEDS, usePersonalization, type PersonalizationConfig } from "../components/PersonalizationContext";
-import { DEFAULT_AVATAR } from "../components/AvatarCustomizer";
 import { Empty, Page } from "../components/Page";
 
 const PRESETS: Record<string, Partial<PersonalizationConfig>> = {
@@ -34,7 +33,7 @@ export default function Personalization() {
   const [nameDraft, setNameDraft] = useState(activeProfile?.name || "");
   const [message, setMessage] = useState("");
 
-  useMemo(() => {
+  useEffect(() => {
     if (activeProfile) setNameDraft(activeProfile.name);
   }, [activeProfile?.id, activeProfile?.name]);
 
@@ -232,9 +231,7 @@ export default function Personalization() {
             {mostUsed.length ? (
               <div className="most-used-list">
                 {mostUsed.map((item) => (
-                  <Speakable key={item.phrase} text={item.phrase} className="most-used-row">
-                    <span>{item.phrase}</span>
-                  </Speakable>
+                  <Speakable key={item.phrase} text={item.phrase} className="most-used-row" />
                 ))}
               </div>
             ) : <Empty text="Speak or click phrases to start building your personal usage list." />}
