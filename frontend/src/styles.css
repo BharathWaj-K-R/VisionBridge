@@ -203,3 +203,93 @@ th{color:var(--muted)}
 .nav-link:hover,.nav-link.active{background:var(--button-text);color:var(--button-bg);border-color:var(--button-text)}
 .status-chip.dark,.confidence-badge{background:var(--button-bg);color:var(--button-text)}
 .camera-corner{border-color:rgba(255,255,255,.8)}
+
+
+
+/* Voice to Sign */
+:root{
+  --avatar-glow:rgba(17,17,17,.055);
+  --voice-accent:#244f7a;
+  --voice-accent-soft:rgba(36,79,122,.12);
+}
+html[data-theme="dark"],html[data-theme="system"]{
+  --avatar-glow:rgba(243,243,239,.055);
+}
+html[data-theme="dark"]{--voice-accent:#7fb0dc;--voice-accent-soft:rgba(127,176,220,.13)}
+@media(prefers-color-scheme:dark){
+  html[data-theme="system"]{--voice-accent:#7fb0dc;--voice-accent-soft:rgba(127,176,220,.13)}
+}
+
+.voice-layout{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(360px,.92fr);gap:14px;align-items:start}
+.voice-main,.voice-side{display:grid;gap:14px}
+.voice-input-panel{border-color:var(--ink)}
+.voice-control-row,.queue-controls{display:flex;align-items:end;gap:10px;flex-wrap:wrap}
+.voice-mic-btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:46px;padding:10px 16px;border:1px solid var(--ink);background:var(--button-bg);color:var(--button-text);font:700 10px "Space Mono",monospace;letter-spacing:.04em}
+.voice-mic-btn:hover{background:var(--button-hover)}
+.voice-mic-btn.active{background:var(--voice-accent);border-color:var(--voice-accent);color:#fff}
+.voice-mic-btn span{font-size:9px}
+.voice-language,.speed-control{display:grid;gap:5px;font:700 8px "Space Mono",monospace;color:var(--muted);min-width:150px;text-transform:uppercase}
+.voice-language select,.speed-control select{width:100%;padding:10px;border:1px solid var(--line);background:var(--input-bg);color:var(--ink)}
+.transcript-box{margin-top:14px;padding:17px 18px;min-height:128px;border:1px solid var(--line);background:var(--surface-alt)}
+.transcript-box p{margin:10px 0 0;font:700 25px/1.25 "Newsreader",Georgia,serif;letter-spacing:-.02em}
+.transcript-interim{display:block;margin-top:8px;color:var(--muted);font-size:12px;font-style:italic}
+.sign-queue-panel{border-color:var(--ink)}
+.queue-strip{min-height:68px;padding:8px;display:flex;gap:5px;align-items:center;overflow:auto;border:1px solid var(--line);background:var(--surface-alt)}
+.queue-token{min-width:38px;height:42px;display:grid;place-items:center;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:700 18px "Newsreader",Georgia,serif}
+.queue-token.done{opacity:.45}
+.queue-token.current{background:var(--button-bg);border-color:var(--button-bg);color:var(--button-text);transform:translateY(-2px);box-shadow:3px 3px 0 var(--shadow)}
+.current-sign-banner{margin-top:14px;padding:12px 14px;background:var(--button-bg);color:var(--button-text);display:flex;align-items:center;justify-content:space-between;gap:12px}
+.current-sign-banner .eyebrow{color:inherit;opacity:.65}
+.current-sign-banner strong{font:700 25px/1 "Newsreader",Georgia,serif}
+.avatar-panel{overflow:hidden}
+.avatar-panel-head{display:flex;align-items:start;justify-content:space-between;gap:12px}
+.avatar-panel h2,.avatar-customizer h2{font:700 21px/1.2 "Newsreader",Georgia,serif;margin:4px 0}
+.sign-avatar{position:relative;min-height:470px;margin-top:10px;border:1px solid var(--line);background:
+  radial-gradient(circle at 50% 38%,var(--avatar-glow),transparent 54%),
+  var(--surface-alt);overflow:hidden}
+.avatar-stage-label{position:absolute;top:14px;left:16px;right:16px;display:flex;justify-content:space-between;align-items:end;z-index:2}
+.avatar-stage-label strong{font:700 28px/1 "Newsreader",Georgia,serif}
+.sign-avatar svg{width:100%;height:100%;display:block;min-height:470px}
+.avatar-arm{transition:transform .28s cubic-bezier(.2,.7,.2,1)}
+.avatar-hand{transition:transform .28s ease}
+.avatar-head{transition:transform .2s ease}
+.sign-avatar.playing .avatar-head{animation:avatar-bob .9s ease-in-out infinite alternate}
+.sign-avatar.playing .avatar-arm-left{animation:avatar-left .9s ease-in-out infinite alternate}
+.sign-avatar.playing .avatar-arm-right{animation:avatar-right .9s ease-in-out infinite alternate}
+.sign-avatar.playing .avatar-hand{animation:avatar-hand .45s ease-in-out infinite alternate}
+@keyframes avatar-bob{from{transform:translateY(0)}to{transform:translateY(-3px)}}
+@keyframes avatar-left{from{filter:none}to{filter:brightness(1.06)}}
+@keyframes avatar-right{from{filter:none}to{filter:brightness(.96)}}
+@keyframes avatar-hand{from{opacity:.82}to{opacity:1}}
+.avatar-note{margin:12px 0 0;color:var(--muted);font-size:10px;line-height:1.55}
+.avatar-customizer{margin-bottom:0}
+.customizer-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.customizer-grid label{color:var(--muted)}
+.customizer-grid select{width:100%;padding:10px;border:1px solid var(--line);background:var(--input-bg);color:var(--ink)}
+.swatch-row{display:flex;gap:8px;flex-wrap:wrap}
+.swatch{width:30px;height:30px;padding:0;border:2px solid transparent;background:transparent}
+.swatch.selected{border-color:var(--ink);box-shadow:3px 3px 0 var(--shadow)}
+.voice-limitation-panel{margin-top:14px}
+.voice-limitation-panel p{margin:8px 0 0;color:var(--muted);font-size:11px;line-height:1.6}
+.danger-btn{border:1px solid #8d1e1e;background:var(--surface);color:#8d1e1e;border-radius:0;padding:9px 12px;font:700 9px "Space Mono",monospace}
+.danger-btn:hover{background:#8d1e1e;color:#fff}
+.history-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.history-message{margin:-2px 0 14px}
+
+html[data-theme="dark"] .danger-btn{border-color:#ffb2b2;color:#ffb2b2}
+html[data-theme="dark"] .danger-btn:hover{background:#ffb2b2;color:#111}
+@media(prefers-color-scheme:dark){
+  html[data-theme="system"] .danger-btn{border-color:#ffb2b2;color:#ffb2b2}
+  html[data-theme="system"] .danger-btn:hover{background:#ffb2b2;color:#111}
+}
+@media(max-width:980px){
+  .voice-layout{grid-template-columns:1fr}
+  .sign-avatar,.sign-avatar svg{min-height:420px}
+}
+@media(max-width:600px){
+  .customizer-grid{grid-template-columns:1fr}
+  .sign-avatar,.sign-avatar svg{min-height:360px}
+  .transcript-box p{font-size:21px}
+  .history-actions{justify-content:stretch}
+  .history-actions>*{flex:1}
+}
