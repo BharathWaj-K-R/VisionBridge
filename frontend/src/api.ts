@@ -213,6 +213,14 @@ export const api = {
     return request<any>("/dashboard");
   },
   history: async (_params = "") => LOCAL_MODE ? { items: localHistory().reverse() } : request<any>("/history" + (_params ? "?" + _params : "")),
+  clearHistory: async (): Promise<{ deleted: number; storage: "database" | "browser" }> => {
+    if (LOCAL_MODE) {
+      const count = localHistory().length;
+      saveLocalHistory([]);
+      return { deleted: count, storage: "browser" };
+    }
+    return request<{ deleted: number; storage: "database" }>("/history", { method: "DELETE" });
+  },
   exportHistoryCsv: async (): Promise<Blob> => {
     if (LOCAL_MODE) {
       const rows = localHistory();
