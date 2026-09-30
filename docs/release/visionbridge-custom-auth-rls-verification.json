@@ -1,0 +1,37 @@
+{
+  "status": "PASSED",
+  "database": "visionbridge-prod",
+  "project_id": "pvcdpyqevhuyhothnwhy",
+  "tables": {
+    "users": true,
+    "signer_adapters": true,
+    "translation_logs": true,
+    "communication_words": true,
+    "quick_access_slots": true,
+    "personalization_profiles": true,
+    "communication_usage": true
+  },
+  "role": {
+    "name": "visionbridge_app",
+    "bypassrls": false,
+    "execution_role": "Render current_user=visionbridge_app",
+    "session_user": "postgres"
+  },
+  "render": {
+    "database_host": "aws-0-ap-southeast-1.pooler.supabase.com",
+    "port": 5432,
+    "database": "postgres",
+    "deploy": "dep-daud9j5bifpc73eqen1g"
+  },
+  "policy_verification": {
+    "login_identifier_lookup": "passed for existing username under visionbridge_app",
+    "registration_insert": "passed in transaction and rolled back",
+    "owner_scope": "verified by row counts under two user contexts",
+    "rls_enabled_all_seven": true
+  },
+  "implementation": {
+    "migration": "supabase/migrations/20260930103000_custom_auth_rls.sql",
+    "session_context": "backend/app/db/session.py",
+    "auth_context": "backend/app/api/auth.py and backend/app/api/deps.py"
+  }
+}
