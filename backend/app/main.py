@@ -1,4 +1,6 @@
 from contextlib import asynccontextmanager
+import logging
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -10,11 +12,20 @@ from app.core.csrf import validate_csrf
 from app.db.session import Base, engine
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     settings.validate_for_runtime()
+    database_url = urlparse(settings.DATABASE_URL)
+    logger.info(
+        "VisionBridge database target: scheme=%s host=%s port=%s database=%s",
+        database_url.scheme,
+        database_url.hostname or "none",
+        database_url.port or "default",
+        (database_url.path or "").lstrip("/") or "default",
+    )
     Base.metadata.create_all(bind=engine)
     yield
 
