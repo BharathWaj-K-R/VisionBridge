@@ -1,7 +1,7 @@
 """Database models for users, signer adapters, and prediction history."""
 import datetime as dt
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
@@ -94,3 +94,34 @@ class QuickAccessSlot(Base):
         default=lambda: dt.datetime.now(dt.timezone.utc),
         onupdate=lambda: dt.datetime.now(dt.timezone.utc),
     )
+
+
+class PersonalizationProfile(Base):
+    """A named, user-scoped daily communication profile."""
+
+    __tablename__ = "personalization_profiles"
+    __table_args__ = (UniqueConstraint("user_id", "name", name="uq_personalization_profile_user_name"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    name = Column(String(80), nullable=False)
+    config_json = Column(Text, nullable=False, default="{}")
+    created_at = Column(DateTime, default=lambda: dt.datetime.now(dt.timezone.utc))
+    updated_at = Column(
+        DateTime,
+        default=lambda: dt.datetime.now(dt.timezone.utc),
+        onupdate=lambda: dt.datetime.now(dt.timezone.utc),
+    )
+
+
+class CommunicationUsage(Base):
+    """Per-user phrase usage counters for the Most Used section."""
+
+    __tablename__ = "communication_usage"
+    __table_args__ = (UniqueConstraint("user_id", "phrase", name="uq_communication_usage_user_phrase"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    phrase = Column(String(200), nullable=False)
+    usage_count = Column(Integer, nullable=False, default=0)
+    last_used_at = Column(DateTime, default=lambda: dt.datetime.now(dt.timezone.utc))
