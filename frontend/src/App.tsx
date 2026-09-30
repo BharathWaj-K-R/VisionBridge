@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import { api, clearLocalAuth, isLocalAuthenticated, type LetterSample } from "./api";
+import { api, clearLocalAuth, clearSessionHint, hasSessionHint, setSessionHint, isLocalAuthenticated, type LetterSample } from "./api";
 import { BrowserLetterAdapter, type BrowserLetterModel } from "./browserModel";
 import { useLandmarkSession } from "./useLandmarkSession";
 
@@ -32,22 +32,78 @@ function Shell({ children, username, onLogout }: { children: ReactNode; username
 }
 
 function Auth({ onAuthed }: { onAuthed: () => void }) {
+  const location = useLocation();
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [username, setUsername] = useState(""); const [password, setPassword] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
+  const [identifierMode, setIdentifierMode] = useState<"username" | "email">("username");
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const oauthError = params.get("oauth_error");
+    if (oauthError) setError("Google sign-in failed: " + oauthError.replaceAll("_", " "));
+    if (params.get("oauth_success") === "1") {
+      setSessionHint();
+      setNotice("Google sign-in successful.");
+      onAuthed();
+    }
+  }, [location.search, onAuthed]);
+
   const submit = async (event: FormEvent) => {
-    event.preventDefault(); setBusy(true); setError("");
-    try { if (mode === "register") await api.register(username, password); await api.login(username, password); onAuthed(); }
-    catch (err) { setError(err instanceof Error ? err.message : "Authentication failed"); }
-    finally { setBusy(false); }
+    event.preventDefault();
+    setBusy(true); setError(""); setNotice("");
+    try {
+      if (mode === "register") {
+        if (password !== confirmPassword) throw new Error("Passwords do not match.");
+        await api.register(username, email, password);
+        await api.login(username, password);
+      } else {
+        await api.login(identifierMode === "email" ? email : username, password);
+      }
+      setSessionHint();
+      onAuthed();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Authentication failed");
+    } finally {
+      setBusy(false);
+    }
   };
-  return <div className="auth-page"><section className="auth-card"><div className="eyebrow">INDIAN SIGN LANGUAGE · LETTERS</div><h1>VisionBridge</h1><p className="muted">Signer-adaptive fingerspelling recognition from a few hand examples.</p><form onSubmit={submit} className="stack">
-    <label>Username<input value={username} onChange={e => setUsername(e.target.value)} autoComplete="username" required /></label>
-    <label>Password<input value={password} onChange={e => setPassword(e.target.value)} type="password" minLength={8} autoComplete={mode === "login" ? "current-password" : "new-password"} required /></label>
-    {error && <div className="alert error">{error}</div>}<button className="primary-btn" disabled={busy}>{busy ? "Working…" : mode === "login" ? "Sign in" : "Create account"}</button>
-  </form><button className="text-btn" onClick={() => setMode(mode === "login" ? "register" : "login")}>{mode === "login" ? "Create an account" : "Back to sign in"}</button></section></div>;
+
+  return <div className="auth-page"><section className="auth-card">
+    <div className="eyebrow">INDIAN SIGN LANGUAGE · LETTERS</div><h1>VisionBridge</h1>
+    <p className="muted">Signer-adaptive fingerspelling recognition from a few hand examples.</p>
+    <div className="auth-tabs">
+      <button type="button" className={mode === "login" ? "auth-tab active" : "auth-tab"} onClick={() => setMode("login")}>Sign in</button>
+      <button type="button" className={mode === "register" ? "auth-tab active" : "auth-tab"} onClick={() => setMode("register")}>Create account</button>
+    </div>
+    <form onSubmit={submit} className="stack">
+      {mode === "register" ? <>
+        <label>Username<input value={username} onChange={e => setUsername(e.target.value)} autoComplete="username" required /></label>
+        <label>Email<input value={email} onChange={e => setEmail(e.target.value)} type="email" autoComplete="email" required /></label>
+      </> : <>
+        <div className="identifier-toggle" role="group" aria-label="Login identifier">
+          <button type="button" className={identifierMode === "username" ? "active" : ""} onClick={() => setIdentifierMode("username")}>Username</button>
+          <button type="button" className={identifierMode === "email" ? "active" : ""} onClick={() => setIdentifierMode("email")}>Email</button>
+        </div>
+        <label>{identifierMode === "email" ? "Email" : "Username"}<input value={identifierMode === "email" ? email : username} onChange={e => identifierMode === "email" ? setEmail(e.target.value) : setUsername(e.target.value)} type={identifierMode === "email" ? "email" : "text"} autoComplete={identifierMode === "email" ? "email" : "username"} required /></label>
+      </>}
+      <label>Password<span className="password-field"><input value={password} onChange={e => setPassword(e.target.value)} type={showPassword ? "text" : "password"} minLength={8} autoComplete={mode === "login" ? "current-password" : "new-password"} required /><button type="button" onClick={() => setShowPassword(v => !v)}>{showPassword ? "Hide" : "Show"}</button></span></label>
+      {mode === "register" && <label>Confirm password<span className="password-field"><input value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} type={showConfirmPassword ? "text" : "password"} minLength={8} autoComplete="new-password" required /><button type="button" onClick={() => setShowConfirmPassword(v => !v)}>{showConfirmPassword ? "Hide" : "Show"}</button></span></label>}
+      {notice && <div className="alert">{notice}</div>}{error && <div className="alert error">{error}</div>}
+      <button className="primary-btn auth-submit" disabled={busy}>{busy ? "Working…" : mode === "login" ? "Sign in" : "Create account"}</button>
+    </form>
+    <div className="auth-divider"><span>OR</span></div>
+    <button type="button" className="google-btn" onClick={() => api.googleLogin()}><span className="google-mark">G</span> Continue with Google</button>
+    <p className="auth-footnote">Google sign-in requires production OAuth credentials on the backend.</p>
+  </section></div>;
 }
-
-
 function Page({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
   return <div className="page"><header className="page-header"><div><div className="eyebrow">VISIONBRIDGE / WORKSTATION</div><h1>{title}</h1><p className="muted">{subtitle}</p></div></header>{children}</div>;
 }
@@ -334,45 +390,54 @@ function History() {
 }
 
 function Settings() {
-  const [user, setUser] = useState<any>(); const [adapters, setAdapters] = useState<any[]>([]);
-  const refresh = () => Promise.all([api.me(), api.letterAdapters()]).then(([u, a]) => { setUser(u); setAdapters(a); });
+  const [user, setUser] = useState<any>();
+  const [adapters, setAdapters] = useState<any[]>([]);
+  const [theme, setTheme] = useState(localStorage.getItem("visionbridge_theme") || "system");
+  const [cameraFps, setCameraFps] = useState(localStorage.getItem("visionbridge_camera_fps") || "30");
+  const [autoStart, setAutoStart] = useState(localStorage.getItem("visionbridge_auto_camera") === "1");
+  const [saved, setSaved] = useState(false);
+  const refresh = () => Promise.all([api.me(), api.letterAdapters()]).then(([u,a]) => { setUser(u); setAdapters(a); });
   useEffect(() => { refresh(); }, []);
-  return <Page title="Settings" subtitle="Signer identity and adapter lifecycle."><section className="panel narrow"><div className="eyebrow">ACCOUNT</div><h2>{user?.username || "Loading…"}</h2><p className="muted">Account ID {user?.id ?? "—"}</p></section><section className="panel narrow"><div className="eyebrow">ADAPTERS</div><h2>Few-shot signer adapters</h2>{adapters.length ? <div className="adapter-list">{adapters.map((a) => <div className="adapter-row" key={a.id}><div><strong>Adapter #{a.id}</strong><span>{a.letters ? a.letters.join(" · ") : ((a.calibration_seconds ?? 0) + "s")}</span></div><button className="ghost-btn" onClick={() => api.deleteAdapter(a.id).then(refresh)}>Delete</button></div>)}</div> : <Empty text="No adapters yet. Calibrate a few letters first." />}</section></Page>;
+  const savePreferences = () => {
+    localStorage.setItem("visionbridge_theme", theme);
+    localStorage.setItem("visionbridge_camera_fps", cameraFps);
+    localStorage.setItem("visionbridge_auto_camera", autoStart ? "1" : "0");
+    document.documentElement.dataset.theme = theme;
+    setSaved(true); window.setTimeout(() => setSaved(false), 1800);
+  };
+  return <Page title="Settings" subtitle="Account, appearance, camera behavior, and signer profile controls.">
+    <div className="settings-grid">
+      <section className="panel"><div className="eyebrow">ACCOUNT</div><h2>{user?.username || "Loading…"}</h2><p className="muted">{user?.email || "No email on this account yet."}</p><p className="mono">Account ID {user?.id ?? "—"}</p><div className="button-row"><button className="ghost-btn" onClick={() => void api.logout().then(() => { clearLocalAuth(); clearSessionHint(); window.location.assign("/login"); })}>Sign out</button></div></section>
+      <section className="panel"><div className="panel-head"><div><div className="eyebrow">APPEARANCE</div><h2>Interface</h2></div></div><div className="settings-form">
+        <label>Theme<select value={theme} onChange={e => setTheme(e.target.value)}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+        <label>Recognition FPS<select value={cameraFps} onChange={e => setCameraFps(e.target.value)}><option value="15">15 FPS · battery friendly</option><option value="30">30 FPS · balanced</option><option value="60">60 FPS · high performance</option></select></label>
+        <label className="setting-toggle"><input type="checkbox" checked={autoStart} onChange={e => setAutoStart(e.target.checked)} /> Auto-start camera on Live Translate</label>
+        <button className="primary-btn" onClick={savePreferences}>{saved ? "Saved" : "Save settings"}</button>
+      </div></section>
+      <section className="panel"><div className="eyebrow">SIGNER PROFILES</div><h2>Few-shot adapters</h2>{adapters.length ? <div className="adapter-list">{adapters.map(a => <div className="adapter-row" key={a.id}><div><strong>Adapter #{a.id}</strong><span>{a.letters ? a.letters.join(" · ") : ((a.calibration_seconds ?? 0)+"s")}</span></div><button className="ghost-btn" onClick={() => api.deleteAdapter(a.id).then(refresh)}>Delete</button></div>)}</div> : <Empty text="No adapters yet. Calibrate a few letters first." />}<Link to="/calibration" className="text-btn">CALIBRATE A SIGNER →</Link></section>
+      <section className="panel"><div className="eyebrow">PRIVACY & SESSION</div><h2>Browser controls</h2><p className="muted">Authentication uses an HttpOnly session cookie. Recognition history and signer adapters are stored against your account on the production backend.</p><div className="settings-checks"><span>Session cookie · HttpOnly</span><span>CSRF protection · enabled</span><span>Camera · browser permission required</span></div></section>
+    </div>
+  </Page>;
 }
-
 export default function App() {
   const localMode = import.meta.env.VITE_LOCAL_MODE !== "false";
-  const [authed, setAuthed] = useState(localMode ? isLocalAuthenticated() : false);
-  const [authChecking, setAuthChecking] = useState(!localMode);
+  const [authed, setAuthed] = useState(localMode ? isLocalAuthenticated() : hasSessionHint());
+  const [authChecking, setAuthChecking] = useState(!localMode && hasSessionHint());
   const [username, setUsername] = useState<string>();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (localMode) {
-      if (authed) api.me().then((user) => setUsername(user.username)).catch(() => {
-        clearLocalAuth();
-        setAuthed(false);
-      });
+      if (authed) api.me().then(user => setUsername(user.username)).catch(() => { clearLocalAuth(); setAuthed(false); });
       return;
     }
-
-    api.me().then((user) => {
-      setUsername(user.username);
-      setAuthed(true);
-    }).catch(() => {
-      clearLocalAuth();
-      setAuthed(false);
-    }).finally(() => setAuthChecking(false));
+    if (!hasSessionHint()) { setAuthChecking(false); return; }
+    api.me().then(user => { setUsername(user.username); setAuthed(true); })
+      .catch(() => { clearSessionHint(); setAuthed(false); })
+      .finally(() => setAuthChecking(false));
   }, [authed, localMode]);
 
-  const logout = () => {
-    void api.logout().then(() => {
-      clearLocalAuth();
-      setUsername(undefined);
-      setAuthed(false);
-      navigate("/login");
-    });
-  };
+  const logout = () => void api.logout().then(() => { clearLocalAuth(); clearSessionHint(); setUsername(undefined); setAuthed(false); navigate("/login"); });
 
   if (authChecking) return <Loading />;
   if (!authed) return <Routes><Route path="*" element={<Auth onAuthed={() => setAuthed(true)} />} /></Routes>;
