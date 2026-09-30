@@ -29,6 +29,10 @@ def _user_from_credentials(
     except (TypeError, ValueError):
         return None
     db.info["visionbridge_user_id"] = user_id
+    db.info["visionbridge_auth_operation"] = "authenticated"
+    db.info.pop("visionbridge_auth_identifier", None)
+    db.info.pop("visionbridge_auth_username", None)
+    db.info.pop("visionbridge_auth_email", None)
     return db.get(User, user_id)
 
 
