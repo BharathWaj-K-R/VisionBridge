@@ -448,3 +448,11 @@ html[data-theme="dark"] .danger-btn:hover{background:#ffb2b2;color:#111}
   .quick-manager-row select{grid-column:2/-1}
   .slot-number{grid-row:1/3}
 }
+
+@media(max-width:1120px){
+  .topnav{display:flex;max-width:42vw;overflow-x:auto;scrollbar-width:thin}
+}
+@media(max-width:560px){
+  .nav-list{display:flex;overflow-x:auto;overflow-y:hidden;width:100%;gap:2px}
+  .nav-link{flex:0 0 70px}
+}
