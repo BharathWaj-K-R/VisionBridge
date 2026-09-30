@@ -27,6 +27,7 @@ export default function Recognize() {
   const baseModelRef = useRef<BrowserLetterModel | null>(null);
   const adapterRef = useRef<BrowserLetterAdapter | null>(null);
   const lastEventRef = useRef({ letter: "", time: 0 });
+  const lastLoggedAtRef = useRef(0);
 
   useEffect(() => {
     void api.me().then((u) => setUserId(u.id)).catch(() => setError("Authentication session could not be verified. Please sign in again."));
@@ -91,13 +92,16 @@ export default function Recognize() {
         if (letter !== previous.letter || now - previous.time >= 1000) {
           lastEventRef.current = { letter, time: now };
           if (letter !== "?") setBuffer((items) => [...items.slice(-5), letter]);
-          void api.logLetterEvent({
-            user_id: userId,
-            adapter_id: mode === "adapter" ? adapterId ?? null : null,
-            predicted_letter: letter,
-            confidence: score,
-            latency_ms: ms,
-          });
+          if (now - lastLoggedAtRef.current >= 1200) {
+            lastLoggedAtRef.current = now;
+            void api.logLetterEvent({
+              user_id: userId,
+              adapter_id: mode === "adapter" ? adapterId ?? null : null,
+              predicted_letter: letter,
+              confidence: score,
+              latency_ms: ms,
+            }).catch((err) => setError(err instanceof Error ? err.message : "Prediction history could not be saved."));
+          }
         }
       };
 
