@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { api, clearLocalAuth, isLocalAuthenticated, type LetterSample } from "./api";
-import { BrowserLetterAdapter } from "./browserModel";
+import { BrowserLetterAdapter, type BrowserLetterModel } from "./browserModel";
 import { useLandmarkSession } from "./useLandmarkSession";
 
 
@@ -17,7 +17,7 @@ function Shell({ children, username, onLogout }: { children: ReactNode; username
   return <div className="app-shell">
     <header className="topbar">
       <Link to="/dashboard" className="brand-lockup" aria-label="VisionBridge dashboard"><span className="brand-mark">V</span><span className="brand-copy"><strong>VisionBridge</strong><small>ISL RECOGNIZER</small></span></Link>
-      <div className="header-badges"><span className="status-chip"><i /> Base Model · 26 A–Z</span><span className="status-chip"><i /> Few-Shot Adapter · Active</span></div>
+      <div className="header-badges"><span className="status-chip"><i /> Base Model · 26 A–Z</span><span className="status-chip"><i /> Few-Shot Adapter · Optional</span></div>
       <nav className="topnav" aria-label="Primary navigation">
         {navItems.map(([path, label]) => <Link key={path} to={path} className={location.pathname.startsWith(path) ? "topnav-link active" : "topnav-link"}>{label}</Link>)}
       </nav>
@@ -66,7 +66,7 @@ function Dashboard() {
         <Metric label="Confidence" value={data.usage?.average_confidence != null ? Math.round(data.usage.average_confidence * 100) + "%" : "—"} detail="recent average" />
         <Metric label="Latency" value={data.usage?.average_latency_ms != null ? Math.round(data.usage.average_latency_ms) + " ms" : "—"} detail="recent average" />
       </div>
-      <section className="panel"><div className="panel-head"><div><div className="eyebrow">QUICK START</div><h2>Calibrate → Recognize</h2></div><Link to="/calibration" className="text-btn">Start calibration</Link></div><p className="muted">Capture three examples for each letter you want to recognize, fit a signer adapter, then test unseen examples live.</p></section>
+      <section className="panel"><div className="panel-head"><div><div className="eyebrow">QUICK START</div><h2>Start with the base model</h2></div><Link to="/translate" className="text-btn">Open live translate</Link></div><p className="muted">The V3 base model is ready immediately after login. Optional calibration adds signer-specific prototype matching when you need personalization.</p></section>
       <section className="panel"><div className="panel-head"><div><div className="eyebrow">RECENT</div><h2>Recognition events</h2></div><Link to="/history" className="text-btn">View history</Link></div>{data.recent_activity?.length ? <div className="activity-list">{data.recent_activity.map((item: any) => <div className="activity-row" key={item.id}><div><strong>{item.predicted_text}</strong><span>{new Date(item.created_at).toLocaleString()}</span></div><span className="activity-meta">{Math.round((item.confidence || 0) * 100)}%</span></div>)}</div> : <Empty text="No letter predictions yet." />}</section>
     </>}
   </Page>;
@@ -86,48 +86,112 @@ function Recognize() {
   const [adapterId, setAdapterId] = useState<number | undefined>();
   const [buffer, setBuffer] = useState<string[]>([]);
   const [temporal, setTemporal] = useState<Array<{ letter: string; confidence: number; at: string }>>([]);
+  const baseModelRef = useRef<BrowserLetterModel | null>(null);
   const adapterRef = useRef<BrowserLetterAdapter | null>(null);
   const lastEventRef = useRef({ letter: "", time: 0 });
 
   useEffect(() => {
     api.me().then((u) => setUserId(u.id));
-    api.letterAdapters().then((items) => { setAdapters(items); if (items[0]) setAdapterId(items[0].id); }).catch(() => setAdapters([]));
+    api.letterAdapters().then((items) => setAdapters(items)).catch(() => setAdapters([]));
   }, []);
 
   useEffect(() => {
-    if (!adapterId || import.meta.env.VITE_LOCAL_MODE !== "false") { adapterRef.current = null; setFastReady(false); return; }
     let cancelled = false;
+    baseModelRef.current = null;
+    adapterRef.current = null;
     setFastReady(false);
-    api.letterBrowserModel().then((model) => api.letterAdapterPayload(adapterId).then((payload) => ({ model, payload })))
-      .then(({ model, payload }) => { if (cancelled) return; adapterRef.current = new BrowserLetterAdapter(model, payload); setFastReady(true); setError(""); })
-      .catch((err) => { if (cancelled) return; adapterRef.current = null; setFastReady(false); setError(err instanceof Error ? err.message : "Browser model could not be loaded"); });
-    return () => { cancelled = true; adapterRef.current = null; };
+
+    if (import.meta.env.VITE_LOCAL_MODE !== "false") {
+      return () => { cancelled = true; };
+    }
+
+    void (async () => {
+      try {
+        const model = await api.letterBrowserModel();
+        if (cancelled) return;
+        baseModelRef.current = model;
+
+        if (adapterId != null) {
+          const payload = await api.letterAdapterPayload(adapterId);
+          if (cancelled) return;
+          adapterRef.current = new BrowserLetterAdapter(model, payload);
+        }
+
+        setFastReady(true);
+        setError("");
+      } catch (err) {
+        if (cancelled) return;
+        baseModelRef.current = null;
+        adapterRef.current = null;
+        setFastReady(false);
+        setError(err instanceof Error ? err.message : "Browser model could not be loaded");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      baseModelRef.current = null;
+      adapterRef.current = null;
+    };
   }, [adapterId]);
 
   useEffect(() => {
     const intervalMs = import.meta.env.VITE_LOCAL_MODE !== "false" ? 220 : 33;
     const timer = window.setInterval(() => {
       const frame = session.latestFrame();
-      if (!userId || !adapterId || !frame || (!frame.leftVisible && !frame.rightVisible)) return;
+      if (!userId || !frame || (!frame.leftVisible && !frame.rightVisible)) return;
       const raw = [...frame.leftHand, ...frame.rightHand];
-      const record = (letter: string, score: number, ms: number, sim?: number) => {
-        setPrediction(letter); setConfidence(score); setLatency(ms); if (sim != null) setSimilarity(sim);
+
+      const record = (letter: string, score: number, ms: number, mode: "base" | "adapter", sim?: number) => {
+        setPrediction(letter);
+        setConfidence(score);
+        setLatency(ms);
+        setSimilarity(mode === "adapter" && sim != null ? sim : null);
         setTemporal((items) => [{ letter, confidence: score, at: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) }, ...items].slice(0, 6));
-        const now = performance.now(); const previous = lastEventRef.current;
+        const now = performance.now();
+        const previous = lastEventRef.current;
         if (letter !== previous.letter || now - previous.time >= 1000) {
           lastEventRef.current = { letter, time: now };
           if (letter !== "?") setBuffer((items) => [...items.slice(-5), letter]);
-          void api.logLetterEvent({ user_id: userId, adapter_id: adapterId, predicted_letter: letter, confidence: score, latency_ms: ms });
+          void api.logLetterEvent({
+            user_id: userId,
+            adapter_id: mode === "adapter" ? adapterId ?? null : null,
+            predicted_letter: letter,
+            confidence: score,
+            latency_ms: ms,
+          });
         }
       };
+
       if (import.meta.env.VITE_LOCAL_MODE !== "false") {
-        api.letterPredict(userId, adapterId, raw).then((result) => record(result.predicted_letter, result.confidence || 0, result.latency_ms)).catch((err) => setError(err instanceof Error ? err.message : "Recognition failed"));
+        if (!adapterId) return;
+        api.letterPredict(userId, adapterId, raw)
+          .then((result) => record(result.predicted_letter, result.confidence || 0, result.latency_ms, "adapter"))
+          .catch((err) => setError(err instanceof Error ? err.message : "Recognition failed"));
         return;
       }
-      const adapter = adapterRef.current;
-      if (!adapter) return;
-      try { const result = adapter.predict(raw); record(result.predicted_letter, result.confidence, result.inference_ms, result.similarity); }
-      catch (err) { setError(err instanceof Error ? err.message : "Recognition failed"); }
+
+      if (adapterId) {
+        const adapter = adapterRef.current;
+        if (!adapter) return;
+        try {
+          const result = adapter.predict(raw);
+          record(result.predicted_letter, result.confidence, result.inference_ms, "adapter", result.similarity);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Recognition failed");
+        }
+        return;
+      }
+
+      const model = baseModelRef.current;
+      if (!model) return;
+      try {
+        const started = performance.now();
+        const result = model.predictBase(raw);
+        record(result.label, result.confidence, performance.now() - started, "base");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Recognition failed");
+      }
     }, intervalMs);
     return () => window.clearInterval(timer);
   }, [adapterId, session, userId]);
@@ -142,7 +206,7 @@ function Recognize() {
           <div className="camera-shell">
             <video ref={session.videoRef} muted playsInline />
             <canvas ref={session.canvasRef} className="skeleton-overlay" />
-            <div className="camera-corner top-left">126D VECTOR · {session.running ? "CALIBRATED" : "STANDBY"}</div>
+            <div className="camera-corner top-left">126D VECTOR · {session.running ? (adapterId ? "ADAPTER ACTIVE" : "BASE MODEL") : "STANDBY"}</div>
             <div className="camera-corner top-right">MEDIA PIPE · 0.10.35</div>
             <div className="camera-corner bottom-left">ISL TWO-HANDED GESTURE</div>
             <div className="camera-corner bottom-right">{session.running ? "LIVE" : "IDLE"}</div>
@@ -150,13 +214,13 @@ function Recognize() {
           <div className="button-row">
             <button className="primary-btn" onClick={() => session.start().catch(() => undefined)} disabled={session.running}>{session.running ? "TRACKING" : "START CAMERA"}</button>
             <button className="ghost-btn" onClick={session.stop} disabled={!session.running}>STOP</button>
-            <label className="adapter-inline">SIGNER ADAPTER<select value={adapterId ?? ""} onChange={(e) => setAdapterId(e.target.value ? Number(e.target.value) : undefined)}><option value="">Choose adapter</option>{adapters.map((a) => <option key={a.id} value={a.id}>Adapter #{a.id}{a.letters ? " · " + a.letters.join("") : ""}</option>)}</select></label>
+            <label className="adapter-inline">RECOGNITION MODE<select value={adapterId ?? ""} onChange={(e) => setAdapterId(e.target.value ? Number(e.target.value) : undefined)}><option value="">Base Model · no adapter</option>{adapters.map((a) => <option key={a.id} value={a.id}>Few-Shot Adapter #{a.id}{a.letters ? " · " + a.letters.join("") : ""}</option>)}</select></label>
           </div>
           {error && <div className="alert error">{error}</div>}
           <div className="hand-telemetry">
             <div><span>LEFT HAND</span><strong>{session.latestFrame()?.leftVisible ? "21 / 21" : "0 / 21"}</strong><small>{session.latestFrame()?.leftVisible ? "active" : "not detected"}</small></div>
             <div><span>RIGHT HAND</span><strong>{session.latestFrame()?.rightVisible ? "21 / 21" : "0 / 21"}</strong><small>{session.latestFrame()?.rightVisible ? "active" : "not detected"}</small></div>
-            <div><span>MODEL</span><strong>{import.meta.env.VITE_LOCAL_MODE !== "false" ? "DEMO" : fastReady ? "READY" : "LOAD"}</strong><small>base + signer adapter</small></div>
+            <div><span>MODEL</span><strong>{import.meta.env.VITE_LOCAL_MODE !== "false" ? "DEMO" : fastReady ? (adapterId ? "ADAPTER" : "BASE") : "LOAD"}</strong><small>{adapterId ? "64D prototype match" : "26-class V3 softmax"}</small></div>
             <div><span>LATENCY</span><strong>{latency != null ? latency.toFixed(1) + " ms" : "—"}</strong><small>latest inference</small></div>
           </div>
         </section>
@@ -165,9 +229,9 @@ function Recognize() {
       <section className="right-stack">
         <section className="panel classification-card">
           <div className="panel-head"><div><div className="eyebrow">PRIMARY CLASSIFICATION</div><h2>ISL Bilateral Alphabet</h2></div><span className="confidence-badge">{Math.round(confidence * 100)}% CONFIDENCE</span></div>
-          <div className="prediction-line"><strong>{prediction}</strong><div><span>ONE LETTER</span><small>Signer-adaptive prototype classification</small></div></div>
+          <div className="prediction-line"><strong>{prediction}</strong><div><span>ONE LETTER · {adapterId ? "FEW-SHOT" : "BASE MODEL"}</span><small>{adapterId ? "Signer-adaptive prototype classification" : "V3 26-class softmax classification"}</small></div></div>
           <div className="progress"><span style={{ width: Math.round(confidence * 100) + "%" }} /></div>
-          <div className="prediction-meta"><span>Similarity {similarity != null ? similarity.toFixed(3) : "—"}</span><span>Threshold 0.350</span><span>Embedding 64D</span></div>
+          <div className="prediction-meta"><span>Similarity {adapterId && similarity != null ? similarity.toFixed(3) : "—"}</span><span>{adapterId ? "Threshold 0.350" : "26-class softmax"}</span><span>Embedding 64D</span></div>
         </section>
 
         <section className="panel">
@@ -183,9 +247,9 @@ function Recognize() {
         </section>
 
         <section className="panel signer-card">
-          <div className="panel-head"><div><div className="eyebrow">ACTIVE SIGNER ADAPTATION</div><h2>Prototype adapter</h2></div><span className={activeAdapter ? "status-chip dark" : "status-chip"}>{activeAdapter ? "ONLINE" : "NONE"}</span></div>
-          {activeAdapter ? <div className="signer-grid"><div><span>ADAPTER</span><strong>#{activeAdapter.id}</strong></div><div><span>LETTERS</span><strong>{activeAdapter.letters?.join(" · ") || "—"}</strong></div><div><span>SHOTS</span><strong>{activeAdapter.shots ? Object.values(activeAdapter.shots).reduce((sum: number, value: any) => sum + Number(value || 0), 0) : "—"}</strong></div></div> : <Empty text="Choose an adapter before starting recognition." />}
-          <Link to="/calibration" className="text-btn">RE-CALIBRATE GESTURES →</Link>
+          <div className="panel-head"><div><div className="eyebrow">CURRENT RECOGNITION MODE</div><h2>{activeAdapter ? "Few-Shot Adapter" : "Base Model"}</h2></div><span className={activeAdapter ? "status-chip dark" : "status-chip"}>{activeAdapter ? "ACTIVE" : "DEFAULT"}</span></div>
+          {activeAdapter ? <div className="signer-grid"><div><span>ADAPTER</span><strong>#{activeAdapter.id}</strong></div><div><span>LETTERS</span><strong>{activeAdapter.letters?.join(" · ") || "—"}</strong></div><div><span>SHOTS</span><strong>{activeAdapter.shots ? Object.values(activeAdapter.shots).reduce((sum: number, value: any) => sum + Number(value || 0), 0) : "—"}</strong></div></div> : <Empty text="Using the V3 base model. Calibration is optional and adds signer-specific prototype matching." />}
+          <Link to="/calibration" className="text-btn">CALIBRATE A SIGNER →</Link>
         </section>
       </section>
     </div>
