@@ -11,7 +11,8 @@ export default function Settings() {
   const [autoStart, setAutoStart] = useState(localStorage.getItem("visionbridge_auto_camera") === "1");
   const [saved, setSaved] = useState(false);
   const [message, setMessage] = useState("");
-  const refresh = () => Promise.all([api.me(), api.letterAdapters()]).then(([u,a]) => { setUser(u); setAdapters(a); }).catch(() => { setUser(undefined); setAdapters([]); });
+  const [loadError, setLoadError] = useState("");
+  const refresh = () => Promise.all([api.me(), api.letterAdapters()]).then(([u,a]) => { setUser(u); setAdapters(a); setLoadError(""); }).catch((err) => { setUser(undefined); setAdapters([]); setLoadError(err instanceof Error ? err.message : "Settings could not be loaded."); });
   useEffect(() => { void refresh(); }, []);
   const savePreferences = () => {
     localStorage.setItem("visionbridge_theme", theme);
@@ -20,7 +21,7 @@ export default function Settings() {
     document.documentElement.dataset.theme = theme;
     setSaved(true); window.setTimeout(() => setSaved(false), 1800);
   };
-  return <Page title="Settings" subtitle="Account, appearance, camera behavior, and signer profile controls.">
+  return <Page title="Settings" subtitle="Account, appearance, camera behavior, and signer profile controls.">{loadError && <div className="alert error" role="alert">{loadError}</div>}
     <div className="settings-grid">
       <section className="panel"><div className="eyebrow">ACCOUNT</div><h2>{user?.username || "Loading…"}</h2><p className="muted">{user?.email || "No email on this account yet."}</p><p className="mono">Account ID {user?.id ?? "—"}</p><div className="button-row"><button className="ghost-btn" onClick={() => void api.logout().then(() => { clearLocalAuth(); clearSessionHint(); window.location.assign("/login"); }).catch((err) => setMessage(err instanceof Error ? err.message : "Sign out failed. Please try again."))}>Sign out</button></div></section>
       <section className="panel"><div className="panel-head"><div><div className="eyebrow">APPEARANCE</div><h2>Interface</h2></div></div><div className="settings-form">
