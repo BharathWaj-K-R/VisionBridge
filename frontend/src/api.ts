@@ -97,7 +97,9 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       try {
         const payload = await response.json();
         if (typeof payload?.detail === "string") detail = payload.detail;
-      } catch {}
+      } catch (parseError) {
+        void parseError;
+      }
       const error = new Error(detail) as ApiError;
       error.status = response.status;
       throw error;
@@ -363,8 +365,9 @@ export const api = {
       saveLocalUsage(items, profileId);
       return;
     }
-    try { await request<any>("/communication/usage", { method: "POST", body: JSON.stringify({ phrase: value, profileId: profileId || null }) }); }
-    catch {
+    try { await request<{ phrase: string; usage_count: number }>("/communication/usage", { method: "POST", body: JSON.stringify({ phrase: value, profileId: profileId || null }) }); }
+    catch (error) {
+      if (!isTransportError(error)) return;
       const items = localUsage(profileId);
       const previous = items[value] || { count: 0, lastUsedAt: "" };
       items[value] = { count: previous.count + 1, lastUsedAt: new Date().toISOString() };
