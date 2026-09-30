@@ -6,6 +6,7 @@ Disallow: /translate
 Disallow: /calibration
 Disallow: /history
 Disallow: /settings
+Disallow: /voice-to-sign
 Disallow: /api/
 
 Sitemap: https://visionbridge-2c7h.onrender.com/sitemap.xml
