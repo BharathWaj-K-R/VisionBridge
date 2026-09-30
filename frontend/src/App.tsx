@@ -34,6 +34,7 @@ function Shell({ children, username, onLogout }: { children: ReactNode; username
 
 function Auth({ onAuthed }: { onAuthed: () => void }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [identifierMode, setIdentifierMode] = useState<"username" | "email">("username");
   const [username, setUsername] = useState(""); const [email, setEmail] = useState(""); const [password, setPassword] = useState(""); const [confirmPassword, setConfirmPassword] = useState("");
