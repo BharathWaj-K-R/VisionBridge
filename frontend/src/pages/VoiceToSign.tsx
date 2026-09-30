@@ -4,6 +4,7 @@ import SpeechRecognizer from "../components/SpeechRecognizer";
 import SignAvatar from "../components/SignAvatar";
 import AvatarCustomizer, { DEFAULT_AVATAR, loadAvatarPreferences, type AvatarPreferences } from "../components/AvatarCustomizer";
 import SignQueue, { normalizeSignText, toSignQueue } from "../components/SignQueue";
+import SignSubtitle from "../components/SignSubtitle";
 import { Page } from "../components/Page";
 
 export default function VoiceToSign() {
@@ -15,11 +16,19 @@ export default function VoiceToSign() {
   const [queue, setQueue] = useState<string[]>([]);
   const [currentIndex, setCurrentIndex] = useState(-1);
   const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(Number(localStorage.getItem("visionbridge_sign_speed") || "1"));
+  const [speed, setSpeed] = useState(([0.5, 0.75, 1].includes(Number(localStorage.getItem("visionbridge_sign_speed"))) ? Number(localStorage.getItem("visionbridge_sign_speed")) : 1));
   const [lastPhrase, setLastPhrase] = useState("");
+  const [view, setView] = useState<"full" | "close">("full");
+  const [expression, setExpression] = useState<"neutral" | "question" | "emphasis">("neutral");
   const lastQueuedPhraseRef = useRef("");
 
   const normalizedTranscript = useMemo(() => normalizeSignText(transcript), [transcript]);
+  const detectedExpression = useMemo<"neutral" | "question" | "emphasis">(() => {
+    const raw = transcript.trim();
+    if (raw.endsWith("?")) return "question";
+    if (/[!]+$/.test(raw)) return "emphasis";
+    return expression;
+  }, [transcript, expression]);
   const normalizedInterim = useMemo(() => normalizeSignText(interimTranscript), [interimTranscript]);
   const vocabularyMatches = useMemo(() => normalizedTranscript.split(" ").filter(Boolean).filter((word) => DEFAULT_VOCABULARY.some((item) => item.phrase.toUpperCase() === word)), [normalizedTranscript]);
 
@@ -121,12 +130,26 @@ export default function VoiceToSign() {
               </div>
               <span className="status-pill">{playing ? "ANIMATING" : "STANDBY"}</span>
             </div>
-            <SignAvatar letter={queue[currentIndex] || ""} preferences={avatar || DEFAULT_AVATAR} playing={playing} />
-            <p className="avatar-note">Each queued character drives a distinct arm and hand motion. Vocabulary matches are identified, but the current avatar still fingerspells them because no validated word-level ISL motion library is bundled.</p>
+            <div className="avatar-tool-row">
+              <div className="avatar-segment">
+                <span className="eyebrow">VIEW</span>
+                <button type="button" className={view === "full" ? "active" : ""} onClick={() => setView("full")}>FULL BODY</button>
+                <button type="button" className={view === "close" ? "active" : ""} onClick={() => setView("close")}>HAND + FACE</button>
+              </div>
+              <div className="avatar-segment">
+                <span className="eyebrow">EXPRESSION</span>
+                {(["neutral", "question", "emphasis"] as const).map((item) => (
+                  <button type="button" key={item} className={detectedExpression === item ? "active" : ""} onClick={() => setExpression(item)}>{item.toUpperCase()}</button>
+                ))}
+              </div>
+            </div>
+            <SignAvatar letter={queue[currentIndex] || ""} preferences={avatar || DEFAULT_AVATAR} playing={playing} view={view} expression={detectedExpression} />
+            <SignSubtitle queue={queue} currentIndex={currentIndex} />
+            <p className="avatar-note">The stage is a lightweight 2D vector rig with separate apparel, head, arm, hand, finger, and facial layers. High-contrast mode adds explicit finger boundaries without touching the recognition pipeline.</p>
             {vocabularyMatches.length > 0 && <div className="vocabulary-match-note"><span className="eyebrow">VOCABULARY MATCH</span><strong>{vocabularyMatches.join(" · ")}</strong></div>}
           </section>
 
-          <AvatarCustomizer value={avatar || DEFAULT_AVATAR} onChange={setAvatar} />
+          <AvatarCustomizer value={avatar || DEFAULT_AVATAR} onChange={setAvatar} onResetView={() => setView("full")} />
         </div>
       </div>
 
