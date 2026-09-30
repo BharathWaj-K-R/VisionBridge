@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Allow: /login
+Disallow: /dashboard
+Disallow: /translate
+Disallow: /calibration
+Disallow: /history
+Disallow: /settings
+Disallow: /api/
+
+Sitemap: https://visionbridge-2c7h.onrender.com/sitemap.xml
