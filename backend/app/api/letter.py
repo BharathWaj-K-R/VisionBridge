@@ -140,7 +140,7 @@ def get_letter_adapter(
         .filter(SignerAdapter.id == adapter_id, SignerAdapter.owner_id == current_user.id)
         .first()
     )
-    if not row or not Path(row.weights_path).name.startswith("letter_adapter_"):
+    if not row or (not row.payload_json and not Path(row.weights_path).name.startswith("letter_adapter_")):
         raise HTTPException(status_code=404, detail="Adapter not found")
 
     try:
@@ -182,7 +182,7 @@ def log_letter_event(
             .filter(SignerAdapter.id == adapter_id, SignerAdapter.owner_id == current_user.id)
             .first()
         )
-        if not adapter or not Path(adapter.weights_path).name.startswith("letter_adapter_"):
+        if not adapter or (not adapter.payload_json and not Path(adapter.weights_path).name.startswith("letter_adapter_")):
             raise HTTPException(status_code=404, detail="Adapter not found")
 
     db.add(
