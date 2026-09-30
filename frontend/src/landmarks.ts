@@ -51,7 +51,8 @@ export function flattenHandLandmarks(landmarks: LandmarkPoint[] | undefined): nu
   return values.slice(0, HAND_DIM);
 }
 
-function handedLabel(entry: any): string {
+type HandednessEntry = { categoryName?: string; category_name?: string; label?: string };
+function handedLabel(entry: HandednessEntry | undefined): string {
   // Training and browser inference both consume the raw MediaPipe Tasks
   // handedness result. Do not add a mirror-specific swap in only one path.
   return String(
@@ -139,6 +140,7 @@ function drawHand(
   label: string,
   lineWidth: number,
   jointRadius: number,
+  mirrorX: boolean,
 ): void {
   if (!landmarks?.length) return;
 
@@ -147,8 +149,8 @@ function drawHand(
     const first = landmarks[a];
     const second = landmarks[b];
     if (!first || !second) continue;
-    context.moveTo(first.x * width, first.y * height);
-    context.lineTo(second.x * width, second.y * height);
+    context.moveTo((mirrorX ? 1 - first.x : first.x) * width, first.y * height);
+    context.lineTo((mirrorX ? 1 - second.x : second.x) * width, second.y * height);
   }
   context.lineWidth = lineWidth;
   context.stroke();
@@ -158,7 +160,7 @@ function drawHand(
     if (!point) continue;
     context.beginPath();
     context.arc(
-      point.x * width,
+      (mirrorX ? 1 - point.x : point.x) * width,
       point.y * height,
       index === 0 ? jointRadius + 1.5 : jointRadius,
       0,
@@ -183,6 +185,7 @@ export function drawHands(
     left: Array<[number, number]>;
     right: Array<[number, number]>;
   } = { left: [], right: [] },
+  mirrorX = true,
 ): void {
   const width = canvas.width;
   const height = canvas.height;
@@ -199,8 +202,8 @@ export function drawHands(
     for (let index = 1; index < points.length; index += 1) {
       const previous = points[index - 1];
       const current = points[index];
-      context.moveTo(previous[0] * width, previous[1] * height);
-      context.lineTo(current[0] * width, current[1] * height);
+      context.moveTo((mirrorX ? 1 - previous[0] : previous[0]) * width, previous[1] * height);
+      context.lineTo((mirrorX ? 1 - current[0] : current[0]) * width, current[1] * height);
     }
     context.lineWidth = 3;
     context.globalAlpha = 0.24;
@@ -218,11 +221,11 @@ export function drawHands(
 
   context.strokeStyle = "#ffffff";
   context.fillStyle = "#ffffff";
-  drawHand(context, left, width, height, "LEFT", 2.5, 3.0);
+  drawHand(context, left, width, height, "LEFT", 2.5, 3.0, mirrorX);
 
   context.strokeStyle = "#a4a4a0";
   context.fillStyle = "#a4a4a0";
-  drawHand(context, right, width, height, "RIGHT", 2.5, 3.0);
+  drawHand(context, right, width, height, "RIGHT", 2.5, 3.0, mirrorX);
 }
 
 export async function createHands(
