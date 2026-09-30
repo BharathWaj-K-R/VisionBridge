@@ -300,18 +300,33 @@ def record_usage(
     current_user: User = Depends(get_current_user),
 ):
     phrase = payload.phrase.strip()
-    item = (
-        db.query(CommunicationUsage)
-        .filter(
-            CommunicationUsage.user_id == current_user.id,
-            CommunicationUsage.phrase.ilike(phrase),
+    profile_id = payload.profileId
+    if profile_id is not None:
+        owns_profile = (
+            db.query(PersonalizationProfile)
+            .filter(
+                PersonalizationProfile.id == profile_id,
+                PersonalizationProfile.user_id == current_user.id,
+            )
+            .first()
         )
-        .first()
+        if owns_profile is None:
+            raise HTTPException(status_code=404, detail="Profile not found.")
+
+    item_query = db.query(CommunicationUsage).filter(
+        CommunicationUsage.user_id == current_user.id,
+        CommunicationUsage.phrase.ilike(phrase),
     )
+    if profile_id is None:
+        item_query = item_query.filter(CommunicationUsage.profile_id.is_(None))
+    else:
+        item_query = item_query.filter(CommunicationUsage.profile_id == profile_id)
+    item = item_query.first()
     now = dt.datetime.now(dt.timezone.utc)
     if item is None:
         item = CommunicationUsage(
             user_id=current_user.id,
+            profile_id=profile_id,
             phrase=phrase,
             usage_count=1,
             last_used_at=now,
@@ -326,12 +341,25 @@ def record_usage(
 
 @router.get("/most-used")
 def most_used(
+    profileId: int | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    usage_query = db.query(CommunicationUsage).filter(CommunicationUsage.user_id == current_user.id)
+    if profileId is not None:
+        owns_profile = (
+            db.query(PersonalizationProfile)
+            .filter(
+                PersonalizationProfile.id == profileId,
+                PersonalizationProfile.user_id == current_user.id,
+            )
+            .first()
+        )
+        if owns_profile is None:
+            raise HTTPException(status_code=404, detail="Profile not found.")
+        usage_query = usage_query.filter(CommunicationUsage.profile_id == profileId)
     rows = (
-        db.query(CommunicationUsage)
-        .filter(CommunicationUsage.user_id == current_user.id)
+        usage_query
         .order_by(CommunicationUsage.usage_count.desc(), CommunicationUsage.last_used_at.desc())
         .limit(12)
         .all()
