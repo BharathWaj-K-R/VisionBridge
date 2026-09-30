@@ -91,3 +91,29 @@ class LetterRecognitionEvent(BaseModel):
     predicted_letter: str = Field(min_length=1, max_length=1, pattern=r"^(?:[A-Za-z]|\?)$")
     confidence: float = Field(ge=0, le=1)
     latency_ms: float = Field(ge=0)
+
+
+class CommunicationWordCreate(BaseModel):
+    phrase: str = Field(min_length=1, max_length=200)
+    category: str = Field(min_length=1, max_length=80)
+
+
+class CommunicationWordOut(BaseModel):
+    id: int
+    phrase: str
+    category: str
+    created_at: dt.datetime
+    updated_at: dt.datetime
+
+
+class QuickAccessPayload(BaseModel):
+    slots: list[str | None] = Field(min_length=10, max_length=10)
+
+    @model_validator(mode="after")
+    def validate_slots(self) -> "QuickAccessPayload":
+        for value in self.slots:
+            if value is not None and not value.strip():
+                raise ValueError("Quick-access phrases must be non-empty or null.")
+            if value is not None and len(value.strip()) > 200:
+                raise ValueError("Quick-access phrases must be 200 characters or fewer.")
+        return self
