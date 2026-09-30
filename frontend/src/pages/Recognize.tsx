@@ -12,7 +12,7 @@ export default function Recognize() {
     const saved = localStorage.getItem("visionbridge_tracker_visual");
     return saved === "anatomy" || saved === "holographic" ? saved : "neon";
   });
-  const session = useLandmarkSession(configuredFps, trackerVisual);
+  const session = useLandmarkSession(configuredFps, trackerVisual, { prediction, confidence });
 
   useEffect(() => {
     localStorage.setItem("visionbridge_tracker_visual", trackerVisual);
