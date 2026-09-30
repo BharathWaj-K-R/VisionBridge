@@ -3,14 +3,14 @@ import { useLocation } from "react-router-dom";
 
 const SITE = "https://visionbridge-2c7h.onrender.com";
 const META: Record<string, { title: string; description: string }> = {
-  "/": { title: "VisionBridge | Indian Sign Language Recognition", description: "VisionBridge provides signer-adaptive Indian Sign Language A–Z recognition using hand landmarks and a browser-based recognition workflow." },
-  "/login": { title: "Sign In | VisionBridge", description: "Sign in to VisionBridge to use Indian Sign Language letter recognition, signer calibration, history, and profile controls." },
-  "/dashboard": { title: "Dashboard | VisionBridge", description: "Review VisionBridge recognition activity, model status, confidence, latency, and shortcuts to live Indian Sign Language tools." },
-  "/translate": { title: "Live Translate | VisionBridge", description: "Use VisionBridge Live Translate for real-time Indian Sign Language A–Z recognition with browser camera hand tracking." },
-  "/calibration": { title: "Calibration | VisionBridge", description: "Calibrate signer-specific Indian Sign Language letter prototypes in VisionBridge using a few clean hand examples." },
-  "/history": { title: "Letter History | VisionBridge", description: "Review and export recorded Indian Sign Language letter recognition events from your VisionBridge signer session." },
-  "/settings": { title: "Signer Profiles | VisionBridge", description: "Manage VisionBridge signer adapters, account settings, appearance, camera behavior, and browser session controls." },
-  "/404": { title: "Page Not Found | VisionBridge", description: "The requested VisionBridge page could not be found. Return to the dashboard or choose another application section." },
+  "/": { title: "VisionBridge | Indian Sign Language Recognition", description: "VisionBridge provides signer-adaptive Indian Sign Language A–Z recognition using hand landmarks in a focused browser-based recognition workspace." },
+  "/login": { title: "Sign In | VisionBridge", description: "Sign in to VisionBridge to access Indian Sign Language letter recognition, signer calibration, recognition history, and signer profile controls in your browser." },
+  "/dashboard": { title: "Dashboard | VisionBridge", description: "Review VisionBridge recognition activity, model status, confidence, latency, and direct access to Indian Sign Language recognition tools from one dashboard." },
+  "/translate": { title: "Live Translate | VisionBridge", description: "Use VisionBridge Live Translate for real-time Indian Sign Language A–Z recognition with browser camera hand tracking and signer-adaptive inference." },
+  "/calibration": { title: "Calibration | VisionBridge", description: "Calibrate signer-specific Indian Sign Language letter prototypes in VisionBridge using a few clean hand examples for personalized recognition." },
+  "/history": { title: "Letter History | VisionBridge", description: "Review and export recorded Indian Sign Language letter recognition events from your VisionBridge signer session for quick analysis and reference." },
+  "/settings": { title: "Signer Profiles | VisionBridge", description: "Manage VisionBridge signer adapters, account preferences, appearance, camera behavior, and secure browser session controls from one settings page." },
+  "/404": { title: "Page Not Found | VisionBridge", description: "The requested VisionBridge page could not be found. Return to the dashboard or choose another Indian Sign Language application section." },
 };
 
 function setMeta(name: string, content: string) {
@@ -38,10 +38,10 @@ export default function Seo() {
     setMeta("robots", pathname === "/" || pathname === "/login" ? "index,follow" : "noindex,nofollow");
     setProperty("og:title", meta.title); setProperty("og:description", meta.description);
     setProperty("og:type", "website"); setProperty("og:url", canonical);
-    setProperty("og:image", SITE + "/social-share.svg"); setProperty("og:image:width", "1200"); setProperty("og:image:height", "630");
+    setProperty("og:image", SITE + "/social-share.png"); setProperty("og:image:width", "1200"); setProperty("og:image:height", "630");
     setProperty("og:site_name", "VisionBridge");
     setMeta("twitter:card", "summary_large_image"); setMeta("twitter:title", meta.title);
-    setMeta("twitter:description", meta.description); setMeta("twitter:image", SITE + "/social-share.svg");
+    setMeta("twitter:description", meta.description); setMeta("twitter:image", SITE + "/social-share.png");
     setLink("canonical", canonical);
     document.getElementById("visionbridge-structured-data")?.remove();
     const script = document.createElement("script");
