@@ -1,6 +1,6 @@
 {
   "release": "visionbridge-letter-base-v3",
-  "status": "BLOCKED",
+  "status": "READY_WITH_LIMITATIONS",
   "generated_at": "2026-09-30",
   "contract": {
     "input_dim": 126,
@@ -45,31 +45,45 @@
     "tests": 5,
     "passed": 5,
     "failed": 0,
-    "execution_run_id": 36694299109,
-    "execution_job_id": 109818465532
+    "individual_results": {
+      "test_model_loading_and_contract": "PASSED",
+      "test_base_model_prediction_returns_valid_letter": "PASSED",
+      "test_adapter_compatibility_rejects_wrong_model_hash": "PASSED",
+      "test_protected_route_requires_authentication": "PASSED",
+      "test_login_and_history_are_user_scoped": "PASSED"
+    },
+    "execution_run_id": 36695526502,
+    "execution_job_id": 109822451488
   },
   "production_database_binding": {
-    "status": "PENDING_LIVE_LOG_VERIFICATION",
-    "non_sqlite_production_runtime": true,
-    "reason": "The live service already passed production startup with SQLite explicitly rejected. A sanitized database-target startup log was added; the next live deploy must be checked for the Supabase hostname before this gate is passed."
+    "status": "PASSED",
+    "database_host": "aws-0-ap-southeast-1.pooler.supabase.com",
+    "port": 5432,
+    "database": "postgres",
+    "deploy": "dep-daud9j5bifpc73eqen1g",
+    "runtime_current_user": "visionbridge_app",
+    "runtime_session_user": "postgres"
+  },
+  "rls": {
+    "status": "PASSED",
+    "tables_enabled": 7,
+    "application_role": "visionbridge_app",
+    "bypassrls": false,
+    "migration": "supabase/migrations/20260930103000_custom_auth_rls.sql",
+    "verification": "docs/release/visionbridge-custom-auth-rls-verification.json"
   },
   "signer_independent_evaluation": {
     "status": "BLOCKED",
     "reason": "The active RealSign dataset metadata does not expose verified signer IDs."
   },
   "limitations": {
-    "worst_letter": "W",
-    "worst_letter_accuracy": 0.7262569832402235
+    "weakest_letter": "W",
+    "weakest_letter_accuracy": 0.7262569832402235,
+    "scope": "A-Z letter recognition; not sentence-level/full ISL translation"
   },
-  "rls": {
-    "status": "BLOCKED",
-    "plan": "docs/release/visionbridge-custom-auth-rls-plan.md",
-    "reason": "Current production database role is postgres with BYPASSRLS. A dedicated non-bypass application role and transaction-local custom-auth context are required before enabling policies."
-  },
-  "remaining_release_gates": [
-    "Verify the new sanitized Render database-target startup log shows the VisionBridge Supabase host.",
-    "Implement and validate the dedicated non-bypass application role and custom-auth RLS policy suite.",
+  "remaining_release_maintenance": [
+    "Add and run a dedicated pgTAP RLS suite through Supabase CLI/CI.",
     "Do not claim signer-independent evaluation without verified signer IDs."
   ],
-  "release_rule": "Do not mark this release ready until production Supabase binding is explicitly verified and custom-auth RLS is safely enforced. Runtime tests and browser/PyTorch parity are passed. Do not claim signer-independent evaluation without verified signer IDs."
+  "release_rule": "Release is ready with documented limitations. Runtime tests, browser/PyTorch parity, durable production database binding, and custom-auth RLS are verified. Signer-independent evaluation remains blocked and W remains the weakest recorded class."
 }
