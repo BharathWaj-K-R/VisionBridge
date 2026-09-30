@@ -37,6 +37,10 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     if "@" not in email:
         raise HTTPException(status_code=400, detail="Enter a valid email address")
 
+    db.info["visionbridge_auth_operation"] = "register"
+    db.info["visionbridge_auth_username"] = username
+    db.info["visionbridge_auth_email"] = email
+
     if db.query(User).filter(User.username == username).first():
         raise HTTPException(status_code=400, detail="Username already taken")
     if db.query(User).filter(User.email == email).first():
@@ -56,6 +60,9 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
 @router.post("/login", response_model=Token)
 def login(payload: LoginRequest, response: Response, db: Session = Depends(get_db)):
     identifier = payload.identifier.strip()
+    db.info["visionbridge_auth_operation"] = "login"
+    db.info["visionbridge_auth_identifier"] = identifier
+
     user = db.query(User).filter(
         (User.username == identifier) | (User.email == identifier.lower())
     ).first()
