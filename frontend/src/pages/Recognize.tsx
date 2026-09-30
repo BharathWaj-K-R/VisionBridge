@@ -2,23 +2,32 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import { BrowserLetterAdapter, type BrowserLetterModel } from "../browserModel";
-import { normalizeHandPair, type TrackerVisual } from "../landmarks";
+import { normalizeHandPair, type TrackerMode } from "../landmarks";
 import { useLandmarkSession } from "../useLandmarkSession";
 import { Empty, Page } from "../components/Page";
 
 export default function Recognize() {
   const configuredFps = Number(localStorage.getItem("visionbridge_camera_fps") || "30");
-  const [trackerVisual, setTrackerVisual] = useState<TrackerVisual>(() => {
-    const saved = localStorage.getItem("visionbridge_tracker_visual");
-    return saved === "anatomy" || saved === "holographic" ? saved : "neon";
+  const [trackerMode, setTrackerMode] = useState<TrackerMode>(() => {
+    const saved = localStorage.getItem("visionbridge_tracker_mode");
+    return saved === "fixed" || saved === "off" ? saved : "adaptive";
   });
+  const [trackerFixedColor, setTrackerFixedColor] = useState(() => localStorage.getItem("visionbridge_tracker_fixed_color") || "#00E5FF");
   const [prediction, setPrediction] = useState("—");
   const [confidence, setConfidence] = useState(0);
-  const session = useLandmarkSession(configuredFps, trackerVisual, { prediction, confidence });
+  const session = useLandmarkSession(
+    configuredFps,
+    { mode: trackerMode, fixedColor: trackerFixedColor },
+    { prediction, confidence },
+  );
 
   useEffect(() => {
-    localStorage.setItem("visionbridge_tracker_visual", trackerVisual);
-  }, [trackerVisual]);
+    localStorage.setItem("visionbridge_tracker_mode", trackerMode);
+  }, [trackerMode]);
+
+  useEffect(() => {
+    localStorage.setItem("visionbridge_tracker_fixed_color", trackerFixedColor);
+  }, [trackerFixedColor]);
   const latestFrame = session.latestFrame;
   useEffect(() => {
     if (localStorage.getItem("visionbridge_auto_camera") === "1" && !session.running) {
@@ -192,28 +201,31 @@ export default function Recognize() {
             <div className="camera-corner bottom-left">ISL TWO-HANDED GESTURE</div>
             <div className="camera-corner bottom-right">{session.running ? "LIVE" : "IDLE"}</div>
           </div>
-          <div className="tracker-visual-controls">
-            <div>
-              <span className="eyebrow">TRACKER VISUAL</span>
-              <strong>{trackerVisual === "anatomy" ? "DIGITAL ANATOMY" : trackerVisual === "holographic" ? "HOLOGRAPHIC ENVELOPE" : "NEON NODE"}</strong>
+          <div className="tracker-controls">
+            <div className="tracker-controls-copy">
+              <span className="eyebrow">HAND TRACKER</span>
+              <strong>
+                {trackerMode === "adaptive" ? "ADAPTIVE VISIBILITY" : trackerMode === "fixed" ? "FIXED COLOUR" : "TRACKER VISUAL OFF"}
+              </strong>
+              <small>
+                {trackerMode === "adaptive"
+                  ? "Automatically selects a high-contrast colour against the live camera background."
+                  : trackerMode === "fixed"
+                    ? "Uses your selected colour consistently."
+                    : "Landmark graphics are hidden while recognition continues in the background."}
+              </small>
             </div>
-            <div className="tracker-visual-options">
-              {([
-                ["anatomy", "01 · ANATOMY", "Joint rings + cyan structural rig"],
-                ["neon", "02 · NEON NODE", "Fast green nodes + motion trails"],
-                ["holographic", "03 · HOLOGRAPHIC", "Purple geometric volume"],
-              ] as Array<[TrackerVisual, string, string]>).map(([value, label, description]) => (
-                <button
-                  key={value}
-                  type="button"
-                  className={trackerVisual === value ? "active" : ""}
-                  onClick={() => setTrackerVisual(value)}
-                  title={description}
-                  aria-pressed={trackerVisual === value}
-                >
-                  {label}
-                </button>
-              ))}
+            <div className="tracker-options">
+              <button type="button" className={trackerMode === "adaptive" ? "active" : ""} onClick={() => setTrackerMode("adaptive")} aria-pressed={trackerMode === "adaptive"}>ADAPTIVE</button>
+              <button type="button" className={trackerMode === "fixed" ? "active" : ""} onClick={() => setTrackerMode("fixed")} aria-pressed={trackerMode === "fixed"}>FIXED</button>
+              <button type="button" className={trackerMode === "off" ? "active" : ""} onClick={() => setTrackerMode("off")} aria-pressed={trackerMode === "off"}>OFF</button>
+              {trackerMode === "fixed" && (
+                <label className="tracker-color-control">
+                  <span>COLOUR</span>
+                  <input type="color" value={trackerFixedColor} onChange={(event) => setTrackerFixedColor(event.target.value)} aria-label="Fixed tracker colour" />
+                  <code>{trackerFixedColor.toUpperCase()}</code>
+                </label>
+              )}
             </div>
           </div>
           <div className="button-row">
