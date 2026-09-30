@@ -287,7 +287,7 @@ export const api = {
         predicted_text: event.predicted_letter,
         confidence: event.confidence,
         latency_ms: event.latency_ms,
-        used_adapter: 1,
+        used_adapter: event.adapter_id == null ? 0 : 1,
         created_at: new Date().toISOString(),
       }]);
       return;
