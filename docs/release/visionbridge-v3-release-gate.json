@@ -13,18 +13,31 @@
   },
   "checkpoint": {
     "path": "backend/app/models/weights/letter_base_model.pt",
-    "present": false,
-    "sha256": null
+    "present": true,
+    "bytes": 111333,
+    "sha256": "03bcb9f08d44025a025f78a08d68b2303b231270395117815ffcb322ca090cdf"
   },
   "evaluation": {
-    "test_accuracy": null,
-    "macro_accuracy": null,
-    "per_letter_accuracy": null,
-    "confusion_matrix": null
+    "source": "visionbridge_v3_release_evidence.json",
+    "split": "test",
+    "samples": 4633,
+    "device": "cuda",
+    "test_accuracy": 0.9814375134901792,
+    "macro_accuracy": 0.9816798074640047,
+    "worst_letter": "W",
+    "worst_letter_accuracy": 0.7262569832402235,
+    "per_letter_accuracy": "recorded in visionbridge_letter_evaluation.json",
+    "confusion_matrix": "recorded in visionbridge_letter_evaluation.json"
   },
   "signer_independent_evaluation": {
     "status": "BLOCKED",
     "reason": "The active RealSign dataset metadata does not expose verified signer IDs."
   },
-  "release_rule": "Do not mark this release ready until the checkpoint is loadable and the canonical held-out test evaluator produces immutable metrics."
+  "remaining_release_gates": [
+    "Run repository-runtime pytest suite and record pass/fail evidence.",
+    "Run browser/PyTorch numerical parity against the verified checkpoint and record tolerance evidence.",
+    "Verify production Render runtime is bound to durable Supabase PostgreSQL.",
+    "Resolve the custom-auth/RLS security design before enabling row-level policies."
+  ],
+  "release_rule": "Do not mark this release ready until runtime tests, browser/PyTorch parity, and production persistence are verified. Do not claim signer-independent evaluation without verified signer IDs."
 }
