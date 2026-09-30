@@ -27,6 +27,10 @@ function RouteGuard() {
   return knownPaths.has(pathname) ? <App /> : <NotFound />;
 }
 
+const savedTheme = localStorage.getItem("visionbridge_theme");
+const initialTheme = savedTheme === "dark" || savedTheme === "light" || savedTheme === "system" ? savedTheme : "system";
+document.documentElement.dataset.theme = initialTheme;
+
 const root = document.getElementById("root");
 if (!root) {
   document.body.innerHTML = "<main style=\"padding:24px;font-family:system-ui\">VisionBridge could not find the application root.</main>";
