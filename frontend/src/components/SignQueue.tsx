@@ -62,10 +62,9 @@ export default function SignQueue({
         <button type="button" className="ghost-btn" onClick={onClear} disabled={!queue.length}>CLEAR</button>
         <label className="speed-control">SPEED
           <select value={speed} onChange={(event) => onSpeedChange(Number(event.target.value))}>
+            <option value="0.5">0.5×</option>
             <option value="0.75">0.75×</option>
             <option value="1">1×</option>
-            <option value="1.25">1.25×</option>
-            <option value="1.5">1.5×</option>
           </select>
         </label>
       </div>
