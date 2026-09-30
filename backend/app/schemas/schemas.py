@@ -133,7 +133,7 @@ class PersonalizationProfileConfig(BaseModel):
     avatar: AvatarProfile
     quickAccess: list[str | None] = Field(min_length=10, max_length=10)
     favorites: list[str] = Field(default_factory=list, max_length=50)
-    signingSpeed: float = Field(default=1, ge=0.5, le=1)
+    signingSpeed: Literal[0.5, 0.75, 1] = 1
     ttsVoice: str | None = Field(default=None, max_length=200)
 
     @model_validator(mode="after")
