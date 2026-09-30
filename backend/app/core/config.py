@@ -18,9 +18,7 @@ class Settings:
         f"sqlite:///{BACKEND_DIR / 'visionbridge.db'}",
     )
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-me")
-    ACCESS_TOKEN_EXPIRE_MINUTES = int(
-        os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
-    )
+    ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
     JWT_ALGORITHM = "HS256"
 
     AUTH_COOKIE_NAME = "__Host-visionbridge_session"
@@ -61,16 +59,17 @@ class Settings:
         str(BACKEND_DIR / "app/models/weights/adapters"),
     )
 
-    TRANSLATE_RATE_LIMIT_PER_MINUTE = int(
-        os.getenv("TRANSLATE_RATE_LIMIT_PER_MINUTE", "60")
-    )
-    CALIBRATION_RATE_LIMIT_PER_MINUTE = int(
-        os.getenv("CALIBRATION_RATE_LIMIT_PER_MINUTE", "5")
-    )
+    TRANSLATE_RATE_LIMIT_PER_MINUTE = int(os.getenv("TRANSLATE_RATE_LIMIT_PER_MINUTE", "60"))
+    CALIBRATION_RATE_LIMIT_PER_MINUTE = int(os.getenv("CALIBRATION_RATE_LIMIT_PER_MINUTE", "5"))
 
     def validate_for_runtime(self) -> None:
-        if self.ENV.lower() == "production" and self.SECRET_KEY == "dev-secret-change-me":
-            raise RuntimeError("SECRET_KEY must be set to a non-default value in production")
+        if self.ENV.lower() == "production":
+            if self.SECRET_KEY == "dev-secret-change-me":
+                raise RuntimeError("SECRET_KEY must be set to a non-default value in production")
+            if self.DATABASE_URL.lower().startswith("sqlite"):
+                raise RuntimeError(
+                    "DATABASE_URL must point to durable PostgreSQL in production; SQLite fallback is disabled"
+                )
 
         if self.AUTH_COOKIE_SAMESITE not in {"lax", "strict", "none"}:
             raise RuntimeError("AUTH_COOKIE_SAMESITE must be lax, strict, or none")
