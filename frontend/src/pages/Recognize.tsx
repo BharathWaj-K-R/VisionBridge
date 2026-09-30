@@ -2,13 +2,21 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import { BrowserLetterAdapter, type BrowserLetterModel } from "../browserModel";
-import { normalizeHandPair } from "../landmarks";
+import { normalizeHandPair, type TrackerVisual } from "../landmarks";
 import { useLandmarkSession } from "../useLandmarkSession";
 import { Empty, Page } from "../components/Page";
 
 export default function Recognize() {
   const configuredFps = Number(localStorage.getItem("visionbridge_camera_fps") || "30");
-  const session = useLandmarkSession(configuredFps);
+  const [trackerVisual, setTrackerVisual] = useState<TrackerVisual>(() => {
+    const saved = localStorage.getItem("visionbridge_tracker_visual");
+    return saved === "anatomy" || saved === "holographic" ? saved : "neon";
+  });
+  const session = useLandmarkSession(configuredFps, trackerVisual);
+
+  useEffect(() => {
+    localStorage.setItem("visionbridge_tracker_visual", trackerVisual);
+  }, [trackerVisual]);
   const latestFrame = session.latestFrame;
   useEffect(() => {
     if (localStorage.getItem("visionbridge_auto_camera") === "1" && !session.running) {
@@ -183,6 +191,30 @@ export default function Recognize() {
             <div className="camera-corner top-right">MEDIA PIPE · 0.10.35</div>
             <div className="camera-corner bottom-left">ISL TWO-HANDED GESTURE</div>
             <div className="camera-corner bottom-right">{session.running ? "LIVE" : "IDLE"}</div>
+          </div>
+          <div className="tracker-visual-controls">
+            <div>
+              <span className="eyebrow">TRACKER VISUAL</span>
+              <strong>{trackerVisual === "anatomy" ? "DIGITAL ANATOMY" : trackerVisual === "holographic" ? "HOLOGRAPHIC ENVELOPE" : "NEON NODE"}</strong>
+            </div>
+            <div className="tracker-visual-options">
+              {([
+                ["anatomy", "01 · ANATOMY", "Joint rings + cyan structural rig"],
+                ["neon", "02 · NEON NODE", "Fast green nodes + motion trails"],
+                ["holographic", "03 · HOLOGRAPHIC", "Purple geometric volume"],
+              ] as Array<[TrackerVisual, string, string]>).map(([value, label, description]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={trackerVisual === value ? "active" : ""}
+                  onClick={() => setTrackerVisual(value)}
+                  title={description}
+                  aria-pressed={trackerVisual === value}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="button-row">
             <button className="primary-btn" onClick={() => session.start().catch(() => undefined)} disabled={session.running}>{session.running ? "TRACKING" : "START CAMERA"}</button>
