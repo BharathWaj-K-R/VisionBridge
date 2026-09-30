@@ -11,6 +11,7 @@ const META: Record<string, { title: string; description: string }> = {
   "/history": { title: "Letter History | VisionBridge", description: "Review and export recorded Indian Sign Language letter recognition events from your VisionBridge signer session for quick analysis and reference." },
   "/settings": { title: "Signer Profiles | VisionBridge", description: "Manage VisionBridge signer adapters, account preferences, appearance, camera behavior, and secure browser session controls from one settings page." },
   "/voice-to-sign": { title: "Voice to Sign | VisionBridge", description: "Speak a phrase and VisionBridge turns the recognized text into an animated A–Z fingerspelling sequence with a customizable browser avatar." },
+  "/word-bank": { title: "Word Bank | VisionBridge", description: "Browse daily communication phrases, speak words aloud, add custom phrases, and configure your ten VisionBridge quick-access slots." },
   "/404": { title: "Page Not Found | VisionBridge", description: "The requested VisionBridge page could not be found. Return to the dashboard or choose another Indian Sign Language application section today." },
 };
 
