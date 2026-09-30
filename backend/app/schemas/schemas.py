@@ -165,3 +165,4 @@ class PersonalizationProfileOut(BaseModel):
 
 class CommunicationUsageCreate(BaseModel):
     phrase: str = Field(min_length=1, max_length=200)
+    profileId: int | None = Field(default=None, gt=0)
