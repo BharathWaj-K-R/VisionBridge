@@ -1,10 +1,21 @@
+import datetime as dt
+import json
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
-from app.db.models import CommunicationWord, QuickAccessSlot, User
+from app.db.models import CommunicationUsage, CommunicationWord, PersonalizationProfile, QuickAccessSlot, User
 from app.db.session import get_db
-from app.schemas.schemas import CommunicationWordCreate, CommunicationWordOut, QuickAccessPayload
+from app.schemas.schemas import (
+    CommunicationUsageCreate,
+    CommunicationWordCreate,
+    CommunicationWordOut,
+    PersonalizationProfileCreate,
+    PersonalizationProfileOut,
+    PersonalizationProfileUpdate,
+    QuickAccessPayload,
+)
 
 router = APIRouter(prefix="/communication", tags=["communication"])
 
@@ -150,3 +161,186 @@ def save_quick_access(
 
     db.commit()
     return {"slots": payload.slots}
+
+
+def _profile(item: PersonalizationProfile) -> dict:
+    try:
+        config = json.loads(item.config_json or "{}")
+    except (TypeError, json.JSONDecodeError):
+        config = {}
+    return {
+        "id": item.id,
+        "name": item.name,
+        "config": config,
+        "created_at": item.created_at,
+        "updated_at": item.updated_at,
+    }
+
+
+@router.get("/profiles", response_model=list[PersonalizationProfileOut])
+def list_profiles(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    items = (
+        db.query(PersonalizationProfile)
+        .filter(PersonalizationProfile.user_id == current_user.id)
+        .order_by(PersonalizationProfile.created_at.asc())
+        .all()
+    )
+    return [_profile(item) for item in items]
+
+
+@router.post("/profiles", response_model=PersonalizationProfileOut, status_code=201)
+def create_profile(
+    payload: PersonalizationProfileCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    name = payload.name.strip()
+    exists = (
+        db.query(PersonalizationProfile)
+        .filter(
+            PersonalizationProfile.user_id == current_user.id,
+            PersonalizationProfile.name.ilike(name),
+        )
+        .first()
+    )
+    if exists:
+        raise HTTPException(status_code=409, detail="A profile with that name already exists.")
+
+    item = PersonalizationProfile(
+        user_id=current_user.id,
+        name=name,
+        config_json=payload.config.model_dump_json(),
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return _profile(item)
+
+
+@router.put("/profiles/{profile_id}", response_model=PersonalizationProfileOut)
+def update_profile(
+    profile_id: int,
+    payload: PersonalizationProfileUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    item = (
+        db.query(PersonalizationProfile)
+        .filter(
+            PersonalizationProfile.id == profile_id,
+            PersonalizationProfile.user_id == current_user.id,
+        )
+        .first()
+    )
+    if item is None:
+        raise HTTPException(status_code=404, detail="Profile not found.")
+
+    if payload.name is not None:
+        name = payload.name.strip()
+        conflict = (
+            db.query(PersonalizationProfile)
+            .filter(
+                PersonalizationProfile.user_id == current_user.id,
+                PersonalizationProfile.id != profile_id,
+                PersonalizationProfile.name.ilike(name),
+            )
+            .first()
+        )
+        if conflict:
+            raise HTTPException(status_code=409, detail="A profile with that name already exists.")
+        item.name = name
+
+    item.config_json = payload.config.model_dump_json()
+    item.updated_at = dt.datetime.now(dt.timezone.utc)
+    db.commit()
+    db.refresh(item)
+    return _profile(item)
+
+
+@router.delete("/profiles/{profile_id}")
+def delete_profile(
+    profile_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    item = (
+        db.query(PersonalizationProfile)
+        .filter(
+            PersonalizationProfile.id == profile_id,
+            PersonalizationProfile.user_id == current_user.id,
+        )
+        .first()
+    )
+    if item is None:
+        raise HTTPException(status_code=404, detail="Profile not found.")
+
+    remaining = (
+        db.query(PersonalizationProfile)
+        .filter(
+            PersonalizationProfile.user_id == current_user.id,
+            PersonalizationProfile.id != profile_id,
+        )
+        .count()
+    )
+    if remaining == 0:
+        raise HTTPException(status_code=409, detail="Keep at least one profile. Create another profile before deleting the last one.")
+
+    db.delete(item)
+    db.commit()
+    return {"deleted": True, "profile_id": profile_id}
+
+
+@router.post("/usage")
+def record_usage(
+    payload: CommunicationUsageCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    phrase = payload.phrase.strip()
+    item = (
+        db.query(CommunicationUsage)
+        .filter(
+            CommunicationUsage.user_id == current_user.id,
+            CommunicationUsage.phrase.ilike(phrase),
+        )
+        .first()
+    )
+    now = dt.datetime.now(dt.timezone.utc)
+    if item is None:
+        item = CommunicationUsage(
+            user_id=current_user.id,
+            phrase=phrase,
+            usage_count=1,
+            last_used_at=now,
+        )
+        db.add(item)
+    else:
+        item.usage_count += 1
+        item.last_used_at = now
+    db.commit()
+    return {"phrase": item.phrase, "usage_count": item.usage_count}
+
+
+@router.get("/most-used")
+def most_used(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    rows = (
+        db.query(CommunicationUsage)
+        .filter(CommunicationUsage.user_id == current_user.id)
+        .order_by(CommunicationUsage.usage_count.desc(), CommunicationUsage.last_used_at.desc())
+        .limit(12)
+        .all()
+    )
+    return [
+        {
+            "phrase": row.phrase,
+            "usage_count": row.usage_count,
+            "last_used_at": row.last_used_at,
+        }
+        for row in rows
+    ]
