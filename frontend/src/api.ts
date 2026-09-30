@@ -236,7 +236,12 @@ export const api = {
     await request<{ logged_out: boolean }>("/auth/logout", { method: "POST" });
     csrfTokenMemory = null;
   },
-  me: async (): Promise<User> => LOCAL_MODE ? localUser() : request<User>("/users/me"),
+  me: async (): Promise<User> => {
+    if (LOCAL_MODE) return localUser();
+    const user = await request<User>("/users/me");
+    localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(user));
+    return user;
+  },
   dashboard: async () => {
     if (LOCAL_MODE) {
       const history = localHistory();
