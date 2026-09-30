@@ -7,7 +7,7 @@ export default function SignSubtitle({
   queue: string[];
   currentIndex: number;
 }) {
-  if (!phrase) {
+  if (!queue.length) {
     return (
       <div className="sign-subtitle empty" aria-live="polite">
         Speak a phrase to see synchronized signing subtitles.
