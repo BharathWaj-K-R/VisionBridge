@@ -28,6 +28,7 @@ def _user_from_credentials(
         user_id = int(subject)
     except (TypeError, ValueError):
         return None
+    db.info["visionbridge_user_id"] = user_id
     return db.get(User, user_id)
 
 
