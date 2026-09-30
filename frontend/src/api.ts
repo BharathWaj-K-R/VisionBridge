@@ -165,11 +165,13 @@ function localProfiles(): any[] {
 function saveLocalProfiles(items: any[]): void {
   localStorage.setItem(localScopeKey(LOCAL_PROFILES_KEY), JSON.stringify(items));
 }
-function localUsage(): Record<string, { count: number; lastUsedAt: string }> {
-  try { return JSON.parse(localStorage.getItem(localScopeKey(LOCAL_USAGE_KEY)) || "{}") as Record<string, { count: number; lastUsedAt: string }>; } catch { return {}; }
+function localUsage(profileId?: number): Record<string, { count: number; lastUsedAt: string }> {
+  const key = LOCAL_USAGE_KEY + ":" + (profileId || "account");
+  try { return JSON.parse(localStorage.getItem(localScopeKey(key)) || "{}") as Record<string, { count: number; lastUsedAt: string }>; } catch { return {}; }
 }
-function saveLocalUsage(items: Record<string, { count: number; lastUsedAt: string }>): void {
-  localStorage.setItem(localScopeKey(LOCAL_USAGE_KEY), JSON.stringify(items));
+function saveLocalUsage(items: Record<string, { count: number; lastUsedAt: string }>, profileId?: number): void {
+  const key = LOCAL_USAGE_KEY + ":" + (profileId || "account");
+  localStorage.setItem(localScopeKey(key), JSON.stringify(items));
 }
 let browserModelPromise: Promise<BrowserLetterModel> | null = null;
 
@@ -337,33 +339,33 @@ export const api = {
     try { await request<any>("/communication/profiles/" + id, { method: "DELETE" }); }
     catch { saveLocalProfiles(localProfiles().filter((item) => item.id !== id)); }
   },
-  recordUsage: async (phrase: string): Promise<void> => {
+  recordUsage: async (phrase: string, profileId?: number): Promise<void> => {
     const value = phrase.trim();
     if (!value) return;
     if (LOCAL_MODE) {
-      const items = localUsage();
+      const items = localUsage(profileId);
       const previous = items[value] || { count: 0, lastUsedAt: "" };
       items[value] = { count: previous.count + 1, lastUsedAt: new Date().toISOString() };
-      saveLocalUsage(items);
+      saveLocalUsage(items, profileId);
       return;
     }
-    try { await request<any>("/communication/usage", { method: "POST", body: JSON.stringify({ phrase: value }) }); }
+    try { await request<any>("/communication/usage", { method: "POST", body: JSON.stringify({ phrase: value, profileId: profileId || null }) }); }
     catch {
-      const items = localUsage();
+      const items = localUsage(profileId);
       const previous = items[value] || { count: 0, lastUsedAt: "" };
       items[value] = { count: previous.count + 1, lastUsedAt: new Date().toISOString() };
-      saveLocalUsage(items);
+      saveLocalUsage(items, profileId);
     }
   },
-  mostUsed: async (): Promise<any[]> => {
+  mostUsed: async (profileId?: number): Promise<any[]> => {
     if (LOCAL_MODE) {
-      const items = localUsage();
+      const items = localUsage(profileId);
       return Object.entries(items)
         .sort((a, b) => b[1].count - a[1].count || b[1].lastUsedAt.localeCompare(a[1].lastUsedAt))
         .slice(0, 12)
         .map(([phrase, value]) => ({ phrase, usage_count: value.count, last_used_at: value.lastUsedAt }));
     }
-    try { return await request<any[]>("/communication/most-used"); } catch { return []; }
+    try { return await request<any[]>("/communication/most-used" + (profileId ? "?profileId=" + profileId : "")); } catch { return []; }
   },
   quickAccess: async (): Promise<{ slots: Array<string | null> }> => {
     if (LOCAL_MODE) return { slots: localQuickAccess() };
