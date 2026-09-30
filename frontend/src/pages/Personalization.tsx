@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import AvatarCustomizer from "../components/AvatarCustomizer";
 import Speakable from "../components/Speakable";
 import { QUICK_ACCESS_SLOTS, useQuickAccess } from "../components/QuickAccessContext";
-import { PROFILE_DEFAULTS, PROFILE_SPEEDS, usePersonalization, type PersonalizationConfig } from "../components/PersonalizationContext";
+import { PROFILE_SPEEDS, usePersonalization, type PersonalizationConfig } from "../components/PersonalizationContext";
 import { Empty, Page } from "../components/Page";
 
 const PRESETS: Record<string, Partial<PersonalizationConfig>> = {
@@ -46,15 +46,17 @@ export default function Personalization() {
     return <Page title="My Profile" subtitle="Loading your personal communication workspace."><div className="loading-page">Loading profile…</div></Page>;
   }
 
+  const profile = activeProfile;
+
   async function createNamedProfile(name: string, preset?: Partial<PersonalizationConfig>) {
     const seed: PersonalizationConfig = {
-      ...activeProfile.config,
+      ...profile.config,
       ...preset,
-      avatar: { ...activeProfile.config.avatar },
-      quickAccess: preset?.quickAccess ? Array.from({ length: 10 }, (_, i) => preset.quickAccess?.[i] || null) : [...activeProfile.config.quickAccess],
-      favorites: preset?.favorites ? [...preset.favorites] : [...activeProfile.config.favorites],
-      signingSpeed: preset?.signingSpeed || activeProfile.config.signingSpeed,
-      ttsVoice: preset?.ttsVoice ?? activeProfile.config.ttsVoice,
+      avatar: { ...profile.config.avatar },
+      quickAccess: preset?.quickAccess ? Array.from({ length: 10 }, (_, i) => preset.quickAccess?.[i] || null) : [...profile.config.quickAccess],
+      favorites: preset?.favorites ? [...preset.favorites] : [...profile.config.favorites],
+      signingSpeed: preset?.signingSpeed || profile.config.signingSpeed,
+      ttsVoice: preset?.ttsVoice ?? profile.config.ttsVoice,
     };
     try {
       await createProfile(name, seed);
@@ -66,7 +68,7 @@ export default function Personalization() {
   }
 
   async function saveName() {
-    if (!nameDraft.trim() || nameDraft.trim() === activeProfile.name) return;
+    if (!nameDraft.trim() || nameDraft.trim() === profile.name) return;
     try {
       await renameProfile(nameDraft);
       setMessage("Profile name saved.");
@@ -76,9 +78,9 @@ export default function Personalization() {
   }
 
   async function removeProfile() {
-    if (!window.confirm("Delete the profile " + activeProfile.name + "?")) return;
+    if (!window.confirm("Delete the profile " + profile.name + "?")) return;
     try {
-      await deleteProfile(activeProfile.id);
+      await deleteProfile(profile.id);
       setMessage("Profile deleted.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Profile could not be deleted.");
@@ -111,7 +113,7 @@ export default function Personalization() {
               <button
                 type="button"
                 key={profile.id}
-                className={profile.id === activeProfile.id ? "profile-card active" : "profile-card"}
+                className={profile.id === profile.id ? "profile-card active" : "profile-card"}
                 onClick={() => void switchProfile(profile.id)}
               >
                 <span className="profile-card-index">{String(profiles.indexOf(profile) + 1).padStart(2, "0")}</span>
@@ -139,12 +141,12 @@ export default function Personalization() {
         <div className="profile-two-column">
           <section className="panel profile-identity-panel">
             <div className="eyebrow">ACTIVE PROFILE</div>
-            <h2>{activeProfile.name}</h2>
+            <h2>{profile.name}</h2>
             <div className="profile-name-editor">
               <label>PROFILE NAME
                 <input value={nameDraft} onChange={(event) => setNameDraft(event.target.value)} maxLength={80} />
               </label>
-              <button type="button" className="primary-btn" onClick={() => void saveName()} disabled={saving || !nameDraft.trim() || nameDraft.trim() === activeProfile.name}>Save name</button>
+              <button type="button" className="primary-btn" onClick={() => void saveName()} disabled={saving || !nameDraft.trim() || nameDraft.trim() === profile.name}>Save name</button>
             </div>
             <button type="button" className="danger-btn profile-delete" onClick={() => void removeProfile()} disabled={saving || profiles.length <= 1}>Delete profile</button>
             <p className="muted profile-tip">Keep one profile for everyday communication. Home, Work, School, Clinic, Family, or any context you use repeatedly can each have their own vocabulary rhythm.</p>
@@ -155,12 +157,12 @@ export default function Personalization() {
             <h2>Speed & voice</h2>
             <div className="profile-preference-form">
               <label>SIGNING SPEED
-                <select value={activeProfile.config.signingSpeed} onChange={(event) => void updateConfig({ signingSpeed: Number(event.target.value) })}>
+                <select value={profile.config.signingSpeed} onChange={(event) => void updateConfig({ signingSpeed: Number(event.target.value) })}>
                   {PROFILE_SPEEDS.map((speed) => <option key={speed} value={speed}>{speed}×</option>)}
                 </select>
               </label>
               <label>PREFERRED VOICE
-                <select value={activeProfile.config.ttsVoice || ""} onChange={(event) => void updateConfig({ ttsVoice: event.target.value || null })}>
+                <select value={profile.config.ttsVoice || ""} onChange={(event) => void updateConfig({ ttsVoice: event.target.value || null })}>
                   <option value="">Browser default</option>
                   {voices.map((voice) => <option key={voice.voiceURI || voice.name} value={voice.name}>{voice.name} · {voice.lang}</option>)}
                 </select>
@@ -170,7 +172,7 @@ export default function Personalization() {
           </section>
         </div>
 
-        <AvatarCustomizer value={activeProfile.config.avatar} onChange={(avatar) => void updateConfig({ avatar })} />
+        <AvatarCustomizer value={profile.config.avatar} onChange={(avatar) => void updateConfig({ avatar })} />
 
         <section className="panel quick-profile-panel">
           <div className="panel-head">
@@ -202,7 +204,7 @@ export default function Personalization() {
             ))}
           </div>
           <datalist id="visionbridge-wordbank-options">
-            {activeProfile.config.favorites.map((item) => <option key={item} value={item} />)}
+            {profile.config.favorites.map((item) => <option key={item} value={item} />)}
           </datalist>
         </section>
 
@@ -215,9 +217,9 @@ export default function Personalization() {
               </div>
               <Link to="/word-bank" className="text-btn">Browse Word Bank →</Link>
             </div>
-            {activeProfile.config.favorites.length ? (
+            {profile.config.favorites.length ? (
               <div className="favorite-list">
-                {activeProfile.config.favorites.map((phrase) => (
+                {profile.config.favorites.map((phrase) => (
                   <div className="favorite-row" key={phrase}>
                     <Speakable text={phrase} className="favorite-speak" />
                     <button type="button" className="text-btn danger-text" onClick={() => void toggleFavorite(phrase)}>Remove</button>
