@@ -1,3 +1,5 @@
+const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, type LetterSample } from "../api";
