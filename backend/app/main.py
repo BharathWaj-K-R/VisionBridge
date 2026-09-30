@@ -4,7 +4,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, dashboard, health, history, letter, users
+from app.api import auth, communication, dashboard, health, history, letter, users
 from app.core.config import get_settings
 from app.core.csrf import validate_csrf
 from app.db.session import Base, engine
@@ -58,6 +58,7 @@ app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
 app.include_router(letter.router, prefix=settings.API_V1_PREFIX)
 app.include_router(dashboard.router, prefix=settings.API_V1_PREFIX)
 app.include_router(history.router, prefix=settings.API_V1_PREFIX)
+app.include_router(communication.router, prefix=settings.API_V1_PREFIX)
 app.include_router(users.router, prefix=settings.API_V1_PREFIX)
 
 
