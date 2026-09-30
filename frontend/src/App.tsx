@@ -9,6 +9,7 @@ const Recognize = lazy(() => import("./pages/Recognize"));
 const Calibration = lazy(() => import("./pages/Calibration"));
 const History = lazy(() => import("./pages/History"));
 const Settings = lazy(() => import("./pages/Settings"));
+const VoiceToSign = lazy(() => import("./pages/VoiceToSign"));
 
 const navItems = [
   ["/dashboard", "Dashboard"],
@@ -16,6 +17,7 @@ const navItems = [
   ["/calibration", "Few-Shot Calibration"],
   ["/history", "Letter History"],
   ["/settings", "Signer Profiles"],
+  ["/voice-to-sign", "Voice to Sign"],
 ] as const;
 
 function Shell({ children, username, onLogout }: { children: ReactNode; username?: string; onLogout: () => void }) {
@@ -84,6 +86,7 @@ export default function App() {
     <Route path="/calibration" element={<Calibration />} />
     <Route path="/history" element={<History />} />
     <Route path="/settings" element={<Settings />} />
+    <Route path="/voice-to-sign" element={<VoiceToSign />} />
     <Route path="*" element={<NotFound />} />
   </Routes></Suspense></Shell>;
 }
