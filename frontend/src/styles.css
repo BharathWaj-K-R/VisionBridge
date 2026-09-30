@@ -456,3 +456,10 @@ html[data-theme="dark"] .danger-btn:hover{background:#ffb2b2;color:#111}
   .nav-list{display:flex;overflow-x:auto;overflow-y:hidden;width:100%;gap:2px}
   .nav-link{flex:0 0 70px}
 }
+
+.queue-token.speakable{display:inline-flex;justify-content:center;min-width:38px;height:42px;padding:0 7px}
+.queue-token.speakable span{font:700 18px "Newsreader",Georgia,serif}
+.queue-token.speakable small{font-size:6px}
+.current-sign-speakable{width:auto;margin-left:auto;color:var(--button-text);border-color:transparent}
+.current-sign-speakable span{font:700 25px/1 "Newsreader",Georgia,serif}
+.current-sign-speakable small{color:var(--button-text);opacity:.7}
