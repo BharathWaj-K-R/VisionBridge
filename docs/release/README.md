@@ -4,41 +4,34 @@
 
 The active release is `visionbridge-letter-base-v3`.
 
-The release remains **blocked** until production database binding and custom-auth RLS are backed by real runtime evidence. The V3 checkpoint, evaluation evidence, browser/PyTorch parity, and release-hardening tests are now verified.
+**Release status: READY WITH LIMITATIONS.**
 
-## Verified evidence
+Verified gates:
+- V3 checkpoint present and SHA-256 verified.
+- Held-out test evidence: 98.143751% overall accuracy, 98.167981% macro accuracy.
+- Model contract: `126 -> 128 -> 64 -> 26`.
+- Browser/PyTorch parity passed on 32 samples at `1e-5` tolerance.
+- Release-hardening suite: 5/5 passed.
+- Render production database binding verified as Supabase pooler PostgreSQL.
+- Render effective execution role verified as `visionbridge_app` with `BYPASSRLS=false`.
+- RLS enabled on all seven application tables with custom FastAPI JWT/cookie context.
 
-- Checkpoint: `backend/app/models/weights/letter_base_model.pt`
-- Checkpoint SHA-256: `03bcb9f08d44025a025f78a08d68b2303b231270395117815ffcb322ca090cdf`
-- Held-out test samples: 4633
-- Overall accuracy: 98.143751%
-- Macro accuracy: 98.167981%
-- Weakest recorded letter: W at 72.625698%
-- Model contract: `126 -> 128 -> 64 -> 26`
-- Browser/PyTorch parity: 32 samples, embedding max error `1.9669532775878906e-06`, logits max error `3.814697265625e-06`, tolerance `1e-5`, passed
-- Release-hardening tests: 5/5 passed
+## Known limitations
 
-Parity evidence is retained at `docs/release/visionbridge-v3-browser-parity.json`.
+- W is the weakest recorded class at 72.625698% accuracy.
+- Signer-independent evaluation remains blocked because the active RealSign metadata does not expose verified signer IDs.
+- Product scope remains browser-based A-Z letter recognition with optional few-shot signer adaptation. It is not a claim of sentence-level/full ISL translation.
 
-## Remaining blockers
+## Evidence artifacts
 
-1. Verify the sanitized live Render startup log identifies the production database as the VisionBridge Supabase PostgreSQL instance.
-2. Replace the current `postgres` production application connection with a dedicated non-bypass RLS role and implement transaction-local custom-auth identity context.
-3. Enable and test RLS only after the dedicated role and policy suite are proven.
-4. Signer-independent evaluation remains blocked because the active RealSign metadata does not expose verified signer IDs.
+- `docs/release/visionbridge-v3-release-gate.json`
+- `docs/release/visionbridge-v3-browser-parity.json`
+- `docs/release/visionbridge-custom-auth-rls-verification.json`
+- `docs/release/visionbridge-custom-auth-rls-plan.md`
+- `supabase/migrations/20260930103000_custom_auth_rls.sql`
 
-## Commands
+## Release maintenance
 
-```bash
-PYTHONPATH=backend python backend/scripts/verify_browser_parity.py \
-  --checkpoint backend/app/models/weights/letter_base_model.pt \
-  --samples 32 \
-  --tolerance 1e-5 \
-  --output-json docs/release/visionbridge-v3-browser-parity.json
-
-PYTHONPATH=backend pytest -q backend/tests/test_release_hardening.py
-```
-
-The release gate manifest is `docs/release/visionbridge-v3-release-gate.json`.
+Add and run a dedicated pgTAP RLS suite through the Supabase CLI/CI. This is release-maintenance hardening, not a product feature. Until that suite is run, the RLS gate is runtime-verified but not pgTAP-verified.
 
 Do not claim signer-independent evaluation, and do not hide the W-class weakness behind aggregate accuracy.
