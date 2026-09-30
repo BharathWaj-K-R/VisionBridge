@@ -190,7 +190,6 @@ export const api = {
     setSessionHint();
     return token;
   },
-  googleLogin: (): void => { window.location.assign(API_BASE + "/auth/google"); },
   logout: async (): Promise<void> => {
     if (LOCAL_MODE) {
       clearLocalAuth();
