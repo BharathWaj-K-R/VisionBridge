@@ -101,8 +101,8 @@ export type User = { id: number; username: string; created_at: string };
 export type Token = { access_token: string; token_type: string };
 export type LetterSample = { letter: string; hand_keypoints: number[] };
 export type LetterCalibrationResult = { adapter_id: number; letters: string[]; shots: Record<string, number>; param_count: number };
-export type LetterPredictionResult = { predicted_letter: string; confidence: number; latency_ms: number; adapter_id: number };
-export type LetterRecognitionEvent = { user_id: number; adapter_id: number; predicted_letter: string; confidence: number; latency_ms: number; };
+export type LetterPredictionResult = { predicted_letter: string; confidence: number; latency_ms: number; adapter_id: number | null; mode: "base" | "adapter" };
+export type LetterRecognitionEvent = { user_id: number; adapter_id: number | null; predicted_letter: string; confidence: number; latency_ms: number; };
 
 function localUser(username?: string): User {
   const raw = localStorage.getItem(LOCAL_USER_KEY);
@@ -298,19 +298,19 @@ export const api = {
     });
   },
 
-  letterPredict: async (userId: number, adapterId: number, handKeypoints: number[]): Promise<LetterPredictionResult> => {
+  letterPredict: async (userId: number, adapterId: number | undefined, handKeypoints: number[]): Promise<LetterPredictionResult> => {
     const started = performance.now();
     if (LOCAL_MODE) {
-      const adapter = localLetterAdapters().find((item) => item.id === adapterId);
+      if (adapterId == null) throw new Error("The local demo does not bundle the V3 base-model weights; use the deployed browser runtime for base-model inference.");\n      const adapter = localLetterAdapters().find((item) => item.id === adapterId);
       if (!adapter) throw new Error("Choose a calibrated signer adapter first.");
       const result = localPredict(adapter, handKeypoints);
       const latency = performance.now() - started;
-      return { ...result, latency_ms: latency, adapter_id: adapterId };
+      return { ...result, latency_ms: latency, adapter_id: adapterId, mode: "adapter" };
 
     }
     return request<LetterPredictionResult>("/letter/predict", {
       method: "POST",
-      body: JSON.stringify({ user_id: userId, adapter_id: adapterId, hand_keypoints: handKeypoints }),
+      body: JSON.stringify({ user_id: userId, adapter_id: adapterId ?? null, hand_keypoints: handKeypoints }),
     });
   },
 };
