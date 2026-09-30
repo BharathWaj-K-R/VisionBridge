@@ -588,11 +588,6 @@ export function drawHands(
     if (left?.length) drawNeonHand(context, left, width, height, "LEFT", mirrorX, traces.left);
     if (right?.length) drawNeonHand(context, right, width, height, "RIGHT", mirrorX, traces.right);
   }
-
-  if (visual !== "anatomy" && visual !== "holographic") {
-    if (left?.length) drawNeonHand(context, left, width, height, "LEFT", mirrorX, traces.left);
-    if (right?.length) drawNeonHand(context, right, width, height, "RIGHT", mirrorX, traces.right);
-  }
 }
 
 export async function createHands(
