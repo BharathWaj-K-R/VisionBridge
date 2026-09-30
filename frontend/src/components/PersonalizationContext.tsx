@@ -111,6 +111,9 @@ export function PersonalizationProvider({ children }: { children: ReactNode }) {
   const [mostUsed, setMostUsed] = useState<Array<{ phrase: string; usage_count: number; last_used_at?: string }>>([]);
   const [error, setError] = useState("");
   const bootstrapRef = useRef(false);
+  const profileWriteQueueRef = useRef(Promise.resolve());
+  const pendingWritesRef = useRef(0);
+  const profilesRef = useRef<PersonalizationProfile[]>([]);
 
   const loadVoices = () => {
     if (!("speechSynthesis" in window)) return;
@@ -143,6 +146,7 @@ export function PersonalizationProvider({ children }: { children: ReactNode }) {
       }
       const normalized = items.map((item) => ({ ...item, config: normalizeConfig(item.config) }));
       setProfiles(normalized);
+      profilesRef.current = normalized;
 
       const stored = Number(localStorage.getItem(localActiveKey()) || "");
       const nextId = normalized.some((item) => item.id === stored) ? stored : normalized[0].id;
@@ -186,7 +190,7 @@ export function PersonalizationProvider({ children }: { children: ReactNode }) {
       ...PROFILE_DEFAULTS,
     }));
     const profile = { ...created, config: normalizeConfig(created.config) } as PersonalizationProfile;
-    setProfiles((items) => [...items, profile]);
+    setProfiles((items) => { const next = [...items, profile]; profilesRef.current = next; return next; });
     setActiveId(profile.id);
     localStorage.setItem(localActiveKey(), String(profile.id));
   };
@@ -197,7 +201,7 @@ export function PersonalizationProvider({ children }: { children: ReactNode }) {
     try {
       const updated = await api.updateProfile(activeProfile.id, name, activeProfile.config);
       const profile = { ...updated, config: normalizeConfig(updated.config) } as PersonalizationProfile;
-      setProfiles((items) => items.map((item) => item.id === profile.id ? profile : item));
+      setProfiles((items) => { const next = items.map((item) => item.id === profile.id ? profile : item); profilesRef.current = next; return next; });
     } finally {
       setSaving(false);
     }
@@ -210,6 +214,7 @@ export function PersonalizationProvider({ children }: { children: ReactNode }) {
       await api.deleteProfile(id);
       const remaining = profiles.filter((item) => item.id !== id);
       setProfiles(remaining);
+      profilesRef.current = remaining;
       if (id === activeId) {
         const next = remaining[0];
         setActiveId(next.id);
@@ -220,22 +225,52 @@ export function PersonalizationProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const updateConfig = async (patch: Partial<PersonalizationConfig>) => {
-    if (!activeProfile) return;
-    const previousConfig = activeProfile.config;
-    const nextConfig = normalizeConfig({ ...previousConfig, ...patch });
+  const updateConfig = (patch: Partial<PersonalizationConfig>) => {
+    if (!activeProfile) return Promise.resolve();
+    const profileId = activeProfile.id;
+    pendingWritesRef.current += 1;
     setSaving(true);
-    setProfiles((items) => items.map((item) => item.id === activeProfile.id ? { ...item, config: nextConfig } : item));
-    try {
-      const updated = await api.updateProfile(activeProfile.id, activeProfile.name, nextConfig);
-      const profile = { ...updated, config: normalizeConfig(updated.config) } as PersonalizationProfile;
-      setProfiles((items) => items.map((item) => item.id === profile.id ? profile : item));
-    } catch (reason) {
-      setProfiles((items) => items.map((item) => item.id === activeProfile.id ? { ...item, config: previousConfig } : item));
-      throw reason;
-    } finally {
-      setSaving(false);
-    }
+
+    const queued = profileWriteQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        const current = profilesRef.current.find((item) => item.id === profileId);
+        if (!current) throw new Error("Profile is no longer available.");
+        const previousConfig = current.config;
+        const nextConfig = normalizeConfig({ ...previousConfig, ...patch });
+
+        setProfiles((items) => {
+          const next = items.map((item) => item.id === profileId ? { ...item, config: nextConfig } : item);
+          profilesRef.current = next;
+          return next;
+        });
+
+        try {
+          const updated = await api.updateProfile(profileId, current.name, nextConfig);
+          const profile = { ...updated, config: normalizeConfig(updated.config) } as PersonalizationProfile;
+          setProfiles((items) => {
+            const next = items.map((item) => item.id === profile.id ? profile : item);
+            profilesRef.current = next;
+            return next;
+          });
+        } catch (reason) {
+          setProfiles((items) => {
+            const latest = items.find((item) => item.id === profileId);
+            const shouldRollback = latest?.config === nextConfig;
+            if (!shouldRollback) return items;
+            const next = items.map((item) => item.id === profileId ? { ...item, config: previousConfig } : item);
+            profilesRef.current = next;
+            return next;
+          });
+          throw reason;
+        }
+      });
+
+    profileWriteQueueRef.current = queued.then(() => undefined, () => undefined);
+    return queued.finally(() => {
+      pendingWritesRef.current -= 1;
+      if (pendingWritesRef.current === 0) setSaving(false);
+    });
   };
 
   const toggleFavorite = async (phrase: string) => {
