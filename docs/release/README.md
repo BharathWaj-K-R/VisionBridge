@@ -4,6 +4,8 @@
 
 The active release is `visionbridge-letter-base-v3`.
 
+Public baseline statement and human verification checklist: `docs/release/visionbridge-v3-public-baseline.md`.
+
 **Release status: READY WITH LIMITATIONS.**
 
 Verified gates:
