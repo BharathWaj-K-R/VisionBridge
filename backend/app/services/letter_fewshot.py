@@ -172,13 +172,7 @@ def save_prototype_adapter(payload: dict) -> str:
     return str(target)
 
 
-def load_prototype_adapter(weights_path: str, base_model_path: str | Path) -> dict:
-    root = Path(settings.ADAPTER_WEIGHTS_DIR).resolve()
-    candidate = Path(weights_path).resolve()
-    if root not in candidate.parents or not candidate.is_file():
-        raise FileNotFoundError("Letter adapter is unavailable")
-
-    payload = json.loads(candidate.read_text(encoding="utf-8"))
+def validate_prototype_adapter_payload(payload: dict, base_model_path: str | Path) -> dict:
     if (
         payload.get("version") != 4
         or payload.get("method") != "dynamic-base-embedding-prototype"
@@ -221,6 +215,19 @@ def load_prototype_adapter(weights_path: str, base_model_path: str | Path) -> di
             raise ValueError("Letter adapter prototype is incompatible with the current model")
 
     return payload
+
+
+def load_prototype_adapter(weights_path: str, base_model_path: str | Path) -> dict:
+    root = Path(settings.ADAPTER_WEIGHTS_DIR).resolve()
+    candidate = Path(weights_path).resolve()
+    if root not in candidate.parents or not candidate.is_file():
+        raise FileNotFoundError("Letter adapter is unavailable")
+
+    try:
+        payload = json.loads(candidate.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError("Letter adapter could not be decoded") from exc
+    return validate_prototype_adapter_payload(payload, base_model_path)
 
 def predict_letter(
     base_model: VisionBridgeLetterBaseModel,
