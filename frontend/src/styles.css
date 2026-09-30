@@ -745,3 +745,5 @@ html[data-theme="dark"]{
   .quick-profile-speak{display:none}
   .avatar-customizer-grid{grid-template-columns:1fr}
 }
+
+.skeleton-overlay{transform:scaleX(-1);transform-origin:center;}
