@@ -9,6 +9,7 @@ import { Empty, Page } from "../components/Page";
 export default function Recognize() {
   const configuredFps = Number(localStorage.getItem("visionbridge_camera_fps") || "30");
   const session = useLandmarkSession(configuredFps);
+  const latestFrame = session.latestFrame;
   useEffect(() => {
     if (localStorage.getItem("visionbridge_auto_camera") === "1" && !session.running) {
       void session.start().catch(() => undefined);
@@ -78,7 +79,7 @@ export default function Recognize() {
   useEffect(() => {
     const intervalMs = import.meta.env.VITE_LOCAL_MODE !== "false" ? 220 : 33;
     const timer = window.setInterval(() => {
-      const frame = session.latestFrame();
+      const frame = latestFrame();
       if (!userId || !frame || (!frame.leftVisible && !frame.rightVisible)) return;
       const raw = [...frame.leftHand, ...frame.rightHand];
 
@@ -137,7 +138,7 @@ export default function Recognize() {
       }
     }, intervalMs);
     return () => window.clearInterval(timer);
-  }, [adapterId, session, userId]);
+  }, [adapterId, latestFrame, userId]);
 
   const activeAdapter = adapters.find((item) => item.id === adapterId);
 
