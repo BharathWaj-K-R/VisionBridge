@@ -286,6 +286,7 @@ export const api = {
     try {
       return await request<any>("/communication/words/" + id, { method: "PUT", body: JSON.stringify({ phrase, category }) });
     } catch (error) {
+      if (!isTransportError(error)) throw error;
       const items = localCustomWords();
       const next = items.map((item) => item.id === id ? { ...item, phrase: phrase.trim(), category: category.trim(), updated_at: new Date().toISOString() } : item);
       saveLocalCustomWords(next);
@@ -304,7 +305,8 @@ export const api = {
   },
   profiles: async (): Promise<any[]> => {
     if (LOCAL_MODE) return localProfiles();
-    try { return await request<any[]>("/communication/profiles"); } catch { return localProfiles(); }
+    try { return await request<any[]>("/communication/profiles"); }
+    catch (error) { if (!isTransportError(error)) throw error; return localProfiles(); }
   },
   createProfile: async (name: string, config: any): Promise<any> => {
     if (LOCAL_MODE) {
@@ -314,7 +316,8 @@ export const api = {
       return profile;
     }
     try { return await request<any>("/communication/profiles", { method: "POST", body: JSON.stringify({ name, config }) }); }
-    catch {
+    catch (error) {
+      if (!isTransportError(error)) throw error;
       const items = localProfiles();
       const profile = { id: Date.now(), name: name.trim(), config, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
       saveLocalProfiles([...items, profile]);
@@ -328,7 +331,8 @@ export const api = {
       return items.find((item) => item.id === id);
     }
     try { return await request<any>("/communication/profiles/" + id, { method: "PUT", body: JSON.stringify({ name, config }) }); }
-    catch {
+    catch (error) {
+      if (!isTransportError(error)) throw error;
       const items = localProfiles().map((item) => item.id === id ? { ...item, name: name.trim(), config, updated_at: new Date().toISOString() } : item);
       saveLocalProfiles(items);
       const item = items.find((item) => item.id === id);
@@ -392,7 +396,8 @@ export const api = {
         method: "PUT",
         body: JSON.stringify({ slots: normalized }),
       });
-    } catch {
+    } catch (error) {
+      if (!isTransportError(error)) throw error;
       saveLocalQuickAccess(normalized);
       return { slots: normalized };
     }
