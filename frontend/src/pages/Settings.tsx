@@ -10,8 +10,8 @@ export default function Settings() {
   const [cameraFps, setCameraFps] = useState(localStorage.getItem("visionbridge_camera_fps") || "30");
   const [autoStart, setAutoStart] = useState(localStorage.getItem("visionbridge_auto_camera") === "1");
   const [saved, setSaved] = useState(false);
-  const refresh = () => Promise.all([api.me(), api.letterAdapters()]).then(([u,a]) => { setUser(u); setAdapters(a); });
-  useEffect(() => { refresh(); }, []);
+  const refresh = () => Promise.all([api.me(), api.letterAdapters()]).then(([u,a]) => { setUser(u); setAdapters(a); }).catch(() => { setUser(undefined); setAdapters([]); });
+  useEffect(() => { void refresh(); }, []);
   const savePreferences = () => {
     localStorage.setItem("visionbridge_theme", theme);
     localStorage.setItem("visionbridge_camera_fps", cameraFps);
