@@ -11,6 +11,9 @@ const LOCAL_LETTER_ADAPTERS_KEY = "visionbridge_letter_adapters";
 const LOCAL_HISTORY_KEY = "visionbridge_letter_history";
 const LOCAL_CUSTOM_WORDS_KEY = "visionbridge_custom_words";
 const LOCAL_QUICK_ACCESS_KEY = "visionbridge_quick_access";
+const LOCAL_PROFILES_KEY = "visionbridge_personalization_profiles";
+const LOCAL_ACTIVE_PROFILE_KEY = "visionbridge_active_profile_id";
+const LOCAL_USAGE_KEY = "visionbridge_communication_usage";
 const SESSION_HINT_KEY = "visionbridge_session_hint";
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
@@ -156,6 +159,18 @@ function localQuickAccess(): Array<string | null> {
 function saveLocalQuickAccess(items: Array<string | null>): void {
   localStorage.setItem(localScopeKey(LOCAL_QUICK_ACCESS_KEY), JSON.stringify(Array.from({ length: 10 }, (_, index) => items[index] || null)));
 }
+function localProfiles(): any[] {
+  try { return JSON.parse(localStorage.getItem(localScopeKey(LOCAL_PROFILES_KEY)) || "[]") as any[]; } catch { return []; }
+}
+function saveLocalProfiles(items: any[]): void {
+  localStorage.setItem(localScopeKey(LOCAL_PROFILES_KEY), JSON.stringify(items));
+}
+function localUsage(): Record<string, { count: number; lastUsedAt: string }> {
+  try { return JSON.parse(localStorage.getItem(localScopeKey(LOCAL_USAGE_KEY)) || "{}") as Record<string, { count: number; lastUsedAt: string }>; } catch { return {}; }
+}
+function saveLocalUsage(items: Record<string, { count: number; lastUsedAt: string }>): void {
+  localStorage.setItem(localScopeKey(LOCAL_USAGE_KEY), JSON.stringify(items));
+}
 let browserModelPromise: Promise<BrowserLetterModel> | null = null;
 
 
@@ -279,6 +294,76 @@ export const api = {
     }
     try { await request<any>("/communication/words/" + id, { method: "DELETE" }); }
     catch { saveLocalCustomWords(localCustomWords().filter((item) => item.id !== id)); }
+  },
+  profiles: async (): Promise<any[]> => {
+    if (LOCAL_MODE) return localProfiles();
+    try { return await request<any[]>("/communication/profiles"); } catch { return localProfiles(); }
+  },
+  createProfile: async (name: string, config: any): Promise<any> => {
+    if (LOCAL_MODE) {
+      const items = localProfiles();
+      const profile = { id: Date.now(), name: name.trim(), config, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+      saveLocalProfiles([...items, profile]);
+      return profile;
+    }
+    try { return await request<any>("/communication/profiles", { method: "POST", body: JSON.stringify({ name, config }) }); }
+    catch {
+      const items = localProfiles();
+      const profile = { id: Date.now(), name: name.trim(), config, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+      saveLocalProfiles([...items, profile]);
+      return profile;
+    }
+  },
+  updateProfile: async (id: number, name: string, config: any): Promise<any> => {
+    if (LOCAL_MODE) {
+      const items = localProfiles().map((item) => item.id === id ? { ...item, name: name.trim(), config, updated_at: new Date().toISOString() } : item);
+      saveLocalProfiles(items);
+      return items.find((item) => item.id === id);
+    }
+    try { return await request<any>("/communication/profiles/" + id, { method: "PUT", body: JSON.stringify({ name, config }) }); }
+    catch {
+      const items = localProfiles().map((item) => item.id === id ? { ...item, name: name.trim(), config, updated_at: new Date().toISOString() } : item);
+      saveLocalProfiles(items);
+      const item = items.find((item) => item.id === id);
+      if (!item) throw new Error("Profile not found.");
+      return item;
+    }
+  },
+  deleteProfile: async (id: number): Promise<void> => {
+    if (LOCAL_MODE) {
+      saveLocalProfiles(localProfiles().filter((item) => item.id !== id));
+      return;
+    }
+    try { await request<any>("/communication/profiles/" + id, { method: "DELETE" }); }
+    catch { saveLocalProfiles(localProfiles().filter((item) => item.id !== id)); }
+  },
+  recordUsage: async (phrase: string): Promise<void> => {
+    const value = phrase.trim();
+    if (!value) return;
+    if (LOCAL_MODE) {
+      const items = localUsage();
+      const previous = items[value] || { count: 0, lastUsedAt: "" };
+      items[value] = { count: previous.count + 1, lastUsedAt: new Date().toISOString() };
+      saveLocalUsage(items);
+      return;
+    }
+    try { await request<any>("/communication/usage", { method: "POST", body: JSON.stringify({ phrase: value }) }); }
+    catch {
+      const items = localUsage();
+      const previous = items[value] || { count: 0, lastUsedAt: "" };
+      items[value] = { count: previous.count + 1, lastUsedAt: new Date().toISOString() };
+      saveLocalUsage(items);
+    }
+  },
+  mostUsed: async (): Promise<any[]> => {
+    if (LOCAL_MODE) {
+      const items = localUsage();
+      return Object.entries(items)
+        .sort((a, b) => b[1].count - a[1].count || b[1].lastUsedAt.localeCompare(a[1].lastUsedAt))
+        .slice(0, 12)
+        .map(([phrase, value]) => ({ phrase, usage_count: value.count, last_used_at: value.lastUsedAt }));
+    }
+    try { return await request<any[]>("/communication/most-used"); } catch { return []; }
   },
   quickAccess: async (): Promise<{ slots: Array<string | null> }> => {
     if (LOCAL_MODE) return { slots: localQuickAccess() };
