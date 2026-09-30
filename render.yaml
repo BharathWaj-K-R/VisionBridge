@@ -24,7 +24,7 @@ services:
     runtime: static
     rootDir: frontend
     buildCommand: npm ci && npm run build
-    staticPublishPath: ./frontend/dist
+    staticPublishPath: dist
     envVars:
       - key: NODE_VERSION
         value: 20.19.5
