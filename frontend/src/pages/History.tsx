@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { Empty, Loading, Page } from "../components/Page";
+import Speakable from "../components/Speakable";
 
 export default function History() {
   const [data, setData] = useState<any>();
@@ -83,7 +84,7 @@ export default function History() {
                 {rows.map((row: any) => (
                   <tr key={row.id}>
                     <td>{new Date(row.created_at).toLocaleString()}</td>
-                    <td><strong>{row.predicted_text}</strong></td>
+                    <td><Speakable text={row.predicted_text} className="history-speakable" /></td>
                     <td>{Math.round((row.confidence || 0) * 100)}%</td>
                     <td>{Math.round(row.latency_ms || 0)} ms</td>
                   </tr>
