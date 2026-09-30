@@ -186,11 +186,14 @@ async def google_callback(
     except (httpx.HTTPError, KeyError, ValueError):
         return RedirectResponse(settings.FRONTEND_URL + "/login?oauth_error=google_exchange_failed")
 
+    google_sub = str(profile.get("sub") or "").strip()
     email = str(profile.get("email") or "").strip().lower()
-    if not email or profile.get("email_verified") is not True:
+    if not google_sub or not email or profile.get("email_verified") is not True:
         return RedirectResponse(settings.FRONTEND_URL + "/login?oauth_error=email_not_verified")
 
-    user = db.query(User).filter(User.email == email).first()
+    user = db.query(User).filter(User.google_sub == google_sub).first()
+    if user is None:
+        user = db.query(User).filter(User.email == email).first()
     if user is None:
         base = "".join(ch for ch in email.split("@")[0] if ch.isalnum() or ch in "._-").strip("._-") or "googleuser"
         username = base[:110]
@@ -201,13 +204,17 @@ async def google_callback(
         user = User(
             username=username,
             email=email,
+            google_sub=google_sub,
             hashed_password=hash_password(secrets.token_urlsafe(32)),
         )
         db.add(user)
         db.commit()
         db.refresh(user)
 
-    response = RedirectResponse(settings.FRONTEND_URL + "/dashboard")
+    if user.google_sub is None:
+        user.google_sub = google_sub
+        db.commit()
+    response = RedirectResponse(settings.FRONTEND_URL + "/login?oauth_success=1")
     _set_session_cookie(response, user.id)
     response.delete_cookie(
         key=GOOGLE_STATE_COOKIE,
