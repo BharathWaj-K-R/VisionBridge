@@ -9,9 +9,14 @@ const LOCAL_USER_KEY = "visionbridge_user";
 const LOCAL_AUTH_KEY = "visionbridge_local_auth";
 const LOCAL_LETTER_ADAPTERS_KEY = "visionbridge_letter_adapters";
 const LOCAL_HISTORY_KEY = "visionbridge_letter_history";
+const SESSION_HINT_KEY = "visionbridge_session_hint";
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 let csrfTokenMemory: string | null = null;
+
+export function hasSessionHint(): boolean { return localStorage.getItem(SESSION_HINT_KEY) === "1"; }
+export function setSessionHint(): void { localStorage.setItem(SESSION_HINT_KEY, "1"); }
+export function clearSessionHint(): void { localStorage.removeItem(SESSION_HINT_KEY); }
 
 export function isLocalAuthenticated(): boolean {
   return LOCAL_MODE && localStorage.getItem(LOCAL_AUTH_KEY) === "1";
@@ -19,6 +24,7 @@ export function isLocalAuthenticated(): boolean {
 
 export function clearLocalAuth(): void {
   localStorage.removeItem(LOCAL_AUTH_KEY);
+  clearSessionHint();
   localStorage.removeItem(LOCAL_USER_KEY);
   csrfTokenMemory = null;
 }
@@ -176,12 +182,15 @@ function localPredict(adapter: any, raw: number[]) {
 }
 
 export const api = {
-  register: async (username: string, password: string): Promise<User> =>
-    LOCAL_MODE ? localUser(username) : request<User>("/auth/register", { method: "POST", body: JSON.stringify({ username, password }) }),
-  login: async (username: string, password: string): Promise<Token> => {
-    if (LOCAL_MODE) { localUser(username); localStorage.setItem(LOCAL_AUTH_KEY, "1"); return { access_token: "visionbridge-local-token", token_type: "bearer" }; }
-    return request<Token>("/auth/login", { method: "POST", body: JSON.stringify({ username, password }) });
+  register: async (username: string, email: string, password: string): Promise<User> =>
+    LOCAL_MODE ? localUser(username) : request<User>("/auth/register", { method: "POST", body: JSON.stringify({ username, email, password }) }),
+  login: async (identifier: string, password: string): Promise<Token> => {
+    if (LOCAL_MODE) { localUser(identifier); localStorage.setItem(LOCAL_AUTH_KEY, "1"); setSessionHint(); return { access_token: "visionbridge-local-token", token_type: "bearer" }; }
+    const token = await request<Token>("/auth/login", { method: "POST", body: JSON.stringify({ identifier, password }) });
+    setSessionHint();
+    return token;
   },
+  googleLogin: (): void => { window.location.assign(API_BASE + "/auth/google"); },
   logout: async (): Promise<void> => {
     if (LOCAL_MODE) {
       clearLocalAuth();
