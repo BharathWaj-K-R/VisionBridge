@@ -158,7 +158,8 @@ export default function SpeechRecognizer({
     try {
       recognition.start();
     } catch {
-      callbacksRef.current.onListeningChange(true);
+      callbacksRef.current.onListeningChange(false);
+      callbacksRef.current.onError("Speech recognition could not start. Check microphone permission and try again.");
     }
   };
 
