@@ -52,6 +52,8 @@ def create_custom_word(
 ):
     phrase = payload.phrase.strip()
     category = payload.category.strip()
+    if not phrase or not category:
+        raise HTTPException(status_code=422, detail="Phrase and category are required.")
     exists = (
         db.query(CommunicationWord)
         .filter(
@@ -97,6 +99,8 @@ def update_custom_word(
     )
     if conflict:
         raise HTTPException(status_code=409, detail="That custom phrase already exists.")
+    if not phrase or not category:
+        raise HTTPException(status_code=422, detail="Phrase and category are required.")
 
     item.phrase = phrase
     item.category = category
@@ -198,6 +202,8 @@ def create_profile(
     current_user: User = Depends(get_current_user),
 ):
     name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="Profile name is required.")
     exists = (
         db.query(PersonalizationProfile)
         .filter(
@@ -240,6 +246,8 @@ def update_profile(
 
     if payload.name is not None:
         name = payload.name.strip()
+        if not name:
+            raise HTTPException(status_code=422, detail="Profile name is required.")
         conflict = (
             db.query(PersonalizationProfile)
             .filter(
@@ -305,6 +313,8 @@ def record_usage(
     current_user: User = Depends(get_current_user),
 ):
     phrase = payload.phrase.strip()
+    if not phrase:
+        raise HTTPException(status_code=422, detail="Phrase is required.")
     profile_id = payload.profileId
     if profile_id is not None:
         owns_profile = (
