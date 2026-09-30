@@ -3,7 +3,7 @@ import { api } from "../api";
 import { DEFAULT_VOCABULARY } from "../data/vocabulary";
 import { buildSubtitleUnits } from "../data/signSequence";
 import SpeechRecognizer from "../components/SpeechRecognizer";
-import SignAvatar from "../components/SignAvatar";
+import SignAvatar3D from "../components/SignAvatar3D";
 import AvatarCustomizer, { DEFAULT_AVATAR } from "../components/AvatarCustomizer";
 import SignQueue, { normalizeSignText, toSignQueue } from "../components/SignQueue";
 import SignSubtitle from "../components/SignSubtitle";
@@ -11,11 +11,7 @@ import { usePersonalization } from "../components/PersonalizationContext";
 import { Page } from "../components/Page";
 
 export default function VoiceToSign() {
-  const {
-    activeProfile,
-    updateConfig,
-  } = usePersonalization();
-
+  const { activeProfile, updateConfig } = usePersonalization();
   const [transcript, setTranscript] = useState("");
   const [interimTranscript, setInterimTranscript] = useState("");
   const [speechError, setSpeechError] = useState("");
@@ -50,24 +46,15 @@ export default function VoiceToSign() {
     }))],
     [customWords],
   );
-
-  const subtitleUnits = useMemo(
-    () => buildSubtitleUnits(normalizedTranscript, vocabulary),
-    [normalizedTranscript, vocabulary],
-  );
-
-  const vocabularyMatches = useMemo(
-    () => subtitleUnits.filter((item) => item.kind === "word").map((item) => item.text),
-    [subtitleUnits],
-  );
+  const subtitleUnits = useMemo(() => buildSubtitleUnits(normalizedTranscript, vocabulary), [normalizedTranscript, vocabulary]);
+  const vocabularyMatches = useMemo(() => subtitleUnits.filter((item) => item.kind === "word").map((item) => item.text), [subtitleUnits]);
 
   useEffect(() => {
     const previous = lastQueuedPhraseRef.current;
     if (!normalizedTranscript || normalizedTranscript === previous) return;
 
     if (previous && normalizedTranscript.startsWith(previous)) {
-      const delta = normalizedTranscript.slice(previous.length);
-      const additions = toSignQueue(delta);
+      const additions = toSignQueue(normalizedTranscript.slice(previous.length));
       if (additions.length) {
         setQueue((items) => items.concat(additions));
         setPlaying(true);
@@ -100,16 +87,13 @@ export default function VoiceToSign() {
     if (currentIndex < 0 || currentIndex >= queue.length) setCurrentIndex(0);
     setPlaying(true);
   };
-
   const pause = () => setPlaying(false);
-
   const repeat = () => {
     const next = toSignQueue(lastPhrase || normalizedTranscript);
     setQueue(next);
     setCurrentIndex(next.length ? 0 : -1);
     setPlaying(next.length > 0);
   };
-
   const clearQueue = () => {
     setQueue([]);
     setCurrentIndex(-1);
@@ -138,7 +122,6 @@ export default function VoiceToSign() {
             onListeningChange={setListening}
             onError={setSpeechError}
           />
-
           <SignQueue
             queue={queue}
             currentIndex={currentIndex}
@@ -156,10 +139,16 @@ export default function VoiceToSign() {
           <section className="panel avatar-panel">
             <div className="avatar-panel-head">
               <div>
-                <div className="eyebrow">ANIMATED AVATAR</div>
-                <h2>2D signing viewport</h2>
+                <div className="eyebrow">HOLOGRAPHIC AVATAR</div>
+                <h2>3D signing viewport</h2>
               </div>
               <span className="status-pill">{playing ? "ANIMATING" : "STANDBY"}</span>
+            </div>
+
+            <div className="avatar-blueprint-strip">
+              <span>BLUEPRINT 03</span>
+              <strong>HOLOGRAPHIC GEOMETRIC ENVELOPE</strong>
+              <small>Low-poly shell · neon joints · confidence field</small>
             </div>
 
             <div className="avatar-tool-row">
@@ -171,12 +160,12 @@ export default function VoiceToSign() {
               <div className="avatar-segment">
                 <span className="eyebrow">EXPRESSION</span>
                 {(["neutral", "question", "emphasis"] as const).map((item) => (
-                  <button type="button" key={item} className={(expression === item) ? "active" : ""} onClick={() => setExpression(item)}>{item.toUpperCase()}</button>
+                  <button type="button" key={item} className={expression === item ? "active" : ""} onClick={() => setExpression(item)}>{item.toUpperCase()}</button>
                 ))}
               </div>
             </div>
 
-            <SignAvatar
+            <SignAvatar3D
               letter={queue[currentIndex] || ""}
               preferences={avatar || DEFAULT_AVATAR}
               playing={playing}
@@ -187,7 +176,7 @@ export default function VoiceToSign() {
             <SignSubtitle units={subtitleUnits} currentIndex={currentIndex} />
 
             <p className="avatar-note">
-              Known vocabulary is grouped as a single subtitle unit. The current avatar still fingerspells the underlying letters until validated word-level ISL motion assets are added.
+              The 3D signer uses the existing letter-pose rig and renders it as a holographic volumetric avatar. Unknown words still fall back to letter-by-letter fingerspelling until validated word-level ISL motion assets are available.
             </p>
 
             {vocabularyMatches.length > 0 && (
