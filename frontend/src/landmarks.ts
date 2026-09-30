@@ -30,6 +30,8 @@ export type LandmarkFrame = {
   timestamp: number;
 };
 
+export type TrackerVisual = "anatomy" | "neon" | "holographic";
+
 type HandLandmarkerResultLike = {
   landmarks?: LandmarkPoint[][];
   handedness?: Array<Array<{ categoryName?: string; category_name?: string; label?: string }>>;
@@ -141,40 +143,132 @@ function drawHand(
   lineWidth: number,
   jointRadius: number,
   mirrorX: boolean,
+  visual: TrackerVisual,
 ): void {
   if (!landmarks?.length) return;
 
-  context.beginPath();
-  for (const [a, b] of HAND_CONNECTIONS) {
-    const first = landmarks[a];
-    const second = landmarks[b];
-    if (!first || !second) continue;
-    context.moveTo((mirrorX ? 1 - first.x : first.x) * width, first.y * height);
-    context.lineTo((mirrorX ? 1 - second.x : second.x) * width, second.y * height);
+  const point = (index: number): [number, number] => {
+    const landmark = landmarks[index];
+    return [
+      (mirrorX ? 1 - landmark.x : landmark.x) * width,
+      landmark.y * height,
+    ];
+  };
+
+  if (visual === "anatomy") {
+    context.save();
+    context.strokeStyle = "#00f3ff";
+    context.fillStyle = "#d9fbff";
+    context.shadowColor = "#00f3ff";
+    context.shadowBlur = 8;
+    context.lineWidth = lineWidth + 0.5;
+
+    for (const [a, b] of HAND_CONNECTIONS) {
+      const first = point(a);
+      const second = point(b);
+      context.beginPath();
+      context.moveTo(first[0], first[1]);
+      context.lineTo(second[0], second[1]);
+      context.stroke();
+    }
+
+    context.shadowBlur = 12;
+    for (let index = 0; index < landmarks.length; index += 1) {
+      const [x, y] = point(index);
+      context.beginPath();
+      context.arc(x, y, index === 0 ? jointRadius + 2 : jointRadius, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+    }
+
+    for (const index of [2, 5, 9, 13, 17]) {
+      const [x, y] = point(index);
+      context.beginPath();
+      context.arc(x, y, jointRadius + 5, 0, Math.PI * 2);
+      context.globalAlpha = 0.35;
+      context.stroke();
+      context.globalAlpha = 1;
+    }
+    context.shadowBlur = 0;
+    context.font = "700 10px Avenir Next, Helvetica, sans-serif";
+    context.fillText(label, label === "LEFT" ? 12 : Math.max(12, width - 48), 18);
+    context.restore();
+    return;
   }
+
+  if (visual === "holographic") {
+    context.save();
+    context.strokeStyle = "#c084fc";
+    context.fillStyle = "#f0abfc";
+    context.shadowColor = "#a855f7";
+    context.shadowBlur = 10;
+    context.lineWidth = lineWidth;
+
+    for (const [a, b] of HAND_CONNECTIONS) {
+      const first = point(a);
+      const second = point(b);
+      context.beginPath();
+      context.moveTo(first[0], first[1]);
+      context.lineTo(second[0], second[1]);
+      context.stroke();
+    }
+
+    context.globalAlpha = 0.18;
+    for (const [a, b] of HAND_CONNECTIONS) {
+      const first = point(a);
+      const second = point(b);
+      const dx = second[0] - first[0];
+      const dy = second[1] - first[1];
+      context.beginPath();
+      context.moveTo(first[0], first[1]);
+      context.lineTo(first[0] + dx * 0.82 - dy * 0.12, first[1] + dy * 0.82 + dx * 0.12);
+      context.lineTo(second[0], second[1]);
+      context.closePath();
+      context.fill();
+    }
+
+    context.globalAlpha = 0.9;
+    for (let index = 0; index < landmarks.length; index += 1) {
+      const [x, y] = point(index);
+      context.beginPath();
+      context.arc(x, y, index === 0 ? jointRadius + 2 : Math.max(1.5, jointRadius - 0.2), 0, Math.PI * 2);
+      context.fill();
+    }
+    context.globalAlpha = 1;
+    context.shadowBlur = 0;
+    context.font = "700 10px Avenir Next, Helvetica, sans-serif";
+    context.fillText(label, label === "LEFT" ? 12 : Math.max(12, width - 48), 18);
+    context.restore();
+    return;
+  }
+
+  context.save();
+  context.strokeStyle = "#39ff14";
+  context.fillStyle = "#b8ff9e";
+  context.shadowColor = "#39ff14";
+  context.shadowBlur = 10;
   context.lineWidth = lineWidth;
-  context.stroke();
+
+  for (const [a, b] of HAND_CONNECTIONS) {
+    const first = point(a);
+    const second = point(b);
+    context.beginPath();
+    context.moveTo(first[0], first[1]);
+    context.lineTo(second[0], second[1]);
+    context.stroke();
+  }
 
   for (let index = 0; index < landmarks.length; index += 1) {
-    const point = landmarks[index];
-    if (!point) continue;
+    const [x, y] = point(index);
     context.beginPath();
-    context.arc(
-      (mirrorX ? 1 - point.x : point.x) * width,
-      point.y * height,
-      index === 0 ? jointRadius + 1.5 : jointRadius,
-      0,
-      Math.PI * 2,
-    );
+    context.arc(x, y, index === 0 ? jointRadius + 1.5 : jointRadius, 0, Math.PI * 2);
     context.fill();
   }
 
-  context.font = "700 11px Avenir Next, Helvetica, sans-serif";
-  context.fillText(
-    label,
-    label === "LEFT" ? 12 : Math.max(12, width - 50),
-    18,
-  );
+  context.shadowBlur = 0;
+  context.font = "700 10px Avenir Next, Helvetica, sans-serif";
+  context.fillText(label, label === "LEFT" ? 12 : Math.max(12, width - 48), 18);
+  context.restore();
 }
 
 export function drawHands(
@@ -186,6 +280,7 @@ export function drawHands(
     right: Array<[number, number]>;
   } = { left: [], right: [] },
   mirrorX = true,
+  visual: TrackerVisual = "neon",
 ): void {
   const width = canvas.width;
   const height = canvas.height;
@@ -196,8 +291,9 @@ export function drawHands(
   context.lineCap = "round";
   context.lineJoin = "round";
 
-  const drawTrace = (points: Array<[number, number]>) => {
+  const drawTrace = (points: Array<[number, number]>, color: string) => {
     if (points.length < 2) return;
+    context.save();
     context.beginPath();
     for (let index = 1; index < points.length; index += 1) {
       const previous = points[index - 1];
@@ -205,27 +301,28 @@ export function drawHands(
       context.moveTo((mirrorX ? 1 - previous[0] : previous[0]) * width, previous[1] * height);
       context.lineTo((mirrorX ? 1 - current[0] : current[0]) * width, current[1] * height);
     }
-    context.lineWidth = 3;
-    context.globalAlpha = 0.24;
+    context.strokeStyle = color;
+    context.lineWidth = visual === "anatomy" ? 2 : visual === "holographic" ? 4 : 3;
+    context.globalAlpha = visual === "holographic" ? 0.18 : 0.3;
+    context.shadowColor = color;
+    context.shadowBlur = visual === "neon" ? 12 : 5;
     context.stroke();
-    context.globalAlpha = 1;
+    context.restore();
   };
 
-  context.strokeStyle = "#ffffff";
-  context.fillStyle = "#ffffff";
-  drawTrace(traces.left);
+  if (visual === "anatomy") {
+    drawTrace(traces.left, "#00f3ff");
+    drawTrace(traces.right, "#7dd3fc");
+  } else if (visual === "holographic") {
+    drawTrace(traces.left, "#ec4899");
+    drawTrace(traces.right, "#a855f7");
+  } else {
+    drawTrace(traces.left, "#39ff14");
+    drawTrace(traces.right, "#9cff80");
+  }
 
-  context.strokeStyle = "#a4a4a0";
-  context.fillStyle = "#a4a4a0";
-  drawTrace(traces.right);
-
-  context.strokeStyle = "#ffffff";
-  context.fillStyle = "#ffffff";
-  drawHand(context, left, width, height, "LEFT", 2.5, 3.0, mirrorX);
-
-  context.strokeStyle = "#a4a4a0";
-  context.fillStyle = "#a4a4a0";
-  drawHand(context, right, width, height, "RIGHT", 2.5, 3.0, mirrorX);
+  drawHand(context, left, width, height, "LEFT", 2.5, 3.0, mirrorX, visual);
+  drawHand(context, right, width, height, "RIGHT", 2.5, 3.0, mirrorX, visual);
 }
 
 export async function createHands(
