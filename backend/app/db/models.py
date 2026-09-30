@@ -32,6 +32,7 @@ class SignerAdapter(Base):
     id = Column(Integer, primary_key=True, index=True)
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     weights_path = Column(String, nullable=False)
+    payload_json = Column(Text, nullable=True)
     calibration_seconds = Column(Float, nullable=False)
     param_count = Column(Integer, nullable=True)
     accuracy_gain_pct = Column(Float, nullable=True)
