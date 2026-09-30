@@ -134,6 +134,9 @@ export function PersonalizationProvider({ children }: { children: ReactNode }) {
   const createProfile = async (name: string, seed?: PersonalizationConfig) => {
     const trimmed = name.trim();
     if (!trimmed) throw new Error("Profile name is required.");
+    if (profiles.some((item) => item.name.toLowerCase() === trimmed.toLowerCase())) {
+      throw new Error("A profile with that name already exists.");
+    }
     const created = await api.createProfile(trimmed, normalizeConfig(seed || activeProfile?.config || {
       avatar: DEFAULT_AVATAR,
       ...PROFILE_DEFAULTS,
