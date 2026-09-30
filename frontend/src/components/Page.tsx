@@ -15,8 +15,7 @@ export function Breadcrumbs() {
   const current = labels[location.pathname] || "VisionBridge";
   if (location.pathname === "/") return null;
   return <nav className="breadcrumbs" aria-label="Breadcrumb"><ol>
-    <li><Link to="/dashboard">Dashboard</Link></li>
-    {current !== "Dashboard" && <li aria-current="page">{current}</li>}
+    {current === "Dashboard" ? <li aria-current="page">Dashboard</li> : <><li><Link to="/dashboard">Dashboard</Link></li><li aria-current="page">{current}</li></>}
   </ol></nav>;
 }
 
