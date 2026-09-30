@@ -29,7 +29,10 @@ class Settings:
         "AUTH_COOKIE_SECURE",
         "true" if ENV.lower() == "production" else "false",
     ).lower() == "true"
-    AUTH_COOKIE_SAMESITE = os.getenv(\n        "AUTH_COOKIE_SAMESITE",\n        "none" if ENV.lower() == "production" else "lax",\n    ).lower()
+    AUTH_COOKIE_SAMESITE = os.getenv(
+        "AUTH_COOKIE_SAMESITE",
+        "none" if ENV.lower() == "production" else "lax",
+    ).lower()
 
     ALLOWED_ORIGINS = [
         origin.strip()
