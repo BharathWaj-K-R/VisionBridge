@@ -1,3 +1,4 @@
+import json
 import math
 import time
 from pathlib import Path
@@ -26,6 +27,7 @@ from app.services.letter_fewshot import (
     letter_model_status,
     load_prototype_adapter,
     predict_base_letter,
+    validate_prototype_adapter_payload,
     predict_letter,
     save_prototype_adapter,
 )
@@ -87,6 +89,7 @@ def calibrate_letters(
             [(sample.letter, sample.hand_keypoints) for sample in payload.samples],
         )
         weights_path = save_prototype_adapter(fitted["payload"])
+        payload_json = json.dumps(fitted["payload"], separators=(",", ":"))
     except FileNotFoundError as exc:
         raise HTTPException(status_code=503, detail="Letter base model is not trained yet") from exc
     except ValueError as exc:
@@ -97,6 +100,7 @@ def calibrate_letters(
     row = SignerAdapter(
         owner_id=current_user.id,
         weights_path=weights_path,
+        payload_json=payload_json,
         calibration_seconds=payload.calibration_seconds,
         param_count=fitted["param_count"],
     )
@@ -140,10 +144,15 @@ def get_letter_adapter(
         raise HTTPException(status_code=404, detail="Adapter not found")
 
     try:
+        if row.payload_json:
+            return validate_prototype_adapter_payload(
+                json.loads(row.payload_json),
+                settings.LETTER_BASE_MODEL_PATH,
+            )
         return load_prototype_adapter(row.weights_path, settings.LETTER_BASE_MODEL_PATH)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=503, detail="Letter model or adapter is unavailable") from exc
-    except (OSError, ValueError, RuntimeError) as exc:
+    except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=409, detail="Adapter requires recalibration for the current model") from exc
 
 @router.post("/event", dependencies=[Depends(_recognition_rate_limit)])
@@ -215,10 +224,16 @@ def predict_letter_endpoint(
     try:
         base_model = get_letter_base_model()
         if row:
-            adapter = load_prototype_adapter(row.weights_path, settings.LETTER_BASE_MODEL_PATH)
+            if row.payload_json:
+                adapter_payload = validate_prototype_adapter_payload(
+                    json.loads(row.payload_json),
+                    settings.LETTER_BASE_MODEL_PATH,
+                )
+            else:
+                adapter_payload = load_prototype_adapter(row.weights_path, settings.LETTER_BASE_MODEL_PATH)
             letter, confidence, _ = predict_letter(
                 base_model,
-                adapter,
+                adapter_payload,
                 payload.hand_keypoints,
             )
             mode = "adapter"
@@ -229,7 +244,7 @@ def predict_letter_endpoint(
         raise HTTPException(status_code=503, detail="Letter base model or adapter is unavailable") from exc
     except ValueError as exc:
         raise HTTPException(status_code=503, detail="Letter base model or adapter is incompatible") from exc
-    except (OSError, RuntimeError) as exc:
+    except (OSError, RuntimeError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=503, detail="Letter recognition is unavailable") from exc
 
     latency_ms = (time.perf_counter() - started) * 1000
