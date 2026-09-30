@@ -9,6 +9,7 @@ import {
 const TRACE_POINTS = 28;
 
 export function useLandmarkSession(sampleFps: number) {
+  const targetFps = Number.isFinite(sampleFps) ? Math.min(60, Math.max(1, sampleFps)) : 30;
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const handsRef = useRef<any>(null);
@@ -85,7 +86,7 @@ export function useLandmarkSession(sampleFps: number) {
         }
 
         const now = performance.now();
-        const interval = 1000 / sampleFps;
+        const interval = 1000 / targetFps;
         if (now - lastSampleRef.current < interval) return;
         lastSampleRef.current = now;
 
@@ -135,7 +136,7 @@ export function useLandmarkSession(sampleFps: number) {
       let tick = performance.now();
       let processing = false;
       let lastInference = 0;
-      const inferenceInterval = 1000 / Math.max(1, Math.min(sampleFps, 60));
+      const inferenceInterval = 1000 / targetFps;
 
       const loop = async (now: number) => {
         if (!activeRef.current || !videoRef.current || !handsRef.current) return;
@@ -188,7 +189,7 @@ export function useLandmarkSession(sampleFps: number) {
     } finally {
       startingRef.current = false;
     }
-  }, [sampleFps, stop]);
+  }, [targetFps, stop]);
 
   const snapshot = useCallback(() => [...framesRef.current], []);
   const latestFrame = useCallback(() => latestFrameRef.current, []);
