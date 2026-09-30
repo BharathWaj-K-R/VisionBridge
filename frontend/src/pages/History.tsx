@@ -27,6 +27,9 @@ export default function History() {
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
+      setMessage("History CSV exported.");
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "History CSV could not be exported.");
     } finally {
       setExporting(false);
     }
