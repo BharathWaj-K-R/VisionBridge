@@ -9,6 +9,7 @@ VisionBridge is a browser-based Indian Sign Language (ISL) A–Z recognition app
 - Calibration: https://visionbridge-2c7h.onrender.com/calibration
 - Letter History: https://visionbridge-2c7h.onrender.com/history
 - Signer Profiles: https://visionbridge-2c7h.onrender.com/settings
+- Voice to Sign: https://visionbridge-2c7h.onrender.com/voice-to-sign
 
 ## Capabilities
 - Real-time browser camera hand tracking
@@ -16,6 +17,7 @@ VisionBridge is a browser-based Indian Sign Language (ISL) A–Z recognition app
 - Few-shot signer calibration
 - Recognition history and CSV export
 - Signer-specific adapter management
+- Voice-to-Sign speech input with animated A–Z fingerspelling
 
 ## Technical context
 VisionBridge uses React, TypeScript, Vite, React Router, MediaPipe Hand Landmarker, and a 126-dimensional two-hand landmark pipeline.
