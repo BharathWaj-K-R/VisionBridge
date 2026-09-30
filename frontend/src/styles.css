@@ -747,3 +747,37 @@ html[data-theme="dark"]{
 }
 
 .skeleton-overlay{transform:scaleX(-1);transform-origin:center;}
+
+@media(max-width:600px){
+  .topbar{
+    height:auto;
+    min-height:64px;
+    flex-wrap:wrap;
+    padding:8px 10px;
+    gap:8px;
+  }
+  .header-badges{display:none}
+  .brand-copy small{display:none}
+  .brand-copy strong{font-size:21px}
+  .brand-mark{width:32px;height:32px}
+  .top-actions{margin-left:auto;gap:5px}
+  .profile-switcher{min-width:100px}
+  .topnav{
+    order:3;
+    flex:1 1 100%;
+    width:100%;
+    max-width:none;
+    min-width:0;
+    overflow-x:auto;
+    overflow-y:hidden;
+    scrollbar-width:thin;
+    padding:3px;
+  }
+  .topnav-link{
+    flex:0 0 auto;
+    padding:9px 10px;
+    font-size:10px;
+    white-space:nowrap;
+  }
+  .quick-access-bar{top:108px}
+}
