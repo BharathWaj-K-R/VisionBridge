@@ -12,6 +12,10 @@ export default function Recognize() {
     const saved = localStorage.getItem("visionbridge_tracker_visual");
     return saved === "anatomy" || saved === "holographic" ? saved : "neon";
   });
+  const [prediction, setPrediction] = useState("—");
+  const [confidence, setConfidence] = useState(0);
+  const session = useLandmarkSession(configuredFps, trackerVisual, { prediction, confidence });
+
   useEffect(() => {
     localStorage.setItem("visionbridge_tracker_visual", trackerVisual);
   }, [trackerVisual]);
@@ -21,9 +25,6 @@ export default function Recognize() {
       void session.start().catch(() => undefined);
     }
   }, []);
-  const [prediction, setPrediction] = useState("—");
-  const [confidence, setConfidence] = useState(0);
-  const session = useLandmarkSession(configuredFps, trackerVisual, { prediction, confidence });
   const [latency, setLatency] = useState<number | null>(null);
   const [similarity, setSimilarity] = useState<number | null>(null);
   const [error, setError] = useState("");
