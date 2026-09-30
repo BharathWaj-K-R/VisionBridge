@@ -48,14 +48,32 @@ def _set_visionbridge_rls_context(session, transaction, connection):
     if connection.dialect.name != "postgresql":
         return
 
+    settings_to_set = {}
     user_id = session.info.get("visionbridge_user_id")
-    if user_id is None:
-        return
+    if user_id is not None:
+        settings_to_set["app.user_id"] = str(user_id)
 
-    connection.execute(
-        text("SELECT set_config('app.user_id', :user_id, true)"),
-        {"user_id": str(user_id)},
-    )
+    operation = session.info.get("visionbridge_auth_operation")
+    if operation:
+        settings_to_set["app.auth_operation"] = operation
+
+    identifier = session.info.get("visionbridge_auth_identifier")
+    if identifier is not None:
+        settings_to_set["app.auth_identifier"] = identifier
+
+    username = session.info.get("visionbridge_auth_username")
+    if username is not None:
+        settings_to_set["app.auth_username"] = username
+
+    email = session.info.get("visionbridge_auth_email")
+    if email is not None:
+        settings_to_set["app.auth_email"] = email
+
+    for key, value in settings_to_set.items():
+        connection.execute(
+            text("SELECT set_config(:key, :value, true)"),
+            {"key": key, "value": value},
+        )
 
 
 def get_db():
