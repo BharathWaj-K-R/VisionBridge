@@ -43,22 +43,16 @@ function Auth({ onAuthed }: { onAuthed: () => void }) {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    const oauthError = params.get("oauth_error");
-    if (oauthError) setError("Google sign-in failed: " + oauthError.replaceAll("_", " "));
-    if (params.get("oauth_success") === "1") {
-      setSessionHint();
-      setNotice("Google sign-in successful.");
-      onAuthed();
-    }
-  }, [location.search, onAuthed]);
+    const authError = params.get("auth_error");
+    if (authError) setError(authError.replaceAll("_", " "));
+  }, [location.search]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    setBusy(true); setError(""); setNotice("");
+    setBusy(true); setError("");
     try {
       if (mode === "register") {
         if (password !== confirmPassword) throw new Error("Passwords do not match.");
@@ -96,12 +90,9 @@ function Auth({ onAuthed }: { onAuthed: () => void }) {
       </>}
       <label>Password<span className="password-field"><input value={password} onChange={e => setPassword(e.target.value)} type={showPassword ? "text" : "password"} minLength={8} autoComplete={mode === "login" ? "current-password" : "new-password"} required /><button type="button" onClick={() => setShowPassword(v => !v)}>{showPassword ? "Hide" : "Show"}</button></span></label>
       {mode === "register" && <label>Confirm password<span className="password-field"><input value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} type={showConfirmPassword ? "text" : "password"} minLength={8} autoComplete="new-password" required /><button type="button" onClick={() => setShowConfirmPassword(v => !v)}>{showConfirmPassword ? "Hide" : "Show"}</button></span></label>}
-      {notice && <div className="alert">{notice}</div>}{error && <div className="alert error">{error}</div>}
+      {error && <div className="alert error">{error}</div>}
       <button className="primary-btn auth-submit" disabled={busy}>{busy ? "Working…" : mode === "login" ? "Sign in" : "Create account"}</button>
     </form>
-    <div className="auth-divider"><span>OR</span></div>
-    <button type="button" className="google-btn" onClick={() => api.googleLogin()}><span className="google-mark">G</span> Continue with Google</button>
-    <p className="auth-footnote">Google sign-in requires production OAuth credentials on the backend.</p>
   </section></div>;
 }
 function Page({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
