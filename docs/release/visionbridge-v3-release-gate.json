@@ -1,0 +1,30 @@
+{
+  "release": "visionbridge-letter-base-v3",
+  "status": "BLOCKED",
+  "generated_at": "2026-09-30",
+  "contract": {
+    "input_dim": 126,
+    "hidden_dim": 128,
+    "embedding_dim": 64,
+    "num_classes": 26,
+    "labels": "A-Z",
+    "preprocessing_version": "two-hand-wrist-scale-v1",
+    "landmark_runtime": "mediapipe-hand-landmarker-0.10.35"
+  },
+  "checkpoint": {
+    "path": "backend/app/models/weights/letter_base_model.pt",
+    "present": false,
+    "sha256": null
+  },
+  "evaluation": {
+    "test_accuracy": null,
+    "macro_accuracy": null,
+    "per_letter_accuracy": null,
+    "confusion_matrix": null
+  },
+  "signer_independent_evaluation": {
+    "status": "BLOCKED",
+    "reason": "The active RealSign dataset metadata does not expose verified signer IDs."
+  },
+  "release_rule": "Do not mark this release ready until the checkpoint is loadable and the canonical held-out test evaluator produces immutable metrics."
+}
