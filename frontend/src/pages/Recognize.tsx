@@ -28,8 +28,11 @@ export default function Recognize() {
   const [temporal, setTemporal] = useState<Array<{ letter: string; confidence: number; at: string }>>([]);
   const baseModelRef = useRef<BrowserLetterModel | null>(null);
   const adapterRef = useRef<BrowserLetterAdapter | null>(null);
-  const lastEventRef = useRef({ letter: "", time: 0 });
+  const candidateRef = useRef({ letter: "", since: 0, confidence: 0 });
+  const readyToCommitRef = useRef(true);
   const lastLoggedAtRef = useRef(0);
+  const STABLE_COMMIT_MS = 700;
+  const COMMIT_CONFIDENCE = 0.70;
 
   useEffect(() => {
     void api.me().then((u) => setUserId(u.id)).catch(() => setError("Authentication session could not be verified. Please sign in again."));
@@ -80,7 +83,14 @@ export default function Recognize() {
     const intervalMs = import.meta.env.VITE_LOCAL_MODE !== "false" ? 220 : 33;
     const timer = window.setInterval(() => {
       const frame = latestFrame();
-      if (!userId || !frame || (!frame.leftVisible && !frame.rightVisible)) return;
+      if (!frame) return;
+      const visible = frame.leftVisible || frame.rightVisible;
+      if (!visible) {
+        candidateRef.current = { letter: "", since: 0, confidence: 0 };
+        readyToCommitRef.current = true;
+        return;
+      }
+      if (!userId) return;
       const raw = [...frame.leftHand, ...frame.rightHand];
 
       const record = (letter: string, score: number, ms: number, mode: "base" | "adapter", sim?: number) => {
@@ -89,21 +99,35 @@ export default function Recognize() {
         setLatency(ms);
         setSimilarity(mode === "adapter" && sim != null ? sim : null);
         setTemporal((items) => [{ letter, confidence: score, at: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) }, ...items].slice(0, 6));
+
         const now = performance.now();
-        const previous = lastEventRef.current;
-        if (letter !== previous.letter || now - previous.time >= 1000) {
-          lastEventRef.current = { letter, time: now };
-          if (letter !== "?") setBuffer((items) => [...items.slice(-5), letter]);
-          if (now - lastLoggedAtRef.current >= 1200) {
-            lastLoggedAtRef.current = now;
-            void api.logLetterEvent({
-              user_id: userId,
-              adapter_id: mode === "adapter" ? adapterId ?? null : null,
-              predicted_letter: letter,
-              confidence: score,
-              latency_ms: ms,
-            }).catch((err) => setError(err instanceof Error ? err.message : "Prediction history could not be saved."));
-          }
+        if (letter === "?" || score < COMMIT_CONFIDENCE) {
+          candidateRef.current = { letter: "", since: 0, confidence: 0 };
+          return;
+        }
+
+        const candidate = candidateRef.current;
+        if (candidate.letter !== letter) {
+          candidateRef.current = { letter, since: now, confidence: score };
+          return;
+        }
+
+        candidateRef.current.confidence = Math.max(candidate.confidence, score);
+        if (now - candidate.since < STABLE_COMMIT_MS || !readyToCommitRef.current) return;
+
+        readyToCommitRef.current = false;
+        const committedConfidence = candidateRef.current.confidence;
+        setBuffer((items) => [...items.slice(-5), letter]);
+
+        if (now - lastLoggedAtRef.current >= 1200) {
+          lastLoggedAtRef.current = now;
+          void api.logLetterEvent({
+            user_id: userId,
+            adapter_id: mode === "adapter" ? adapterId ?? null : null,
+            predicted_letter: letter,
+            confidence: committedConfidence,
+            latency_ms: ms,
+          }).catch((err) => setError(err instanceof Error ? err.message : "Prediction history could not be saved."));
         }
       };
 
