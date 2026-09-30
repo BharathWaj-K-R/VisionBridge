@@ -6,6 +6,7 @@ import { useLandmarkSession } from "./useLandmarkSession";
 
 
 const navItems = [
+  ["/dashboard", "Dashboard"],
   ["/translate", "Live Translate"],
   ["/calibration", "Few-Shot Calibration"],
   ["/history", "Letter History"],
