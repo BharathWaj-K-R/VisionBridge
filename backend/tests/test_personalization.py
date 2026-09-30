@@ -73,6 +73,13 @@ def test_profile_crud_usage_and_delete_cleanup():
         assert most_used.json()[0]["phrase"] == "Hello"
         assert most_used.json()[0]["usage_count"] == 1
 
+        second = client.post(
+            "/api/v1/communication/profiles",
+            headers=headers,
+            json={"name": "Work", "config": _config()},
+        )
+        assert second.status_code == 201
+
         deleted = client.delete(
             f"/api/v1/communication/profiles/{profile_id}",
             headers=headers,
@@ -81,7 +88,14 @@ def test_profile_crud_usage_and_delete_cleanup():
 
         listed = client.get("/api/v1/communication/profiles", headers=headers)
         assert listed.status_code == 200
-        assert listed.json() == []
+        assert len(listed.json()) == 1
+        assert listed.json()[0]["name"] == "Work"
+
+        deleted_last = client.delete(
+            f"/api/v1/communication/profiles/{second.json()['id']}",
+            headers=headers,
+        )
+        assert deleted_last.status_code == 409
 
     db = SessionLocal()
     try:
