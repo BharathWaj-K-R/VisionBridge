@@ -110,13 +110,8 @@ def calibrate_letters(
         db.refresh(row)
     except Exception as exc:
         db.rollback()
-        try:
-            Path(weights_path).unlink(missing_ok=True)
-        except OSError as cleanup_exc:
-            raise HTTPException(
-                status_code=500,
-                detail="Adapter persistence failed and cleanup is pending",
-            ) from cleanup_exc
+        # New adapters are database-backed; there is no ephemeral file to clean up.
+        # Keep the rollback path free of filesystem assumptions.
         raise HTTPException(
             status_code=500,
             detail="Adapter could not be persisted safely",
