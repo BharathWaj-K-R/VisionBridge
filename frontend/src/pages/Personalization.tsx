@@ -113,7 +113,7 @@ export default function Personalization() {
               <button
                 type="button"
                 key={profile.id}
-                className={profile.id === profile.id ? "profile-card active" : "profile-card"}
+                className={profile.id === activeProfile.id ? "profile-card active" : "profile-card"}
                 onClick={() => void switchProfile(profile.id)}
               >
                 <span className="profile-card-index">{String(profiles.indexOf(profile) + 1).padStart(2, "0")}</span>
