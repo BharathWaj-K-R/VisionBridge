@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(_: FastAPI):
     settings.validate_for_runtime()
     database_url = urlparse(settings.DATABASE_URL)
-    logger.info(
+    logger.warning(
         "VisionBridge database target: scheme=%s host=%s port=%s database=%s",
         database_url.scheme,
         database_url.hostname or "none",
