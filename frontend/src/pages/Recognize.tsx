@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import { BrowserLetterAdapter, type BrowserLetterModel } from "../browserModel";
+import { normalizeHandPair } from "../landmarks";
 import { useLandmarkSession } from "../useLandmarkSession";
 import { Empty, Page } from "../components/Page";
 
@@ -129,7 +130,7 @@ export default function Recognize() {
       if (!model) return;
       try {
         const started = performance.now();
-        const result = model.predictBase(raw);
+        const result = model.predictBase(normalizeHandPair(raw));
         record(result.label, result.confidence, performance.now() - started, "base");
       } catch (err) {
         setError(err instanceof Error ? err.message : "Recognition failed");
