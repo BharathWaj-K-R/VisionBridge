@@ -9,6 +9,8 @@ const LOCAL_USER_KEY = "visionbridge_user";
 const LOCAL_AUTH_KEY = "visionbridge_local_auth";
 const LOCAL_LETTER_ADAPTERS_KEY = "visionbridge_letter_adapters";
 const LOCAL_HISTORY_KEY = "visionbridge_letter_history";
+const LOCAL_CUSTOM_WORDS_KEY = "visionbridge_custom_words";
+const LOCAL_QUICK_ACCESS_KEY = "visionbridge_quick_access";
 const SESSION_HINT_KEY = "visionbridge_session_hint";
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
@@ -139,6 +141,21 @@ function localHistory(): any[] {
   try { return JSON.parse(localStorage.getItem(localScopeKey(LOCAL_HISTORY_KEY)) || "[]") as any[]; } catch { return []; }
 }
 function saveLocalHistory(items: any[]): void { localStorage.setItem(localScopeKey(LOCAL_HISTORY_KEY), JSON.stringify(items.slice(-100))); }
+function localCustomWords(): any[] {
+  try { return JSON.parse(localStorage.getItem(localScopeKey(LOCAL_CUSTOM_WORDS_KEY)) || "[]") as any[]; } catch { return []; }
+}
+function saveLocalCustomWords(items: any[]): void { localStorage.setItem(localScopeKey(LOCAL_CUSTOM_WORDS_KEY), JSON.stringify(items)); }
+function localQuickAccess(): Array<string | null> {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(localScopeKey(LOCAL_QUICK_ACCESS_KEY)) || "[]");
+    return Array.from({ length: 10 }, (_, index) => parsed[index] || null);
+  } catch {
+    return Array(10).fill(null);
+  }
+}
+function saveLocalQuickAccess(items: Array<string | null>): void {
+  localStorage.setItem(localScopeKey(LOCAL_QUICK_ACCESS_KEY), JSON.stringify(Array.from({ length: 10 }, (_, index) => items[index] || null)));
+}
 let browserModelPromise: Promise<BrowserLetterModel> | null = null;
 
 
@@ -213,6 +230,47 @@ export const api = {
     return request<any>("/dashboard");
   },
   history: async (_params = "") => LOCAL_MODE ? { items: localHistory().reverse() } : request<any>("/history" + (_params ? "?" + _params : "")),
+  customWords: async (): Promise<any[]> => LOCAL_MODE ? localCustomWords() : request<any[]>("/communication/words"),
+  createCustomWord: async (phrase: string, category: string): Promise<any> => {
+    if (LOCAL_MODE) {
+      const items = localCustomWords();
+      const exists = items.some((item) => String(item.phrase).toLowerCase() === phrase.trim().toLowerCase());
+      if (exists) throw new Error("That custom phrase already exists.");
+      const item = { id: Date.now(), phrase: phrase.trim(), category: category.trim(), created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+      saveLocalCustomWords([...items, item]);
+      return item;
+    }
+    return request<any>("/communication/words", { method: "POST", body: JSON.stringify({ phrase, category }) });
+  },
+  updateCustomWord: async (id: number, phrase: string, category: string): Promise<any> => {
+    if (LOCAL_MODE) {
+      const items = localCustomWords();
+      const next = items.map((item) => item.id === id ? { ...item, phrase: phrase.trim(), category: category.trim(), updated_at: new Date().toISOString() } : item);
+      saveLocalCustomWords(next);
+      return next.find((item) => item.id === id);
+    }
+    return request<any>("/communication/words/" + id, { method: "PUT", body: JSON.stringify({ phrase, category }) });
+  },
+  deleteCustomWord: async (id: number): Promise<void> => {
+    if (LOCAL_MODE) {
+      saveLocalCustomWords(localCustomWords().filter((item) => item.id !== id));
+      return;
+    }
+    await request<any>("/communication/words/" + id, { method: "DELETE" });
+  },
+  quickAccess: async (): Promise<{ slots: Array<string | null> }> =>
+    LOCAL_MODE ? { slots: localQuickAccess() } : request<{ slots: Array<string | null> }>("/communication/quick-access"),
+  saveQuickAccess: async (slots: Array<string | null>): Promise<{ slots: Array<string | null> }> => {
+    const normalized = Array.from({ length: 10 }, (_, index) => slots[index] || null);
+    if (LOCAL_MODE) {
+      saveLocalQuickAccess(normalized);
+      return { slots: normalized };
+    }
+    return request<{ slots: Array<string | null> }>("/communication/quick-access", {
+      method: "PUT",
+      body: JSON.stringify({ slots: normalized }),
+    });
+  },
   clearHistory: async (): Promise<{ deleted: number; storage: "database" | "browser" }> => {
     if (LOCAL_MODE) {
       const count = localHistory().length;
