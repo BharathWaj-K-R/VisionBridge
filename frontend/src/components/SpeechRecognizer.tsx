@@ -62,6 +62,10 @@ export default function SpeechRecognizer({
   const recognitionRef = useRef<SpeechRecognizerInstance | null>(null);
   const requestedStopRef = useRef(false);
   const restartTimerRef = useRef<number | null>(null);
+  const transcriptRef = useRef(transcript);
+  transcriptRef.current = transcript;
+  const callbacksRef = useRef({ onTranscriptChange, onInterimChange, onListeningChange, onError });
+  callbacksRef.current = { onTranscriptChange, onInterimChange, onListeningChange, onError };
   const [language, setLanguage] = useState("en-IN");
 
   useEffect(() => {
@@ -73,10 +77,10 @@ export default function SpeechRecognizer({
     recognition.interimResults = true;
     recognition.lang = language;
 
-    recognition.onstart = () => onListeningChange(true);
+    recognition.onstart = () => callbacksRef.current.onListeningChange(true);
 
     recognition.onresult = (event) => {
-      let nextFinal = transcript;
+      let nextFinal = transcriptRef.current;
       let nextInterim = "";
 
       for (let index = event.resultIndex; index < event.results.length; index += 1) {
@@ -89,23 +93,25 @@ export default function SpeechRecognizer({
         }
       }
 
-      onTranscriptChange(nextFinal.replace(/\s+/g, " ").trim());
-      onInterimChange(nextInterim.trim());
+      const normalizedFinal = nextFinal.replace(/\s+/g, " ").trim();
+      transcriptRef.current = normalizedFinal;
+      callbacksRef.current.onTranscriptChange(normalizedFinal);
+      callbacksRef.current.onInterimChange(nextInterim.trim());
     };
 
     recognition.onerror = (event) => {
       const code = event.error || "unknown";
       if (code === "not-allowed" || code === "service-not-allowed") {
         requestedStopRef.current = true;
-        onListeningChange(false);
-        onError("Microphone or speech recognition permission was denied.");
+        callbacksRef.current.onListeningChange(false);
+        callbacksRef.current.onError("Microphone or speech recognition permission was denied.");
         return;
       }
-      if (code !== "aborted") onError("Speech recognition error: " + code + ".");
+      if (code !== "aborted") callbacksRef.current.onError("Speech recognition error: " + code + ".");
     };
 
     recognition.onend = () => {
-      onListeningChange(false);
+      callbacksRef.current.onListeningChange(false);
       if (!requestedStopRef.current) {
         restartTimerRef.current = window.setTimeout(() => {
           try {
@@ -125,7 +131,7 @@ export default function SpeechRecognizer({
       recognition.abort();
       recognitionRef.current = null;
     };
-  }, [language, onError, onInterimChange, onListeningChange, onTranscriptChange, transcript]);
+  }, [language]);
 
   useEffect(() => {
     if (recognitionRef.current) recognitionRef.current.lang = language;
@@ -133,7 +139,7 @@ export default function SpeechRecognizer({
 
   const toggleListening = () => {
     if (!supported) {
-      onError("This browser does not expose the Web Speech API. Try a Chromium-based browser.");
+      callbacksRef.current.onError("This browser does not expose the Web Speech API. Try a Chromium-based browser.");
       return;
     }
 
@@ -143,16 +149,16 @@ export default function SpeechRecognizer({
     if (listening) {
       requestedStopRef.current = true;
       recognition.stop();
-      onListeningChange(false);
+      callbacksRef.current.onListeningChange(false);
       return;
     }
 
     requestedStopRef.current = false;
-    onError("");
+    callbacksRef.current.onError("");
     try {
       recognition.start();
     } catch {
-      onListeningChange(true);
+      callbacksRef.current.onListeningChange(true);
     }
   };
 
