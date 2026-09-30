@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -38,11 +39,34 @@ def list_my_adapters(
         .all()
     )
 
-    return [
-        adapter
-        for adapter in adapters
-        if Path(adapter.weights_path).name.startswith("letter_adapter_")
-    ]
+    result = []
+    for adapter in adapters:
+        if not adapter.payload_json and not Path(adapter.weights_path).name.startswith("letter_adapter_"):
+            continue
+        letters: list[str] = []
+        shots: dict[str, int] = {}
+        if adapter.payload_json:
+            try:
+                payload = json.loads(adapter.payload_json)
+                prototypes = payload.get("prototypes") if isinstance(payload, dict) else {}
+                raw_shots = payload.get("shots") if isinstance(payload, dict) else {}
+                if isinstance(prototypes, dict):
+                    letters = [str(letter) for letter in prototypes]
+                if isinstance(raw_shots, dict):
+                    shots = {str(letter): int(value) for letter, value in raw_shots.items()}
+            except (TypeError, ValueError, json.JSONDecodeError):
+                pass
+        result.append({
+            "id": adapter.id,
+            "owner_id": adapter.owner_id,
+            "calibration_seconds": adapter.calibration_seconds,
+            "param_count": adapter.param_count,
+            "accuracy_gain_pct": adapter.accuracy_gain_pct,
+            "letters": letters,
+            "shots": shots,
+            "created_at": adapter.created_at,
+        })
+    return result
 
 
 @router.delete("/me/adapters/{adapter_id}")
@@ -66,7 +90,11 @@ def delete_my_adapter(
     weights_path = adapter.weights_path
 
     try:
-        tombstone = stage_adapter_delete(weights_path)
+        tombstone = (
+            stage_adapter_delete(weights_path)
+            if Path(weights_path).name.startswith("letter_adapter_") and Path(weights_path).exists()
+            else None
+        )
     except (OSError, ValueError) as exc:
         raise HTTPException(
             status_code=500,
