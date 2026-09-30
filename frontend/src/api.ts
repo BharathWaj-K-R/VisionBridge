@@ -108,7 +108,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 }
 
-export type User = { id: number; username: string; created_at: string };
+export type User = { id: number; username: string; email?: string | null; created_at: string };
 export type Token = { access_token: string; token_type: string };
 export type LetterSample = { letter: string; hand_keypoints: number[] };
 export type LetterCalibrationResult = { adapter_id: number; letters: string[]; shots: Record<string, number>; param_count: number };
