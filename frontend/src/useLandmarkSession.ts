@@ -4,15 +4,16 @@ import {
   drawHands,
   frameFromResults,
   type LandmarkFrame,
+  getAdaptiveTrackerColors,
   type TrackerOverlayMeta,
-  type TrackerVisual,
+  type TrackerSettings,
 } from "./landmarks";
 
 const TRACE_POINTS = 28;
 
 export function useLandmarkSession(
   sampleFps: number,
-  trackerVisual: TrackerVisual = "neon",
+  trackerSettings: TrackerSettings = { mode: "adaptive", fixedColor: "#00E5FF" },
   trackerMeta: TrackerOverlayMeta = {},
 ) {
   const targetFps = Number.isFinite(sampleFps) ? Math.min(60, Math.max(1, sampleFps)) : 30;
@@ -30,12 +31,14 @@ export function useLandmarkSession(
     left: Array<[number, number]>;
     right: Array<[number, number]>;
   }>({ left: [], right: [] });
-  const trackerVisualRef = useRef<TrackerVisual>(trackerVisual);
+  const trackerSettingsRef = useRef<TrackerSettings>(trackerSettings);
   const trackerMetaRef = useRef<TrackerOverlayMeta>(trackerMeta);
+  const adaptiveColorsRef = useRef<{ left?: string; right?: string }>({});
+  const lastAdaptiveColorSampleRef = useRef(0);
 
   useEffect(() => {
-    trackerVisualRef.current = trackerVisual;
-  }, [trackerVisual]);
+    trackerSettingsRef.current = trackerSettings;
+  }, [trackerSettings]);
 
   useEffect(() => {
     trackerMetaRef.current = trackerMeta;
@@ -140,14 +143,36 @@ export function useLandmarkSession(
             canvas.width = width;
             canvas.height = height;
           }
+          const currentSettings = trackerSettingsRef.current;
+          let trackerMeta = trackerMetaRef.current;
+          const now = performance.now();
+          if (
+            currentSettings.mode === "adaptive" &&
+            now - lastAdaptiveColorSampleRef.current >= 140
+          ) {
+            adaptiveColorsRef.current = getAdaptiveTrackerColors(
+              currentVideo,
+              frame.leftLandmarks,
+              frame.rightLandmarks,
+            );
+            lastAdaptiveColorSampleRef.current = now;
+          }
+          if (currentSettings.mode !== "adaptive") {
+            adaptiveColorsRef.current = {};
+          }
+          trackerMeta = {
+            ...trackerMeta,
+            leftColor: adaptiveColorsRef.current.left,
+            rightColor: adaptiveColorsRef.current.right,
+          };
           drawHands(
             canvas,
             frame.leftLandmarks,
             frame.rightLandmarks,
             traceRef.current,
             true,
-            trackerVisualRef.current,
-            trackerMetaRef.current,
+            currentSettings,
+            trackerMeta,
           );
         }
 
@@ -234,7 +259,7 @@ export function useLandmarkSession(
     } finally {
       startingRef.current = false;
     }
-  }, [targetFps, stop, trackerVisual]);
+  }, [targetFps, stop]);
 
   const snapshot = useCallback(() => [...framesRef.current], []);
   const latestFrame = useCallback(() => latestFrameRef.current, []);
