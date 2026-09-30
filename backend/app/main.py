@@ -27,15 +27,16 @@ async def lifespan(_: FastAPI):
         database_url.port or "default",
         (database_url.path or "").lstrip("/") or "default",
     )
-    with engine.connect() as connection:
-        identity = connection.execute(
-            text("SELECT current_user, session_user")
-        ).one()
-        logger.warning(
-            "VisionBridge database execution role: current_user=%s session_user=%s",
-            identity[0],
-            identity[1],
-        )
+    if engine.dialect.name == "postgresql":
+        with engine.connect() as connection:
+            identity = connection.execute(
+                text("SELECT current_user, session_user")
+            ).one()
+            logger.warning(
+                "VisionBridge database execution role: current_user=%s session_user=%s",
+                identity[0],
+                identity[1],
+            )
     Base.metadata.create_all(bind=engine)
     yield
 
