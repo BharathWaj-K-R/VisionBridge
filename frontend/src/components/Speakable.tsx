@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { api } from "../api";
+import { usePersonalization } from "./PersonalizationContext";
 
 type Props = {
   text: string;
@@ -9,9 +11,13 @@ type Props = {
 export default function Speakable({ text, className = "", label }: Props) {
   const [speaking, setSpeaking] = useState(false);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const { activeProfile, voices } = usePersonalization();
 
   useEffect(() => () => {
-    if (utteranceRef.current) utteranceRef.current.onend = null;
+    if (utteranceRef.current) {
+      utteranceRef.current.onend = null;
+      utteranceRef.current.onerror = null;
+    }
   }, []);
 
   const speak = () => {
@@ -24,10 +30,18 @@ export default function Speakable({ text, className = "", label }: Props) {
     utterance.rate = text.trim().length === 1 ? 0.8 : 0.95;
     utterance.pitch = 1;
     utterance.lang = "en-IN";
-    utterance.onend = () => setSpeaking(false);
-    utterance.onerror = () => setSpeaking(false);
+
+    if (activeProfile?.config.ttsVoice) {
+      const preferred = voices.find((voice) => voice.name === activeProfile.config.ttsVoice);
+      if (preferred) utterance.voice = preferred;
+    }
+
+    const finish = () => setSpeaking(false);
+    utterance.onend = finish;
+    utterance.onerror = finish;
     utteranceRef.current = utterance;
     window.speechSynthesis.speak(utterance);
+    void api.recordUsage(text, activeProfile?.id);
   };
 
   return (
