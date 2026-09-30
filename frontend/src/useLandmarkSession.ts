@@ -30,7 +30,12 @@ export function useLandmarkSession(
     left: Array<[number, number]>;
     right: Array<[number, number]>;
   }>({ left: [], right: [] });
+  const trackerVisualRef = useRef<TrackerVisual>(trackerVisual);
   const trackerMetaRef = useRef<TrackerOverlayMeta>(trackerMeta);
+
+  useEffect(() => {
+    trackerVisualRef.current = trackerVisual;
+  }, [trackerVisual]);
 
   useEffect(() => {
     trackerMetaRef.current = trackerMeta;
@@ -64,15 +69,57 @@ export function useLandmarkSession(
     let stream: MediaStream | null = null;
 
     try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("Camera API unavailable. Use HTTPS and a supported browser.");
+      }
+
+      if (!videoRef.current) {
+        throw new Error("Camera preview is unavailable.");
+      }
+
+      setStatus("Requesting camera permission…");
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 640, max: 960 },
+            height: { ideal: 480, max: 720 },
+            facingMode: "user",
+            frameRate: { ideal: 30, max: 60 },
+          },
+          audio: false,
+        });
+      } catch (firstError) {
+        const name = firstError instanceof DOMException ? firstError.name : "";
+        if (name !== "OverconstrainedError" && name !== "NotFoundError") {
+          throw firstError;
+        }
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      }
+
+      if (startGeneration !== startGenerationRef.current || !videoRef.current) {
+        throw new Error("Camera start cancelled");
+      }
+
+      const video = videoRef.current;
+      streamRef.current = stream;
+      video.srcObject = stream;
+      video.muted = true;
+      video.playsInline = true;
+      await video.play();
+
+      if (startGeneration !== startGenerationRef.current || videoRef.current !== video) {
+        throw new Error("Camera start cancelled");
+      }
+
       setStatus("Loading hand tracker…");
       hands = await createHands((results) => {
         if (startGeneration !== startGenerationRef.current || !activeRef.current) {
           return;
         }
 
-        const video = videoRef.current;
+        const currentVideo = videoRef.current;
         const canvas = canvasRef.current;
-        if (!video) return;
+        if (!currentVideo) return;
 
         const frame = frameFromResults(results);
         latestFrameRef.current = frame;
@@ -86,8 +133,8 @@ export function useLandmarkSession(
           if (traceRef.current.right.length > TRACE_POINTS) traceRef.current.right.shift();
         }
 
-        const width = video.videoWidth || 640;
-        const height = video.videoHeight || 480;
+        const width = currentVideo.videoWidth || 640;
+        const height = currentVideo.videoHeight || 480;
         if (canvas) {
           if (canvas.width !== width || canvas.height !== height) {
             canvas.width = width;
@@ -99,7 +146,7 @@ export function useLandmarkSession(
             frame.rightLandmarks,
             traceRef.current,
             true,
-            trackerVisual,
+            trackerVisualRef.current,
             trackerMetaRef.current,
           );
         }
@@ -114,39 +161,6 @@ export function useLandmarkSession(
       });
 
       handsRef.current = hands;
-
-      if (startGeneration !== startGenerationRef.current || !videoRef.current) {
-        throw new Error("Camera start cancelled");
-      }
-
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 640, max: 960 },
-          height: { ideal: 480, max: 720 },
-          facingMode: "user",
-          frameRate: { ideal: 30, max: 60 },
-        },
-        audio: false,
-      });
-
-      if (
-        startGeneration !== startGenerationRef.current
-        || !videoRef.current
-      ) {
-        throw new Error("Camera start cancelled");
-      }
-
-      const video = videoRef.current;
-      if (!video) throw new Error("Camera preview is unavailable");
-
-      streamRef.current = stream;
-      video.srcObject = stream;
-      await video.play();
-
-      if (startGeneration !== startGenerationRef.current || videoRef.current !== video) {
-        throw new Error("Camera start cancelled");
-      }
-
       activeRef.current = true;
       setRunning(true);
       setStatus("Live · hand tracking");
@@ -203,7 +217,19 @@ export function useLandmarkSession(
       }
 
       stop();
-      setStatus(error instanceof Error ? error.message : "Camera start failed");
+      if (error instanceof DOMException) {
+        if (error.name === "NotAllowedError" || error.name === "SecurityError") {
+          setStatus("Camera permission denied. Allow camera access for VisionBridge, then try again.");
+        } else if (error.name === "NotFoundError") {
+          setStatus("No camera was found. Check the camera connection and browser permissions.");
+        } else if (error.name === "NotReadableError") {
+          setStatus("Camera is busy or blocked by another application.");
+        } else {
+          setStatus(error.message || "Camera start failed");
+        }
+      } else {
+        setStatus(error instanceof Error ? error.message : "Camera start failed");
+      }
       throw error;
     } finally {
       startingRef.current = false;
