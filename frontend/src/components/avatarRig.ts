@@ -25,6 +25,8 @@ const POINT: HandFinger = { thumb: 44, index: 2, middle: 72, ring: 70, little: 6
 const V: HandFinger = { thumb: 42, index: -8, middle: 10, ring: 70, little: 66 };
 const W: HandFinger = { thumb: 38, index: -4, middle: -2, ring: -2, little: 34 };
 const Y: HandFinger = { thumb: -4, index: 68, middle: 72, ring: 70, little: -8 };
+const FOLDED_THUMB: HandFinger = { thumb: 78, index: 75, middle: 80, ring: 82, little: 76 };
+const CURL: HandFinger = { thumb: 30, index: 46, middle: 55, ring: 55, little: 48 };
 
 const base = (leftArm: number, rightArm: number, hand = RELAXED): AvatarPose => ({
   leftArm,
@@ -38,32 +40,32 @@ const base = (leftArm: number, rightArm: number, hand = RELAXED): AvatarPose => 
 });
 
 export const LETTER_POSES: Record<string, AvatarPose> = {
-  A: base(-10, 10, CLOSED),
-  B: base(-24, 24, OPEN),
-  C: base(-38, 38, RELAXED),
-  D: base(-52, 52, POINT),
-  E: base(-62, 62, CLOSED),
-  F: base(-76, 76, PINCH),
-  G: base(-34, 34, POINT),
-  H: base(-22, 22, V),
-  I: base(8, -8, Y),
-  J: base(16, -16, Y),
-  K: base(-46, 46, POINT),
-  L: base(-58, 58, OPEN),
-  M: base(-70, 70, CLOSED),
-  N: base(-82, 82, CLOSED),
-  O: base(-94, 94, PINCH),
-  P: base(-48, 48, POINT),
-  Q: base(-38, 38, POINT),
-  R: base(-28, 28, V),
-  S: base(-8, 8, CLOSED),
-  T: base(-86, 86, PINCH),
-  U: base(-24, 24, V),
-  V: base(-44, 44, V),
-  W: base(-60, 60, W),
-  X: base(-70, 70, POINT),
-  Y: base(18, -18, Y),
-  Z: base(82, -82, POINT),
+  A: { ...base(-12, 12, CLOSED), leftWrist: 6, rightWrist: -6 },
+  B: { ...base(-26, 26, OPEN), leftWrist: -4, rightWrist: 4 },
+  C: { ...base(-40, 40, CURL), leftWrist: 12, rightWrist: -12 },
+  D: { ...base(-54, 54, POINT), leftWrist: 9, rightWrist: -9 },
+  E: { ...base(-64, 64, FOLDED_THUMB), leftWrist: -8, rightWrist: 8 },
+  F: { ...base(-78, 78, PINCH), leftWrist: -14, rightWrist: 14 },
+  G: { ...base(-36, 36, POINT), leftWrist: -18, rightWrist: 18 },
+  H: { ...base(-24, 24, V), leftWrist: 8, rightWrist: -8 },
+  I: { ...base(8, -8, Y), leftWrist: -7, rightWrist: 7 },
+  J: { ...base(18, -18, Y), leftWrist: 18, rightWrist: -18 },
+  K: { ...base(-48, 48, POINT), leftWrist: 16, rightWrist: -16 },
+  L: { ...base(-60, 60, OPEN), leftWrist: -12, rightWrist: 12 },
+  M: { ...base(-72, 72, CLOSED), leftWrist: 10, rightWrist: -10 },
+  N: { ...base(-84, 84, CLOSED), leftWrist: -6, rightWrist: 6 },
+  O: { ...base(-96, 96, PINCH), leftWrist: 14, rightWrist: -14 },
+  P: { ...base(-50, 50, POINT), leftWrist: 22, rightWrist: -22 },
+  Q: { ...base(-40, 40, POINT), leftWrist: -22, rightWrist: 22 },
+  R: { ...base(-30, 30, V), leftWrist: 20, rightWrist: -20 },
+  S: { ...base(-10, 10, CLOSED), leftWrist: -10, rightWrist: 10 },
+  T: { ...base(-88, 88, FOLDED_THUMB), leftWrist: 8, rightWrist: -8 },
+  U: { ...base(-26, 26, V), leftWrist: -5, rightWrist: 5 },
+  V: { ...base(-46, 46, V), leftWrist: -13, rightWrist: 13 },
+  W: { ...base(-62, 62, W), leftWrist: 6, rightWrist: -6 },
+  X: { ...base(-72, 72, POINT), leftWrist: 25, rightWrist: -25 },
+  Y: { ...base(20, -20, Y), leftWrist: -16, rightWrist: 16 },
+  Z: { ...base(84, -84, POINT), leftWrist: 28, rightWrist: -28 },
 };
 
 export const DEFAULT_POSE: AvatarPose = {
