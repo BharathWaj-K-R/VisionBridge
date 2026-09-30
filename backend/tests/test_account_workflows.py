@@ -16,7 +16,7 @@ def test_private_account_endpoints_require_authentication():
 
 def test_registration_rejects_invalid_credentials():
     with TestClient(app) as client:
-        response = client.post("/api/v1/auth/register", json={"username": "bad user", "password": "short"})
+        response = client.post("/api/v1/auth/register", json={"username": "bad user", "email": "bad@example.com", "password": "short"})
         assert response.status_code == 422
 
 
