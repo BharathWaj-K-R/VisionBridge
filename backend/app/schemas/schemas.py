@@ -117,3 +117,51 @@ class QuickAccessPayload(BaseModel):
             if value is not None and len(value.strip()) > 200:
                 raise ValueError("Quick-access phrases must be 200 characters or fewer.")
         return self
+
+
+class AvatarProfile(BaseModel):
+    skinTone: str = Field(min_length=4, max_length=20)
+    hair: Literal["short", "curly", "long"]
+    hairColor: str = Field(min_length=4, max_length=20)
+    shirtColor: str = Field(min_length=4, max_length=20)
+    bodyShape: Literal["slim", "average", "athletic"]
+    apparel: Literal["tee", "vest", "button-down"]
+    highContrast: bool = False
+
+
+class PersonalizationProfileConfig(BaseModel):
+    avatar: AvatarProfile
+    quickAccess: list[str | None] = Field(min_length=10, max_length=10)
+    favorites: list[str] = Field(default_factory=list, max_length=50)
+    signingSpeed: float = Field(default=1, ge=0.5, le=1)
+    ttsVoice: str | None = Field(default=None, max_length=200)
+
+    @model_validator(mode="after")
+    def validate_profile_config(self) -> "PersonalizationProfileConfig":
+        self.favorites = [value.strip() for value in self.favorites if value and value.strip()][:50]
+        for index, value in enumerate(self.quickAccess):
+            if value is not None:
+                self.quickAccess[index] = value.strip()[:200] or None
+        return self
+
+
+class PersonalizationProfileCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    config: PersonalizationProfileConfig
+
+
+class PersonalizationProfileUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=80)
+    config: PersonalizationProfileConfig
+
+
+class PersonalizationProfileOut(BaseModel):
+    id: int
+    name: str
+    config: PersonalizationProfileConfig
+    created_at: dt.datetime
+    updated_at: dt.datetime
+
+
+class CommunicationUsageCreate(BaseModel):
+    phrase: str = Field(min_length=1, max_length=200)
