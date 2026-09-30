@@ -238,7 +238,7 @@ export default function Personalization() {
             {mostUsed.length ? (
               <div className="most-used-list">
                 {mostUsed.map((item) => (
-                  <Speakable key={item.phrase} text={item.phrase} className="most-used-row" />
+                  <Speakable key={item.phrase} text={item.phrase} className="most-used-row"><span>{item.phrase}</span><small>{item.usage_count}×</small></Speakable>
                 ))}
               </div>
             ) : <Empty text="Speak or click phrases to start building your personal usage list." />}
