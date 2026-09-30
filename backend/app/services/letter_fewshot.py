@@ -97,6 +97,20 @@ def embed_hand_vector(base_model: VisionBridgeLetterBaseModel, raw: list[float])
     return _unit(embedding)
 
 
+def predict_base_letter(
+    base_model: VisionBridgeLetterBaseModel,
+    raw: list[float],
+) -> tuple[str, float]:
+    """Run the generic V3 26-class softmax path without signer adaptation."""
+    normalized = normalize_hand_pair(raw)
+    tensor = torch.from_numpy(normalized).unsqueeze(0)
+    with torch.inference_mode():
+        logits = base_model(tensor)[0]
+        probabilities = torch.softmax(logits, dim=0)
+        index = int(torch.argmax(probabilities).item())
+    return base_model.labels[index], float(probabilities[index].item())
+
+
 def fit_prototype_adapter(
     base_model: VisionBridgeLetterBaseModel,
     samples: list[tuple[str, list[float]]],
