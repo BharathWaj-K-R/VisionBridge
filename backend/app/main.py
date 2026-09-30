@@ -4,6 +4,7 @@ from urllib.parse import urlparse
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import auth, communication, dashboard, health, history, letter, users
@@ -26,6 +27,15 @@ async def lifespan(_: FastAPI):
         database_url.port or "default",
         (database_url.path or "").lstrip("/") or "default",
     )
+    with engine.connect() as connection:
+        identity = connection.execute(
+            text("SELECT current_user, session_user")
+        ).one()
+        logger.warning(
+            "VisionBridge database execution role: current_user=%s session_user=%s",
+            identity[0],
+            identity[1],
+        )
     Base.metadata.create_all(bind=engine)
     yield
 
