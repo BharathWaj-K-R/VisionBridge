@@ -8,7 +8,7 @@ VisionBridge is a browser-based Indian Sign Language (ISL) A–Z recognition app
 - Live Translate: https://visionbridge-2c7h.onrender.com/translate
 - Calibration: https://visionbridge-2c7h.onrender.com/calibration
 - Letter History: https://visionbridge-2c7h.onrender.com/history
-- Signer Profiles: https://visionbridge-2c7h.onrender.com/settings
+- Settings: https://visionbridge-2c7h.onrender.com/settings
 - Voice to Sign: https://visionbridge-2c7h.onrender.com/voice-to-sign
 - Word Bank: https://visionbridge-2c7h.onrender.com/word-bank
 
