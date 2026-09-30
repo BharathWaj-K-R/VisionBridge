@@ -1,87 +1,224 @@
+import { useEffect, useMemo, useState } from "react";
 import type { AvatarPreferences } from "./AvatarCustomizer";
+import { interpolateAngle, poseFor, type HandFinger } from "./avatarRig";
 
-const POSES: Record<string, { left: number; right: number; spread: number; lift: number }> = {
-  A:{left:-12,right:12,spread:2,lift:4},B:{left:-28,right:28,spread:9,lift:0},C:{left:-42,right:42,spread:18,lift:2},
-  D:{left:-56,right:56,spread:5,lift:-5},E:{left:-68,right:68,spread:11,lift:5},F:{left:-82,right:82,spread:20,lift:-2},
-  G:{left:-38,right:38,spread:3,lift:-11},H:{left:-22,right:22,spread:14,lift:-11},I:{left:8,right:-8,spread:8,lift:-8},
-  J:{left:18,right:-18,spread:16,lift:3},K:{left:-48,right:48,spread:6,lift:-7},L:{left:-63,right:63,spread:15,lift:-8},
-  M:{left:-76,right:76,spread:4,lift:6},N:{left:-88,right:88,spread:7,lift:3},O:{left:-102,right:102,spread:19,lift:1},
-  P:{left:-55,right:55,spread:9,lift:12},Q:{left:-42,right:42,spread:12,lift:13},R:{left:-31,right:31,spread:6,lift:10},
-  S:{left:-12,right:12,spread:1,lift:10},T:{left:-95,right:95,spread:5,lift:8},U:{left:-26,right:26,spread:10,lift:-12},
-  V:{left:-48,right:48,spread:24,lift:-15},W:{left:-65,right:65,spread:28,lift:-12},X:{left:-74,right:74,spread:13,lift:-16},
-  Y:{left:20,right:-20,spread:22,lift:-3},Z:{left:88,right:-88,spread:4,lift:8},
-};
-
-export default function SignAvatar({
-  letter,
-  preferences,
-  playing,
-}: {
+type Props = {
   letter: string;
   preferences: AvatarPreferences;
   playing: boolean;
+  view: "full" | "close";
+  expression: "neutral" | "question" | "emphasis";
+};
+
+const BODY_SCALE = { slim: 0.88, average: 1, athletic: 1.08 } as const;
+
+function fingerRotation(value: number): string {
+  return "rotate(" + value + "deg)";
+}
+
+function HandRig({
+  side,
+  fingers,
+  skin,
+  outline,
+  highContrast,
+}: {
+  side: "left" | "right";
+  fingers: HandFinger;
+  skin: string;
+  outline: string;
+  highContrast: boolean;
 }) {
-  const pose = POSES[letter] || POSES.A;
-  const isSpace = letter === " ";
+  const mirrored = side === "right";
+  const transform = mirrored ? "translate(0 0) scale(-1 1)" : undefined;
+  const finger = (x: number, y: number, length: number, rotation: number, key: string) => (
+    <g key={key} transform={"translate(" + x + " " + y + ") " + fingerRotation(rotation)} className="finger-joint">
+      <line x1="0" y1="0" x2="0" y2={-length * 0.52} stroke={outline} strokeWidth={highContrast ? 3 : 1.5} strokeLinecap="round" opacity={highContrast ? 0.95 : 0.55} />
+      <line x1="0" y1="0" x2="0" y2={-length} stroke={skin} strokeWidth="11" strokeLinecap="round" />
+      <circle cx="0" cy={-length * 0.52} r="3.1" fill={outline} opacity={highContrast ? 0.85 : 0.35} />
+      <circle cx="0" cy={-length} r="2.8" fill={outline} opacity={highContrast ? 0.9 : 0.4} />
+    </g>
+  );
 
   return (
-    <div className={playing ? "sign-avatar playing" : "sign-avatar"} data-letter={letter}>
+    <g transform={transform} className={"hand-rig " + side}>
+      <ellipse cx="0" cy="0" rx="34" ry="29" fill={skin} stroke={outline} strokeWidth={highContrast ? 3 : 1.5} />
+      {finger(8, -18, 39, fingers.index, "index")}
+      {finger(18, -13, 43, fingers.middle, "middle")}
+      {finger(27, -7, 39, fingers.ring, "ring")}
+      {finger(34, 1, 31, fingers.little, "little")}
+      <g transform={"translate(-22 2) " + fingerRotation(fingers.thumb)}>
+        <line x1="0" y1="0" x2="-26" y2="-24" stroke={outline} strokeWidth={highContrast ? 3 : 1.5} strokeLinecap="round" opacity={highContrast ? .95 : .55} />
+        <line x1="0" y1="0" x2="-28" y2="-26" stroke={skin} strokeWidth="11" strokeLinecap="round" />
+      </g>
+      {highContrast && <ellipse cx="0" cy="0" rx="38" ry="33" fill="none" stroke="#38d9ff" strokeWidth="2" opacity=".9" />}
+    </g>
+  );
+}
+
+function Apparel({
+  kind,
+  color,
+  bodyScale,
+}: {
+  kind: AvatarPreferences["apparel"];
+  color: string;
+  bodyScale: number;
+}) {
+  const width = 148 * bodyScale;
+  if (kind === "vest") {
+    return (
+      <g className="apparel-layer">
+        <path d={"M260 292C177 292 135 340 118 494H402C385 340 343 292 260 292Z"} fill={color} />
+        <path d="M207 302L241 352L260 332L279 352L313 302" fill="none" stroke="var(--avatar-trim)" strokeWidth="8" />
+      </g>
+    );
+  }
+  if (kind === "button-down") {
+    return (
+      <g className="apparel-layer">
+        <path d={"M260 292C" + (260 - width) + " 296 " + (260 - width - 28) + " 355 112 494H408C408 494 388 355 " + (260 + width + 28) + " 296 260 292Z"} fill={color} />
+        <path d="M260 296V494M235 315L260 343L285 315" fill="none" stroke="rgba(255,255,255,.7)" strokeWidth="3" />
+        {[350, 384, 418, 452].map((y) => <circle key={y} cx="260" cy={y} r="3.5" fill="rgba(255,255,255,.8)" />)}
+      </g>
+    );
+  }
+  return (
+    <g className="apparel-layer">
+      <path d={"M260 292C177 292 135 340 118 494H402C385 340 343 292 260 292Z"} fill={color} />
+      <path d="M212 300C229 317 291 317 308 300" fill="none" stroke="rgba(255,255,255,.35)" strokeWidth="6" />
+    </g>
+  );
+}
+
+function Face({
+  skin,
+  hair,
+  hairColor,
+  expression,
+}: {
+  skin: string;
+  hair: AvatarPreferences["hair"];
+  hairColor: string;
+  expression: Props["expression"];
+}) {
+  const brows = expression === "question" ? { left: -8, right: 8 } : expression === "emphasis" ? { left: 8, right: -8 } : { left: 0, right: 0 };
+  return (
+    <g className="face-layer">
+      <circle cx="260" cy="160" r="72" fill={skin} stroke="var(--avatar-outline)" strokeWidth="2" />
+      <path d="M194 155C186 102 212 76 260 76C309 76 336 105 326 156C306 134 286 124 260 124C234 124 213 135 194 155Z" fill={hairColor} className={"hair-front hair-" + hair} />
+      {hair === "curly" && <g className="hair-curls">{[198,220,244,270,294,316].map((x, i) => <circle key={i} cx={x} cy={100 + (i % 2) * 7} r="17" fill={hairColor} />)}</g>}
+      {hair === "long" && <g className="hair-back"><path d="M192 145C180 214 200 245 224 258L238 176Z" fill={hairColor} /><path d="M328 145C340 214 320 245 296 258L282 176Z" fill={hairColor} /></g>}
+
+      <g className="expression-layer">
+        <path d={"M218 144q18 " + brows.left + " 36 0"} fill="none" stroke="#1a1715" strokeWidth="5" strokeLinecap="round" />
+        <path d={"M266 144q18 " + brows.right + " 36 0"} fill="none" stroke="#1a1715" strokeWidth="5" strokeLinecap="round" />
+        <ellipse cx="236" cy="162" rx="5" ry="7" fill="#171615" />
+        <ellipse cx="284" cy="162" rx="5" ry="7" fill="#171615" />
+        {expression === "question" ? (
+          <path d="M236 199Q260 186 286 200" fill="none" stroke="#1a1715" strokeWidth="4" strokeLinecap="round" />
+        ) : expression === "emphasis" ? (
+          <path d="M238 198Q260 216 282 198" fill="none" stroke="#1a1715" strokeWidth="4" strokeLinecap="round" />
+        ) : (
+          <path d="M240 199Q260 212 280 199" fill="none" stroke="#1a1715" strokeWidth="4" strokeLinecap="round" />
+        )}
+      </g>
+    </g>
+  );
+}
+
+export default function SignAvatar({ letter, preferences, playing, view, expression }: Props) {
+  const pose = useMemo(() => poseFor(letter), [letter]);
+  const [motionT, setMotionT] = useState(1);
+  const previousLetter = useMemo(() => letter || "", [letter]);
+
+  useEffect(() => {
+    let frame = 0;
+    const start = performance.now();
+    const duration = playing ? 280 : 180;
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / duration);
+      setMotionT(t);
+      if (t < 1) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [previousLetter, playing]);
+
+  const leftArm = interpolateAngle(0, pose.leftArm, motionT);
+  const rightArm = interpolateAngle(0, pose.rightArm, motionT);
+  const leftElbow = interpolateAngle(0, pose.leftElbow, motionT);
+  const rightElbow = interpolateAngle(0, pose.rightElbow, motionT);
+  const outline = preferences.highContrast ? "#38d9ff" : "#3a302b";
+  const bodyScale = BODY_SCALE[preferences.bodyShape];
+  const crop = view === "close" ? "76 55 368 390" : "0 0 520 520";
+  const stageClass = preferences.highContrast ? "sign-avatar high-contrast" : "sign-avatar";
+
+  return (
+    <div className={playing ? stageClass + " playing" : stageClass} data-letter={letter || ""}>
       <div className="avatar-stage-label">
-        <span className="eyebrow">CURRENT SIGN</span>
-        <strong>{isSpace ? "SPACE" : letter || "READY"}</strong>
+        <div><span className="eyebrow">CURRENT SIGN</span><strong>{letter || "READY"}</strong></div>
+        <span className="avatar-expression-tag">{expression.toUpperCase()}</span>
       </div>
 
-      <svg viewBox="0 0 520 430" role="img" aria-label={isSpace ? "Pause between words" : "Animated fingerspelling pose for " + (letter || "no letter")}>
+      <svg viewBox={crop} role="img" aria-label={"2D signing avatar, current sign " + (letter || "ready")}>
         <defs>
-          <linearGradient id="avatar-shirt" x1="0" x2="1">
+          <linearGradient id="avatar-shirt-refined" x1="0" x2="1">
             <stop offset="0" stopColor={preferences.shirtColor} />
             <stop offset="1" stopColor={preferences.shirtColor} stopOpacity=".72" />
           </linearGradient>
+          <radialGradient id="avatar-stage-refined">
+            <stop offset="0" stopColor="var(--avatar-glow)" />
+            <stop offset="1" stopColor="var(--avatar-stage-bg)" />
+          </radialGradient>
         </defs>
 
-        <circle cx="260" cy="208" r="180" fill="var(--avatar-glow)" />
-        <path d="M135 430c5-88 44-134 125-134s120 46 125 134" fill="url(#avatar-shirt)" />
-        <path d="M202 306h116v92H202z" fill={preferences.skinTone} opacity=".95" />
+        <rect x="0" y="0" width="520" height="520" fill="url(#avatar-stage-refined)" />
+        <circle cx="260" cy="210" r="190" fill="var(--avatar-glow)" />
 
-        <g className="avatar-head">
-          <circle cx="260" cy="177" r="72" fill={preferences.skinTone} />
-          <path d="M191 174c0-62 28-92 69-92 54 0 72 37 69 90-18-21-38-31-60-31-31 0-54 14-78 33z" fill={preferences.hairColor} />
-          {preferences.hair === "curly" && (
-            <>
-              <circle cx="202" cy="128" r="14" fill={preferences.hairColor} />
-              <circle cx="224" cy="106" r="16" fill={preferences.hairColor} />
-              <circle cx="250" cy="99" r="17" fill={preferences.hairColor} />
-              <circle cx="278" cy="105" r="16" fill={preferences.hairColor} />
-              <circle cx="306" cy="125" r="14" fill={preferences.hairColor} />
-            </>
-          )}
-          {preferences.hair === "long" && (
-            <>
-              <path d="M193 155c-10 58 7 92 30 108h18V170z" fill={preferences.hairColor} />
-              <path d="M327 155c10 58-7 92-30 108h-18V170z" fill={preferences.hairColor} />
-            </>
-          )}
-          <circle cx="235" cy="182" r="4" fill="#111" />
-          <circle cx="285" cy="182" r="4" fill="#111" />
-          <path d="M242 213c12 8 24 8 36 0" fill="none" stroke="#111" strokeWidth="4" strokeLinecap="round" />
-        </g>
+        <g className="avatar-root" style={{ transform: "scaleX(" + bodyScale + ") translateX(" + (260 * (1 - bodyScale)) + "px)" }}>
+          <Apparel kind={preferences.apparel} color={preferences.shirtColor} bodyScale={bodyScale} />
 
-        <g className="avatar-arm avatar-arm-left" style={{ transform: "rotate(" + pose.left + "deg) translateY(" + pose.lift + "px)", transformOrigin: "202px 320px" }}>
-          <path d="M205 320c-35 25-55 49-69 86" fill="none" stroke={preferences.skinTone} strokeWidth="28" strokeLinecap="round" />
-          <g className="avatar-hand" style={{ transform: "translateY(" + (-pose.spread) + "px)" }}>
-            <circle cx="136" cy="399" r="20" fill={preferences.skinTone} />
-            <path d="M136 390c-20-17-33-25-40-18 0 7 9 15 25 25M137 390c-5-23-5-35 4-36 8 3 10 15 8 34M145 392c8-21 15-31 23-27 6 5 0 17-11 32M148 398c15-11 28-14 33-7 2 8-11 13-29 17" fill="none" stroke={preferences.skinTone} strokeWidth="10" strokeLinecap="round" />
+          <path d="M210 286L184 308L154 370" fill="none" stroke={preferences.skinTone} strokeWidth="31" strokeLinecap="round" />
+          <path d="M310 286L336 308L366 370" fill="none" stroke={preferences.skinTone} strokeWidth="31" strokeLinecap="round" />
+
+          <g className="bone-arm" style={{ transform: "rotate(" + leftArm + "deg)", transformOrigin: "184px 308px" }}>
+            <path d="M184 308L146 358" fill="none" stroke="var(--avatar-sleeve)" strokeWidth="34" strokeLinecap="round" opacity=".84" />
+            <g style={{ transform: "rotate(" + leftElbow + "deg)", transformOrigin: "146px 358px" }}>
+              <path d="M146 358L116 223" fill="none" stroke={preferences.skinTone} strokeWidth="25" strokeLinecap="round" />
+              <g transform="translate(116 222) rotate(-12)">
+                <HandRig side="left" fingers={pose.leftHand} skin={preferences.skinTone} outline={outline} highContrast={preferences.highContrast} />
+              </g>
+            </g>
           </g>
+
+          <g className="bone-arm" style={{ transform: "rotate(" + rightArm + "deg)", transformOrigin: "336px 308px" }}>
+            <path d="M336 308L374 358" fill="none" stroke="var(--avatar-sleeve)" strokeWidth="34" strokeLinecap="round" opacity=".84" />
+            <g style={{ transform: "rotate(" + rightElbow + "deg)", transformOrigin: "374px 358px" }}>
+              <path d="M374 358L404 223" fill="none" stroke={preferences.skinTone} strokeWidth="25" strokeLinecap="round" />
+              <g transform="translate(404 222) rotate(12)">
+                <HandRig side="right" fingers={pose.rightHand} skin={preferences.skinTone} outline={outline} highContrast={preferences.highContrast} />
+              </g>
+            </g>
+          </g>
+
+          <path d="M205 294C214 281 232 274 260 274C288 274 306 281 315 294L310 316C286 325 234 325 210 316Z" fill={preferences.skinTone} opacity=".96" />
+          <Face skin={preferences.skinTone} hair={preferences.hair} hairColor={preferences.hairColor} expression={expression} />
         </g>
 
-        <g className="avatar-arm avatar-arm-right" style={{ transform: "rotate(" + pose.right + "deg) translateY(" + pose.lift + "px)", transformOrigin: "318px 320px" }}>
-          <path d="M315 320c35 25 55 49 69 86" fill="none" stroke={preferences.skinTone} strokeWidth="28" strokeLinecap="round" />
-          <g className="avatar-hand" style={{ transform: "translateY(" + pose.spread + "px)" }}>
-            <circle cx="384" cy="399" r="20" fill={preferences.skinTone} />
-            <path d="M384 390c20-17 33-25 40-18 0 7-9 15-25 25M383 390c5-23 5-35-4-36-8 3-10 15-8 34M375 392c-8-21-15-31-23-27-6 5 0 17 11 32M372 398c-15-11-28-14-33-7-2 8 11 13 29 17" fill="none" stroke={preferences.skinTone} strokeWidth="10" strokeLinecap="round" />
+        {preferences.highContrast && (
+          <g className="contrast-guides">
+            <line x1="78" y1="448" x2="442" y2="448" stroke="#38d9ff" strokeWidth="2" opacity=".25" />
+            <circle cx="116" cy="223" r="44" fill="none" stroke="#38d9ff" strokeDasharray="5 6" opacity=".35" />
+            <circle cx="404" cy="223" r="44" fill="none" stroke="#38d9ff" strokeDasharray="5 6" opacity=".35" />
           </g>
-        </g>
+        )}
       </svg>
+
+      <div className="avatar-status-strip">
+        <span>{playing ? "LISTENING / SIGNING" : "READY FOR NEXT SIGN"}</span>
+        <div className="avatar-meter" aria-hidden="true">{[0,1,2,3,4].map((bar) => <i key={bar} className={playing ? "on" : ""} />)}</div>
+      </div>
     </div>
   );
 }
