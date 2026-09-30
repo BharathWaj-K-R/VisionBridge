@@ -369,7 +369,7 @@ export default function SignAvatar3D({ letter, preferences, playing, view, expre
       cancelAnimationFrame(frame);
       observer.disconnect();
       renderer.dispose();
-      scene.traverse((object) => {
+      scene.traverse((object: THREE.Object3D) => {
         const mesh = object as THREE.Mesh;
         if (mesh.geometry) mesh.geometry.dispose();
         const material = mesh.material;
