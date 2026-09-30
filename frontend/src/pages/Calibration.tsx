@@ -15,7 +15,7 @@ export default function Calibration() {
   const [message, setMessage] = useState("Capture three examples for each letter you want to recognize.");
   const [startedAt, setStartedAt] = useState<number | null>(null);
 
-  useEffect(() => { api.me().then((u) => setUserId(u.id)); }, []);
+  useEffect(() => { void api.me().then((u) => setUserId(u.id)).catch(() => setMessage("Authentication session could not be verified. Please sign in again.")); }, []);
 
   const selectedSamples = samples[selectedLetter] || [];
   const completed = useMemo(() => LETTERS.filter((letter) => (samples[letter] || []).length >= 3), [samples]);
