@@ -130,7 +130,13 @@ function Dashboard() {
 
 
 function Recognize() {
-  const session = useLandmarkSession(15);
+  const configuredFps = Number(localStorage.getItem("visionbridge_camera_fps") || "30");
+  const session = useLandmarkSession(configuredFps);
+  useEffect(() => {
+    if (localStorage.getItem("visionbridge_auto_camera") === "1" && !session.running) {
+      void session.start().catch(() => undefined);
+    }
+  }, []);
   const [prediction, setPrediction] = useState("—");
   const [confidence, setConfidence] = useState(0);
   const [latency, setLatency] = useState<number | null>(null);
