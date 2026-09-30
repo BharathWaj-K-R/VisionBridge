@@ -134,11 +134,14 @@ export function useLandmarkSession(sampleFps: number) {
       let frames = 0;
       let tick = performance.now();
       let processing = false;
+      let lastInference = 0;
+      const inferenceInterval = 1000 / Math.max(1, Math.min(sampleFps, 60));
 
-      const loop = async () => {
+      const loop = async (now: number) => {
         if (!activeRef.current || !videoRef.current || !handsRef.current) return;
 
-        if (!processing) {
+        if (!processing && (lastInference === 0 || now - lastInference >= inferenceInterval)) {
+          lastInference = now;
           processing = true;
           try {
             await handsRef.current.send({ image: videoRef.current });
