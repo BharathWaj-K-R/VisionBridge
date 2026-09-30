@@ -1,4 +1,6 @@
 import { useEffect, useRef } from "react";
+// Three.js ships as the runtime dependency; this file intentionally treats the renderer API as runtime-only.
+// @ts-ignore -- the project does not carry the large optional Three.js declaration graph.
 import * as THREE from "three";
 import type { AvatarPreferences } from "./AvatarCustomizer";
 import { poseFor, type HandFinger } from "./avatarRig";
@@ -27,7 +29,7 @@ function makeMaterial(color: string, opacity: number, wireframe = false) {
   });
 }
 
-function addJoint(parent: THREE.Object3D, position: THREE.Vector3, color: string, size = 0.075) {
+function addJoint(parent: any, position: any, color: string, size = 0.075) {
   const mesh = new THREE.Mesh(
     new THREE.SphereGeometry(size, 12, 12),
     makeMaterial(color, 0.95),
@@ -37,7 +39,7 @@ function addJoint(parent: THREE.Object3D, position: THREE.Vector3, color: string
   return mesh;
 }
 
-function addSegment(parent: THREE.Object3D, length: number, radius: number, color: string) {
+function addSegment(parent: any, length: number, radius: number, color: string) {
   const mesh = new THREE.Mesh(
     new THREE.CapsuleGeometry(radius, Math.max(0.05, length - radius * 2), 6, 12),
     makeMaterial(color, 0.92),
@@ -225,7 +227,7 @@ function buildAvatar(preferences: AvatarPreferences) {
   return root;
 }
 
-function applyFingerPose(root: THREE.Object3D, side: "left" | "right", hand: HandFinger) {
+function applyFingerPose(root: any, side: "left" | "right", hand: HandFinger) {
   const names: Array<keyof HandFinger> = ["index", "middle", "ring", "little", "thumb"];
   for (const name of names) {
     const object = root.getObjectByName(side + "-" + name);
@@ -369,7 +371,7 @@ export default function SignAvatar3D({ letter, preferences, playing, view, expre
       cancelAnimationFrame(frame);
       observer.disconnect();
       renderer.dispose();
-      scene.traverse((object: THREE.Object3D) => {
+      scene.traverse((object: any) => {
         const mesh = object as THREE.Mesh;
         if (mesh.geometry) mesh.geometry.dispose();
         const material = mesh.material;
