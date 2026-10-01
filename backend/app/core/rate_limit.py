@@ -83,6 +83,23 @@ def _client_key(request: Request) -> str:
     return f"ip:{client.host if client else 'unknown'}"
 
 
+def make_identifier_key(request: Request, identifier: str) -> str:
+    """Combine client address and a normalized identifier for anonymous auth flows."""
+    client = request.client
+    host = client.host if client else "unknown"
+    return f"ip:{host}|id:{identifier.lower().strip()}"
+
+
+def enforce_limit(limiter: SlidingWindowRateLimiter, key: str) -> None:
+    allowed, retry_after = limiter.check(key)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many requests. Please try again shortly.",
+            headers={"Retry-After": str(max(1, round(retry_after)))},
+        )
+
+
 def make_rate_limit_dependency(limiter: SlidingWindowRateLimiter):
     """Build a FastAPI dependency bound to one limiter instance.
 
