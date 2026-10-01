@@ -11,7 +11,7 @@ from app.db.session import SessionLocal
 def _token_and_user():
     db = SessionLocal()
     username = f"profile-test-{uuid.uuid4().hex[:8]}"
-    user = User(username=username, email=f"{username}@example.com", hashed_password="test", is_verified=True)
+    user = User(username=username, email=f"{username}@example.com", hashed_password="test")
     db.add(user)
     db.commit()
     db.refresh(user)
