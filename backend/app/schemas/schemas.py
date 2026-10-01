@@ -12,21 +12,6 @@ class RegisterRequest(BaseModel):
     password: str = Field(min_length=8, max_length=72)
 
 
-class RegisterResponse(BaseModel):
-    message: str
-    email: str
-    verification_required: bool = True
-    resend_after_seconds: int
-
-
-class VerifyOtpRequest(BaseModel):
-    email: str = Field(min_length=3, max_length=320)
-    otp: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
-
-
-class ResendOtpRequest(BaseModel):
-    email: str = Field(min_length=3, max_length=320)
-
 
 class LoginRequest(BaseModel):
     identifier: str = Field(min_length=1, max_length=320)
@@ -40,7 +25,6 @@ class UserOut(BaseModel):
     username: str
     email: str | None = None
     created_at: dt.datetime
-    is_verified: bool
 
 
 class Token(BaseModel):
