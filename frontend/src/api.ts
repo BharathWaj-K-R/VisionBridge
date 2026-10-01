@@ -110,18 +110,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 }
 
-export type User = { id: number; username: string; email?: string | null; created_at: string; is_verified: boolean };
+export type User = { id: number; username: string; email?: string | null; created_at: string };
 export type Token = { access_token: string; token_type: string };
-export type RegisterResponse = {
-  message: string;
-  email: string;
-  verification_required: boolean;
-  resend_after_seconds: number;
-};
-export type ResendOtpResponse = {
-  message: string;
-  resend_after_seconds: number;
-};
 export type LetterSample = { letter: string; hand_keypoints: number[] };
 export type LetterCalibrationResult = { adapter_id: number; letters: string[]; shots: Record<string, number>; param_count: number };
 export type LetterPredictionResult = { predicted_letter: string; confidence: number; latency_ms: number; adapter_id: number | null; mode: "base" | "adapter" };
@@ -137,11 +127,10 @@ function localUser(username?: string): User {
         username: saved.username || username || "Local User",
         email: saved.email || null,
         created_at: saved.created_at || new Date().toISOString(),
-        is_verified: saved.is_verified !== false,
       };
     } catch {}
   }
-  const user: User = { id: 1, username: username || "Local User", email: null, created_at: new Date().toISOString(), is_verified: true };
+  const user: User = { id: 1, username: username || "Local User", email: null, created_at: new Date().toISOString() };
   localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(user));
   return user;
 }
@@ -241,32 +230,19 @@ function localPredict(adapter: any, raw: number[]) {
 }
 
 export const api = {
-  register: async (username: string, email: string, password: string): Promise<RegisterResponse> =>
-    LOCAL_MODE
-      ? { message: "Local demo account created.", email, verification_required: false, resend_after_seconds: 0 }
-      : request<RegisterResponse>("/auth/register", { method: "POST", body: JSON.stringify({ username, email, password }) }),
-  verifyOtp: async (email: string, otp: string): Promise<Token> => {
+  register: async (username: string, email: string, password: string): Promise<Token> => {
     if (LOCAL_MODE) {
-      localUser();
+      localUser(username);
       localStorage.setItem(LOCAL_AUTH_KEY, "1");
       setSessionHint();
       return { access_token: "visionbridge-local-token", token_type: "bearer" };
     }
-    const token = await request<Token>("/auth/verify-otp", {
+    const token = await request<Token>("/auth/register", {
       method: "POST",
-      body: JSON.stringify({ email, otp }),
+      body: JSON.stringify({ username, email, password }),
     });
     setSessionHint();
     return token;
-  },
-  resendOtp: async (email: string): Promise<ResendOtpResponse> => {
-    if (LOCAL_MODE) {
-      return { message: "Local demo does not send email.", resend_after_seconds: 0 };
-    }
-    return request<ResendOtpResponse>("/auth/resend-otp", {
-      method: "POST",
-      body: JSON.stringify({ email }),
-    });
   },
   login: async (identifier: string, password: string): Promise<Token> => {
     if (LOCAL_MODE) { localUser(identifier); localStorage.setItem(LOCAL_AUTH_KEY, "1"); setSessionHint(); return { access_token: "visionbridge-local-token", token_type: "bearer" }; }
