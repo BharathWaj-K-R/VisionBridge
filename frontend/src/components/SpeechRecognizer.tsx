@@ -1,3 +1,5 @@
+import { PermissionGuidance } from "./SystemStates";
+
 type Props = {
   transcript: string;
   interimTranscript: string;
@@ -66,11 +68,13 @@ export default function SpeechRecognizer({
 
       {!supported && (
         <div className="alert error" role="alert">
-          Voice input is not available in this browser. Try a supported browser and make sure microphone access is allowed.
+          Voice input is not available in this browser. Try a supported browser with microphone access.
         </div>
       )}
 
-      {error && <div className="alert error" role="alert">{error}</div>}
+      {error && (/microphone.*denied|permission was denied|permission.*denied/i.test(error)
+        ? <PermissionGuidance kind="microphone" onRetry={onStart} compact />
+        : <div className="alert error" role="alert">{error}</div>)}
 
       <div className="transcript-box" aria-live="polite">
         <span className="eyebrow">YOUR WORDS</span>
