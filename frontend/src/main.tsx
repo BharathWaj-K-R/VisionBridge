@@ -23,7 +23,6 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
             message="Something unexpected stopped this screen. Reload the app and try again. Your saved account data is not changed by this message."
             actionLabel="Reload VisionBridge"
             onRetry={() => window.location.reload()}
-            home
           />
         </section>
       </main>;
