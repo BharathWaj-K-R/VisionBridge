@@ -5,6 +5,7 @@ import Speakable from "../components/Speakable";
 import { QUICK_ACCESS_SLOTS, useQuickAccess } from "../components/QuickAccessContext";
 import { PROFILE_SPEEDS, usePersonalization, type PersonalizationConfig } from "../components/PersonalizationContext";
 import { Empty, Page } from "../components/Page";
+import { LoadingState } from "../components/SystemStates";
 
 const PRESETS: Record<string, Partial<PersonalizationConfig>> = {
   Home: {
@@ -43,7 +44,7 @@ export default function Personalization() {
   }, [activeProfile?.id, slots.join("|")]);
 
   if (loading || !activeProfile) {
-    return <Page title="My Profile" subtitle="Loading your personal communication workspace."><div className="loading-page">Loading profile…</div></Page>;
+    return <Page title="My Profile" subtitle="Loading your personal communication workspace."><LoadingState label="Loading profile…" /></Page>;
   }
 
   const profile = activeProfile;
