@@ -23,8 +23,9 @@ def send_verification_email(email: str, otp: str) -> None:
         )
 
     safe_otp = html.escape(otp)
-    response = httpx.post(
-        RESEND_URL,
+    try:
+        response = httpx.post(
+            RESEND_URL,
         headers={
             "Authorization": "Bearer " + settings.RESEND_API_KEY,
             "Content-Type": "application/json",
@@ -50,8 +51,12 @@ def send_verification_email(email: str, otp: str) -> None:
                 "</div>"
             ),
         },
-        timeout=10.0,
-    )
+            timeout=10.0,
+        )
+    except httpx.HTTPError as exc:
+        raise EmailDeliveryError(
+            "We could not reach the email service. Please try again shortly."
+        ) from exc
 
     if response.is_error:
         raise EmailDeliveryError(
