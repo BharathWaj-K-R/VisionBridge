@@ -31,7 +31,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 }
 
-const knownPaths = new Set(["/", "/login", "/dashboard", "/translate", "/calibration", "/history", "/settings", "/voice-to-sign", "/word-bank", "/personalization"]);
+const knownPaths = new Set(["/", "/login", "/verify-email", "/dashboard", "/translate", "/calibration", "/history", "/settings", "/voice-to-sign", "/word-bank", "/personalization"]);
 function RouteGuard() {
   const { pathname } = useLocation();
   return knownPaths.has(pathname) ? <App /> : <NotFound />;
