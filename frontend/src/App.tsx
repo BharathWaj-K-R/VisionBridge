@@ -7,6 +7,7 @@ import QuickAccessBar from "./components/QuickAccessBar";
 import { PersonalizationProvider } from "./components/PersonalizationContext";
 import ProfileSwitcher from "./components/ProfileSwitcher";
 import { QuickAccessProvider } from "./components/QuickAccessContext";
+import { OfflineBanner } from "./components/SystemStates";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Recognize = lazy(() => import("./pages/Recognize"));
@@ -34,6 +35,7 @@ function Shell({ children, username, onLogout }: { children: ReactNode; username
       <div className="top-actions"><ProfileSwitcher /><Link className="icon-btn" to="/settings" aria-label="Settings" title="Settings">⚙</Link><span className="user-avatar" title={username || "Signed in"} aria-label={username || "Signed in"}>{(username || "U").slice(0, 1).toUpperCase()}</span><button className="icon-btn" onClick={onLogout} aria-label="Sign out" title="Sign out">↗</button></div>
     </header>
     <QuickAccessBar />
+    <OfflineBanner />
     <nav className="mobile-primary-nav" aria-label="Primary navigation">{navItems.map(([path, label]) => <Link key={path} to={path} className={location.pathname.startsWith(path) ? "active" : ""}>{label}</Link>)}</nav>
     <main id="main-content" className="main-pane">{children}</main>
   </div></QuickAccessProvider></PersonalizationProvider>;
@@ -76,9 +78,9 @@ export default function App() {
   const [username, setUsername] = useState<string>();
   const navigate = useNavigate();
   useEffect(() => {
-    if (localMode) { if (authed) api.me().then(user => setUsername(user.username)).catch(() => { clearLocalAuth(); setAuthed(false); }); return; }
+    if (localMode) { if (authed) api.me().then(user => setUsername(user.username)).catch(() => { clearLocalAuth(); setAuthed(false); navigate("/login?auth_error=session_expired", { replace: true }); }); return; }
     if (!hasSessionHint()) { setAuthChecking(false); return; }
-    api.me().then(user => { setUsername(user.username); setAuthed(true); }).catch(() => { clearSessionHint(); setAuthed(false); }).finally(() => setAuthChecking(false));
+    api.me().then(user => { setUsername(user.username); setAuthed(true); }).catch(() => { clearSessionHint(); setAuthed(false); navigate("/login?auth_error=session_expired", { replace: true }); }).finally(() => setAuthChecking(false));
   }, [authed, localMode]);
   const logout = () => void api.logout().then(() => {
     clearLocalAuth(); clearSessionHint(); setUsername(undefined); setAuthed(false); navigate("/login");
