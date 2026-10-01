@@ -5,6 +5,7 @@ import { BrowserLetterAdapter, type BrowserLetterModel } from "../browserModel";
 import { normalizeHandPair, type TrackerMode } from "../landmarks";
 import { useLandmarkSession } from "../useLandmarkSession";
 import { Empty, Page } from "../components/Page";
+import { EmptyState, ErrorState, PermissionGuidance } from "../components/SystemStates";
 
 export default function Recognize() {
   const configuredFps = Number(localStorage.getItem("visionbridge_camera_fps") || "30");
@@ -38,6 +39,7 @@ export default function Recognize() {
   const [similarity, setSimilarity] = useState<number | null>(null);
   const [error, setError] = useState("");
   const [fastReady, setFastReady] = useState(false);
+  const [modelRetry, setModelRetry] = useState(0);
   const [userId, setUserId] = useState<number>();
   const [adapters, setAdapters] = useState<any[]>([]);
   const [adapterId, setAdapterId] = useState<number | undefined>();
@@ -95,7 +97,7 @@ export default function Recognize() {
       baseModelRef.current = null;
       adapterRef.current = null;
     };
-  }, [adapterId]);
+  }, [adapterId, modelRetry]);
 
   useEffect(() => {
     const intervalMs = import.meta.env.VITE_LOCAL_MODE !== "false" ? 220 : 33;
@@ -187,6 +189,9 @@ export default function Recognize() {
   }, [adapterId, latestFrame, userId]);
 
   const activeAdapter = adapters.find((item) => item.id === adapterId);
+  const cameraPermissionDenied = /camera permission denied/i.test(session.status);
+  const cameraUnavailable = /no camera was found|camera api unavailable|camera is busy|camera start failed/i.test(session.status);
+  const modelUnavailable = /browser model could not be loaded|model could not be loaded/i.test(error);
 
   return <Page title="Translate with camera" subtitle="Show a hand sign inside the frame and VisionBridge will recognize the letter.">
     <div className="translate-grid">
@@ -247,7 +252,10 @@ export default function Recognize() {
               </select>
             </label>
           </div>
-          {error && <div className="alert error">{error}</div>}
+          {cameraPermissionDenied && <PermissionGuidance kind="camera" onRetry={() => session.start().catch(() => undefined)} compact />}
+          {cameraUnavailable && !cameraPermissionDenied && <ErrorState title="Camera isn't available" message={session.status} actionLabel="Try camera again" onRetry={() => session.start().catch(() => undefined)} />}
+          {modelUnavailable && <ErrorState title="Recognition isn't ready" message="VisionBridge could not load the recognition model. Check your connection, then try again." actionLabel="Retry" onRetry={() => { setError(""); setFastReady(false); setModelRetry((value) => value + 1); }} />}
+          {error && !modelUnavailable && !cameraPermissionDenied && <div className="alert error">{error}</div>}
           <details className="advanced-details">
             <summary>Show technical details</summary>
             <div className="hand-telemetry">
@@ -277,7 +285,7 @@ export default function Recognize() {
 
         <section className="panel">
           <div className="panel-head"><div><div className="eyebrow">RECENT RESULTS</div><h2>Last few letters</h2></div></div>
-          <div className="temporal-grid">{temporal.length ? temporal.map((item, index) => <div className="temporal-cell" key={item.at + "-" + index}><strong>{item.letter}</strong><span>{Math.round(item.confidence * 100)}%</span><small>{item.at}</small></div>) : <Empty text="No live predictions yet." />}</div>
+          <div className="temporal-grid">{temporal.length ? temporal.map((item, index) => <div className="temporal-cell" key={item.at + "-" + index}><strong>{item.letter}</strong><span>{Math.round(item.confidence * 100)}%</span><small>{item.at}</small></div>) : <EmptyState title="No predictions yet" message="Start the camera and show a clear hand sign to see your first result." to="/translate" actionLabel="Start camera" />}</div>
         </section>
 
         <section className="panel signer-card">
