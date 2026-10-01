@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import { WebSpeechEngine } from "../speech/WebSpeechEngine";
 import type { SpeechEngine, SpeechEngineState } from "../speech/speechTypes";
 import { SentenceBuffer } from "../sentence/sentenceBuffer";
@@ -11,7 +11,7 @@ import type { VocabularyItem } from "../data/vocabulary";
 
 const SENTENCE_PAUSE_MS = 1400;
 
-function createSentenceId(counter: React.MutableRefObject<number>): string {
+function createSentenceId(counter: MutableRefObject<number>): string {
   counter.current += 1;
   return "sentence-" + Date.now().toString(36) + "-" + counter.current.toString(36);
 }
@@ -197,8 +197,14 @@ export function useSpeechToSentence(
 
   const stopListening = useCallback(() => {
     engineRef.current?.stop();
-    flushPendingSentence();
-  }, [flushPendingSentence]);
+    clearPauseTimer();
+    pauseTimerRef.current = window.setTimeout(() => {
+      const pending = bufferRef.current.flush();
+      if (pending) addSentences([pending]);
+      setInterimTranscript("");
+      pauseTimerRef.current = null;
+    }, 250);
+  }, [addSentences, clearPauseTimer]);
 
   const endSentence = useCallback(() => {
     setInterimTranscript("");
