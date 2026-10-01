@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter, useLocation } from "react-router-dom";
 import App from "./App";
 import NotFound from "./NotFound";
+import { AppBootstrap } from "./components/SystemStates";
 import "./styles.css";
 import "./design-system.css";
 
