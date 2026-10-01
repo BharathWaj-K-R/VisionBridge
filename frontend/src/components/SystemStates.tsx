@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import React, { type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
 type ButtonProps = {
@@ -124,6 +124,18 @@ export function PermissionGuidance({
 }
 
 export function OfflineBanner() {
+  const [online, setOnline] = React.useState(() => navigator.onLine);
+  React.useEffect(() => {
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => {
+      window.removeEventListener("online", on);
+      window.removeEventListener("offline", off);
+    };
+  }, []);
+  if (online) return null;
   return (
     <div className="offline-banner" role="status" aria-live="polite">
       <span className="offline-dot" aria-hidden="true" />
