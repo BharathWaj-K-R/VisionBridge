@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { api, setSessionHint } from "../api";
 import Seo from "../components/Seo";
-import { AppBootstrap, ErrorState, SuccessMessage } from "../components/SystemStates";
+import { ErrorState, SuccessMessage } from "../components/SystemStates";
 
 const RESEND_FALLBACK_SECONDS = 60;
 
@@ -34,7 +34,7 @@ export default function VerifyEmail() {
     setError("");
   }
 
-  async function verify(event: React.FormEvent) {
+  async function verify(event: FormEvent) {
     event.preventDefault();
     if (!email.trim() || otp.length !== 6 || busy) return;
     setBusy(true);
@@ -139,4 +139,3 @@ export default function VerifyEmail() {
   );
 }
 
-void AppBootstrap;
