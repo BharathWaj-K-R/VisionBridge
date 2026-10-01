@@ -14,7 +14,8 @@ from app.main import app
 def _reset_auth_limiters() -> None:
     auth_api.register_limiter.reset()
     auth_api.verify_limiter.reset()
-    auth_api.resend_limiter.reset()
+    auth_api.resend_ip_limiter.reset()
+    auth_api.resend_identifier_limiter.reset()
 
 
 def test_registration_requires_all_strong_password_rules():
