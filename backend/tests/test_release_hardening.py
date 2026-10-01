@@ -4,8 +4,6 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from app.core.security import hash_password
-from app.api import auth as auth_api
 from app.db.models import TranslationLog, User
 from app.db.session import Base, SessionLocal, engine
 from app.main import app
@@ -105,39 +103,24 @@ def test_protected_route_requires_authentication(client):
     assert response.status_code == 401
 
 
-def test_login_and_history_are_user_scoped(client, monkeypatch):
+def test_login_and_history_are_user_scoped(client):
     csrf = _csrf(client)
-    otp_by_email = {}
-    monkeypatch.setattr(
-        auth_api,
-        "send_verification_email",
-        lambda email, otp: otp_by_email.__setitem__(email, otp),
-    )
+
     first = client.post(
         "/api/v1/auth/register",
         headers={"X-CSRF-Token": csrf},
         json={"username": "release-user-a", "email": "release-a@example.com", "password": "StrongPass123!"},
     )
-    assert first.status_code == 200
-    verify_first = client.post(
-        "/api/v1/auth/verify-otp",
-        headers={"X-CSRF-Token": csrf},
-        json={"email": "release-a@example.com", "otp": otp_by_email["release-a@example.com"]},
-    )
-    assert verify_first.status_code == 200
+    assert first.status_code == 201
+    first_token = first.json()["access_token"]
 
     second = client.post(
         "/api/v1/auth/register",
         headers={"X-CSRF-Token": csrf},
         json={"username": "release-user-b", "email": "release-b@example.com", "password": "StrongPass123!"},
     )
-    assert second.status_code == 200
-    verify_second = client.post(
-        "/api/v1/auth/verify-otp",
-        headers={"X-CSRF-Token": csrf},
-        json={"email": "release-b@example.com", "otp": otp_by_email["release-b@example.com"]},
-    )
-    assert verify_second.status_code == 200
+    assert second.status_code == 201
+    assert second.json()["access_token"]
 
     db = SessionLocal()
     try:
@@ -159,6 +142,8 @@ def test_login_and_history_are_user_scoped(client, monkeypatch):
         json={"identifier": "release-user-a", "password": "StrongPass123!"},
     )
     assert login.status_code == 200
+    assert login.json()["access_token"]
+    assert first_token
 
     me = client.get("/api/v1/users/me")
     assert me.status_code == 200
