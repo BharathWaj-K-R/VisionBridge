@@ -1,15 +1,10 @@
 """
 Password hashing + JWT helpers.
 
-Authentication continues to use bcrypt for passwords and HS256 JWTs for the
-existing HttpOnly-cookie session. OTPs use an HMAC-SHA256 server-secret hash
-because a six-digit code is too small to protect with an unkeyed digest if the
-database were ever exposed.
+Authentication uses bcrypt for passwords and HS256 JWTs for the existing
+HttpOnly-cookie session.
 """
 import datetime as dt
-import hashlib
-import hmac
-import secrets
 
 from jose import jwt
 from passlib.context import CryptContext
@@ -41,22 +36,6 @@ def hash_password(password: str) -> str:
 def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
-
-def generate_otp() -> str:
-    return f"{secrets.randbelow(1_000_000):06d}"
-
-
-def hash_otp(otp: str) -> str:
-    return hmac.new(
-        settings.SECRET_KEY.encode("utf-8"),
-        otp.encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
-
-
-def verify_otp(otp: str, otp_hash: str) -> bool:
-    expected = hash_otp(otp)
-    return hmac.compare_digest(expected, otp_hash)
 
 
 def create_access_token(subject: str) -> str:
