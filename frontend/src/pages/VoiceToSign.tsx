@@ -56,7 +56,7 @@ export default function VoiceToSign() {
   return (
     <Page
       title="Speak to Sentence"
-      subtitle="Speak naturally. VisionBridge builds complete sentences and presents the corresponding sign references in sequence."
+      subtitle="Speak naturally. Your sentence appears as a sequence of sign references you can play, pause, and repeat."
     >
       <div className="voice-layout speak-to-sentence-layout">
         <div className="voice-main">
@@ -148,29 +148,10 @@ export default function VoiceToSign() {
         </div>
       </div>
 
-      <section className="panel voice-limitation-panel">
-        <div className="eyebrow">CURRENT SIGNING SCOPE</div>
-        <p>
-          Speak-to-Sentence understands speech as sentences rather than a character stream. Existing vocabulary is used for phrase-aware resolution, while words without validated visual assets fall back to A–Z fingerspelling. This refactor does not claim full sentence-level ISL translation.
-        </p>
-      </section>
-
-      <section className="panel sentence-architecture-panel">
-        <div className="eyebrow">PIPELINE</div>
-        <div className="sentence-pipeline">
-          <span>MICROPHONE</span>
-          <b>→</b>
-          <span>SPEECH ENGINE</span>
-          <b>→</b>
-          <span>TRANSCRIPT</span>
-          <b>→</b>
-          <span>SENTENCES</span>
-          <b>→</b>
-          <span>SIGN RESOLVER</span>
-          <b>→</b>
-          <span>REFERENCE STAGE</span>
-        </div>
-      </section>
+      <details className="panel advanced-details">
+        <summary>About how Speak works</summary>
+        <div className="assistive-copy">Speak-to-Sentence groups your speech into sentences, uses saved vocabulary when available, and uses letter-by-letter references when a matching visual asset is not available.</div>
+      </details>
     </Page>
   );
 }
