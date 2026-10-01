@@ -4,6 +4,7 @@ import { BrowserRouter, useLocation } from "react-router-dom";
 import App from "./App";
 import NotFound from "./NotFound";
 import "./styles.css";
+import "./design-system.css";
 
 type ErrorBoundaryProps = { children: ReactNode };
 type ErrorBoundaryState = { error: Error | null };
@@ -28,8 +29,10 @@ function RouteGuard() {
 }
 
 const savedTheme = localStorage.getItem("visionbridge_theme");
+const savedContrast = localStorage.getItem("visionbridge_contrast") === "high" ? "high" : "normal";
 const initialTheme = savedTheme === "dark" || savedTheme === "light" || savedTheme === "system" ? savedTheme : "system";
 document.documentElement.dataset.theme = initialTheme;
+document.documentElement.dataset.contrast = savedContrast;
 
 const root = document.getElementById("root");
 if (!root) {
