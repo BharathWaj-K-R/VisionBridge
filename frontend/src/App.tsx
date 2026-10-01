@@ -18,27 +18,23 @@ const WordBank = lazy(() => import("./pages/WordBank"));
 const Personalization = lazy(() => import("./pages/Personalization"));
 
 const navItems = [
-  ["/dashboard", "Dashboard"],
-  ["/translate", "Live Translate"],
-  ["/calibration", "Few-Shot Calibration"],
-  ["/history", "Letter History"],
-  ["/personalization", "My Profile"],
+  ["/translate", "Translate"],
+  ["/voice-to-sign", "Speak"],
+  ["/word-bank", "Words"],
+  ["/history", "History"],
   ["/settings", "Settings"],
-  ["/voice-to-sign", "Voice to Sign"],
-  ["/word-bank", "Word Bank"],
 ] as const;
 
 function Shell({ children, username, onLogout }: { children: ReactNode; username?: string; onLogout: () => void }) {
   const location = useLocation();
   return <PersonalizationProvider><QuickAccessProvider><div className="app-shell"><Seo />
     <header className="topbar">
-      <Link to="/dashboard" className="brand-lockup" aria-label="VisionBridge dashboard"><span className="brand-mark">V</span><span className="brand-copy"><strong>VisionBridge</strong><small>ISL RECOGNIZER</small></span></Link>
-      <div className="header-badges"><span className="status-chip"><i /> Base Model · 26 A–Z</span><span className="status-chip"><i /> Few-Shot Adapter · Optional</span></div>
+      <Link to="/dashboard" className="brand-lockup" aria-label="VisionBridge home"><span className="brand-mark">V</span><span className="brand-copy"><strong>VisionBridge</strong><small>COMMUNICATION TOOL</small></span></Link>
       <nav className="topnav" aria-label="Primary navigation">{navItems.map(([path, label]) => <Link key={path} to={path} className={location.pathname.startsWith(path) ? "topnav-link active" : "topnav-link"}>{label}</Link>)}</nav>
-      <div className="top-actions"><ProfileSwitcher /><Link className="icon-btn" to="/dashboard" aria-label="Dashboard" title="Dashboard">⌂</Link><span className="user-avatar" title={username || "Signed in"}>{(username || "U").slice(0, 1).toUpperCase()}</span><button className="icon-btn" onClick={onLogout} aria-label="Log out" title="Log out">↗</button></div>
+      <div className="top-actions"><ProfileSwitcher /><Link className="icon-btn" to="/settings" aria-label="Settings" title="Settings">⚙</Link><span className="user-avatar" title={username || "Signed in"} aria-label={username || "Signed in"}>{(username || "U").slice(0, 1).toUpperCase()}</span><button className="icon-btn" onClick={onLogout} aria-label="Sign out" title="Sign out">↗</button></div>
     </header>
-    <div className="runtime-strip"><div><span className="engine-status"><i /> ENGINE {import.meta.env.VITE_LOCAL_MODE !== "false" ? "DEMO" : "ONLINE"}</span><span>DEVICE: <b>Browser Camera</b></span><span>•</span><span>PIPELINE: <b>MediaPipe Tasks · 126D</b></span><span>•</span><span>TRACKING: <b>2 HANDS</b></span></div><div><span>USER: <b>{username || "Signed in"}</b></span><span className="mode-tag">{import.meta.env.VITE_LOCAL_MODE !== "false" ? "LOCAL RUNTIME" : "BROWSER INFERENCE"}</span></div></div>
     <QuickAccessBar />
+    <nav className="mobile-primary-nav" aria-label="Primary navigation">{navItems.map(([path, label]) => <Link key={path} to={path} className={location.pathname.startsWith(path) ? "active" : ""}>{label}</Link>)}</nav>
     <main id="main-content" className="main-pane">{children}</main>
   </div></QuickAccessProvider></PersonalizationProvider>;
 }
