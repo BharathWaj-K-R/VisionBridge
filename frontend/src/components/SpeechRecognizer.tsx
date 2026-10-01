@@ -1,51 +1,14 @@
-import { useEffect, useRef, useState } from "react";
-
-type SpeechLikeEvent = Event & {
-  resultIndex: number;
-  results: {
-    length: number;
-    [index: number]: {
-      isFinal: boolean;
-      length: number;
-      [index: number]: { transcript: string };
-    };
-  };
-};
-
-type SpeechErrorEvent = Event & { error?: string };
-
-type SpeechRecognizerInstance = {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  onstart: (() => void) | null;
-  onend: (() => void) | null;
-  onresult: ((event: SpeechLikeEvent) => void) | null;
-  onerror: ((event: SpeechErrorEvent) => void) | null;
-  start: () => void;
-  stop: () => void;
-  abort: () => void;
-};
-
-type SpeechRecognizerConstructor = new () => SpeechRecognizerInstance;
-
-declare global {
-  interface Window {
-    SpeechRecognition?: SpeechRecognizerConstructor;
-    webkitSpeechRecognition?: SpeechRecognizerConstructor;
-  }
-}
-
 type Props = {
   transcript: string;
   interimTranscript: string;
   listening: boolean;
   supported: boolean;
   error: string;
-  onTranscriptChange: (value: string) => void;
-  onInterimChange: (value: string) => void;
-  onListeningChange: (value: boolean) => void;
-  onError: (value: string) => void;
+  language: string;
+  onLanguageChange: (language: string) => void;
+  onStart: () => void;
+  onStop: () => void;
+  onEndSentence: () => void;
 };
 
 export default function SpeechRecognizer({
@@ -54,145 +17,71 @@ export default function SpeechRecognizer({
   listening,
   supported,
   error,
-  onTranscriptChange,
-  onInterimChange,
-  onListeningChange,
-  onError,
+  language,
+  onLanguageChange,
+  onStart,
+  onStop,
+  onEndSentence,
 }: Props) {
-  const recognitionRef = useRef<SpeechRecognizerInstance | null>(null);
-  const requestedStopRef = useRef(false);
-  const restartTimerRef = useRef<number | null>(null);
-  const transcriptRef = useRef(transcript);
-  transcriptRef.current = transcript;
-  const callbacksRef = useRef({ onTranscriptChange, onInterimChange, onListeningChange, onError });
-  callbacksRef.current = { onTranscriptChange, onInterimChange, onListeningChange, onError };
-  const [language, setLanguage] = useState("en-IN");
-
-  useEffect(() => {
-    const Constructor = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!Constructor) return;
-
-    const recognition = new Constructor();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = language;
-
-    recognition.onstart = () => callbacksRef.current.onListeningChange(true);
-
-    recognition.onresult = (event) => {
-      let nextFinal = transcriptRef.current;
-      let nextInterim = "";
-
-      for (let index = event.resultIndex; index < event.results.length; index += 1) {
-        const result = event.results[index];
-        const value = result[0]?.transcript || "";
-        if (result.isFinal) {
-          nextFinal += value + " ";
-        } else {
-          nextInterim += value;
-        }
-      }
-
-      const normalizedFinal = nextFinal.replace(/\s+/g, " ").trim();
-      transcriptRef.current = normalizedFinal;
-      callbacksRef.current.onTranscriptChange(normalizedFinal);
-      callbacksRef.current.onInterimChange(nextInterim.trim());
-    };
-
-    recognition.onerror = (event) => {
-      const code = event.error || "unknown";
-      if (code === "not-allowed" || code === "service-not-allowed") {
-        requestedStopRef.current = true;
-        callbacksRef.current.onListeningChange(false);
-        callbacksRef.current.onError("Microphone or speech recognition permission was denied.");
-        return;
-      }
-      if (code !== "aborted") callbacksRef.current.onError("Speech recognition error: " + code + ".");
-    };
-
-    recognition.onend = () => {
-      callbacksRef.current.onListeningChange(false);
-      if (!requestedStopRef.current) {
-        restartTimerRef.current = window.setTimeout(() => {
-          try {
-            recognition.start();
-          } catch {
-            // Browser speech services can reject an immediate restart.
-          }
-        }, 250);
-      }
-    };
-
-    recognitionRef.current = recognition;
-
-    return () => {
-      requestedStopRef.current = true;
-      if (restartTimerRef.current != null) window.clearTimeout(restartTimerRef.current);
-      recognition.abort();
-      recognitionRef.current = null;
-    };
-  }, [language]);
-
-  useEffect(() => {
-    if (recognitionRef.current) recognitionRef.current.lang = language;
-  }, [language]);
-
-  const toggleListening = () => {
-    if (!supported) {
-      callbacksRef.current.onError("This browser does not expose the Web Speech API. Try a Chromium-based browser.");
-      return;
-    }
-
-    const recognition = recognitionRef.current;
-    if (!recognition) return;
-
-    if (listening) {
-      requestedStopRef.current = true;
-      recognition.stop();
-      callbacksRef.current.onListeningChange(false);
-      return;
-    }
-
-    requestedStopRef.current = false;
-    callbacksRef.current.onError("");
-    try {
-      recognition.start();
-    } catch {
-      callbacksRef.current.onListeningChange(false);
-      callbacksRef.current.onError("Speech recognition could not start. Check microphone permission and try again.");
-    }
-  };
-
   return (
     <section className="panel voice-input-panel">
       <div className="panel-head">
         <div>
           <div className="eyebrow">SPEECH INPUT</div>
-          <h2>Speak to VisionBridge</h2>
+          <h2>Speak to sentence</h2>
         </div>
         <span className={listening ? "status-chip dark" : "status-chip"}><i />{listening ? "LISTENING" : "IDLE"}</span>
       </div>
 
-      <div className="voice-control-row">
-        <button type="button" className={listening ? "voice-mic-btn active" : "voice-mic-btn"} onClick={toggleListening} aria-pressed={listening} disabled={!supported}>
+      <div className="voice-control-row sentence-speech-controls">
+        <button
+          type="button"
+          className={listening ? "voice-mic-btn active" : "voice-mic-btn"}
+          onClick={listening ? onStop : onStart}
+          disabled={!supported}
+          aria-pressed={listening}
+        >
           <span aria-hidden="true">{listening ? "■" : "●"}</span>
           {listening ? "STOP LISTENING" : "START LISTENING"}
         </button>
-        <label className="voice-language">LANGUAGE
-          <select value={language} onChange={(event) => setLanguage(event.target.value)}>
+
+        <button
+          type="button"
+          className="ghost-btn"
+          onClick={onEndSentence}
+          disabled={!transcript && !interimTranscript}
+        >
+          END SENTENCE
+        </button>
+
+        <label className="voice-language">
+          LANGUAGE
+          <select value={language} onChange={(event) => onLanguageChange(event.target.value)}>
             <option value="en-IN">English · India</option>
             <option value="en-US">English · US</option>
           </select>
         </label>
       </div>
 
-      {!supported && <div className="alert error">Speech recognition is not available in this browser. Use a browser with Web Speech API support and microphone access.</div>}
+      {!supported && (
+        <div className="alert error" role="alert">
+          Speech recognition is not available in this browser. Use a browser with Web Speech API support and microphone access.
+        </div>
+      )}
+
       {error && <div className="alert error" role="alert">{error}</div>}
 
       <div className="transcript-box" aria-live="polite">
         <span className="eyebrow">LIVE TRANSCRIPT</span>
-        <p>{transcript || "Start speaking to build the sign queue."}</p>
+        <p>{transcript || "Start speaking to build sentences."}</p>
         {interimTranscript && <span className="transcript-interim">{interimTranscript}</span>}
+      </div>
+
+      <div className="sentence-input-hint">
+        <span>Automatic boundary</span>
+        <strong>punctuation or ~1.4s pause</strong>
+        <span>Manual boundary</span>
+        <strong>END SENTENCE</strong>
       </div>
     </section>
   );
