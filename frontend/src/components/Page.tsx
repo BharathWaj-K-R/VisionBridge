@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
 import Seo from "./Seo";
+import { EmptyState, LoadingState } from "./SystemStates";
 
 const labels: Record<string, string> = {
   "/dashboard": "Home",
@@ -27,8 +28,8 @@ export function Page({ title, subtitle, children }: { title: string; subtitle: s
     <div className="eyebrow">VISIONBRIDGE</div><h1>{title}</h1><p className="muted">{subtitle}</p>
   </div></header>{children}</div>;
 }
-export function Loading() { return <div className="loading" role="status" aria-live="polite">Loading workspace…</div>; }
-export function Empty({ text }: { text: string }) { return <div className="empty">{text}</div>; }
+export function Loading() { return <LoadingState label="Loading…" />; }
+export function Empty({ text }: { text: string }) { return <EmptyState message={text} />; }
 export function Metric({ label, value, detail }: { label: string; value: string | number; detail: string }) {
   return <div className="metric"><span className="eyebrow">{label}</span><strong>{value}</strong><span className="muted">{detail}</span></div>;
 }
