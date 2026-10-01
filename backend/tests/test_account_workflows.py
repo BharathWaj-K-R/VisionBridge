@@ -35,7 +35,7 @@ def test_adapter_delete_preserves_history_and_clears_adapter_reference():
 
     username = f"delete-user-{uuid.uuid4().hex[:8]}"
     db = SessionLocal()
-    user = User(username=username, hashed_password=hash_password("correct horse battery staple"))
+    user = User(username=username, hashed_password=hash_password("CorrectHorse1!"), is_verified=True)
     db.add(user)
     db.commit()
     db.refresh(user)
