@@ -26,31 +26,31 @@ def send_verification_email(email: str, otp: str) -> None:
     try:
         response = httpx.post(
             RESEND_URL,
-        headers={
-            "Authorization": "Bearer " + settings.RESEND_API_KEY,
-            "Content-Type": "application/json",
-        },
-        json={
-            "from": settings.RESEND_FROM_EMAIL,
-            "to": [email],
-            "subject": "Your VisionBridge verification code",
-            "text": (
-                "Your VisionBridge verification code is "
-                + otp
-                + ".\n\n"
-                + f"This code expires in {settings.OTP_EXPIRY_MINUTES} minutes. "
-                + "If you did not create this account, you can ignore this email."
-            ),
-            "html": (
-                "<div style='font-family:Arial,sans-serif;max-width:520px;color:#16302d'>"
-                "<h2 style='margin-bottom:8px'>Verify your VisionBridge account</h2>"
-                "<p>Enter this 6-digit code in VisionBridge:</p>"
-                f"<p style='font-size:32px;font-weight:700;letter-spacing:8px;margin:20px 0'>{safe_otp}</p>"
-                f"<p>This code expires in {settings.OTP_EXPIRY_MINUTES} minutes.</p>"
-                "<p style='color:#5f716e;font-size:13px'>If you did not create this account, you can ignore this email.</p>"
-                "</div>"
-            ),
-        },
+            headers={
+                "Authorization": "Bearer " + settings.RESEND_API_KEY,
+                "Content-Type": "application/json",
+            },
+            json={
+                "from": settings.RESEND_FROM_EMAIL,
+                "to": [email],
+                "subject": "Your VisionBridge verification code",
+                "text": (
+                    "Your VisionBridge verification code is "
+                    + otp
+                    + ".\n\n"
+                    + f"This code expires in {settings.OTP_EXPIRY_MINUTES} minutes. "
+                    + "If you did not create this account, you can ignore this email."
+                ),
+                "html": (
+                    "<div style='font-family:Arial,sans-serif;max-width:520px;color:#16302d'>"
+                    "<h2 style='margin-bottom:8px'>Verify your VisionBridge account</h2>"
+                    "<p>Enter this 6-digit code in VisionBridge:</p>"
+                    f"<p style='font-size:32px;font-weight:700;letter-spacing:8px;margin:20px 0'>{safe_otp}</p>"
+                    f"<p>This code expires in {settings.OTP_EXPIRY_MINUTES} minutes.</p>"
+                    "<p style='color:#5f716e;font-size:13px'>If you did not create this account, you can ignore this email.</p>"
+                    "</div>"
+                ),
+            },
             timeout=10.0,
         )
     except httpx.HTTPError as exc:
