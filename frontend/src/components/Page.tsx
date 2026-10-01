@@ -17,7 +17,7 @@ const labels: Record<string, string> = {
 export function Breadcrumbs() {
   const location = useLocation();
   const current = labels[location.pathname] || "VisionBridge";
-  if (location.pathname === "/") return null;
+  if (location.pathname === "/" || location.pathname === "/dashboard") return null;
   return <nav className="breadcrumbs" aria-label="Breadcrumb"><ol>
     {current === "Dashboard" ? <li aria-current="page">Dashboard</li> : <><li><Link to="/dashboard">Dashboard</Link></li><li aria-current="page">{current}</li></>}
   </ol></nav>;
