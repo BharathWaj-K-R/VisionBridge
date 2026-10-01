@@ -16,6 +16,11 @@ class User(Base):
     username = Column(String, unique=True, index=True, nullable=False)
     email = Column(String, unique=True, index=True, nullable=True)
     hashed_password = Column(String, nullable=False)
+    is_verified = Column(Boolean, nullable=False, default=False, server_default="false")
+    otp_hash = Column(String, nullable=True)
+    otp_expires_at = Column(DateTime(timezone=True), nullable=True)
+    otp_sent_at = Column(DateTime(timezone=True), nullable=True)
+    otp_attempts = Column(Integer, nullable=False, default=0, server_default="0")
     created_at = Column(
         DateTime,
         default=lambda: dt.datetime.now(dt.timezone.utc),
