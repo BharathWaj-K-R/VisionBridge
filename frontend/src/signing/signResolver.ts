@@ -34,9 +34,10 @@ function makeToken(
   sourceText: string,
   kind: SignTokenKind,
   asset: ReturnType<typeof getAnySignAsset> = null,
+  sequenceIndex = 0,
 ): SignPlaybackItem {
   return {
-    id: kind + "-" + sourceText.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-" + Math.random().toString(36).slice(2, 8),
+    id: kind + "-" + sourceText.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-" + sequenceIndex,
     sourceText,
     kind,
     asset,
@@ -44,10 +45,10 @@ function makeToken(
   };
 }
 
-function fingerspellWord(word: string): SignPlaybackItem[] {
+function fingerspellWord(word: string, sequenceOffset: number): SignPlaybackItem[] {
   return [...word.toUpperCase()]
     .filter((letter) => /[A-Z]/.test(letter))
-    .map((letter) => makeToken(letter, "letter", getLetterAsset(letter)));
+    .map((letter, index) => makeToken(letter, "letter", getLetterAsset(letter), sequenceOffset + index));
 }
 
 export function resolveSentence(
@@ -80,14 +81,14 @@ export function resolveSentence(
     if (matched) {
       const phraseAsset = getPhraseAsset(matched.phrase);
       if (phraseAsset) {
-        tokens.push(makeToken(matched.phrase, "phrase", phraseAsset));
+        tokens.push(makeToken(matched.phrase, "phrase", phraseAsset, tokens.length));
       } else {
         for (const word of matched.words) {
           const wordAsset = getWordAsset(word);
           if (wordAsset) {
-            tokens.push(makeToken(word, "word", wordAsset));
+            tokens.push(makeToken(word, "word", wordAsset, tokens.length));
           } else {
-            tokens.push(...fingerspellWord(word));
+            tokens.push(...fingerspellWord(word, tokens.length));
           }
         }
       }
@@ -98,13 +99,13 @@ export function resolveSentence(
     const word = words[index];
     const wordAsset = getWordAsset(word);
     if (wordAsset) {
-      tokens.push(makeToken(word, "word", wordAsset));
+      tokens.push(makeToken(word, "word", wordAsset, tokens.length));
     } else {
-      const spelled = fingerspellWord(word);
+      const spelled = fingerspellWord(word, tokens.length);
       if (spelled.length) {
         tokens.push(...spelled);
       } else {
-        tokens.push(makeToken(word, "unsupported", null));
+        tokens.push(makeToken(word, "unsupported", null, tokens.length));
       }
     }
     index += 1;
