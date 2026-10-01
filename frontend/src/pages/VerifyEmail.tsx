@@ -78,14 +78,17 @@ export default function VerifyEmail() {
         <Seo />
         <section className="auth-card" aria-labelledby="verify-title">
           <div className="eyebrow">EMAIL VERIFICATION</div>
-          <h1 id="verify-title">Verify your email</h1>
-          <p className="muted">Enter the email you used when creating your VisionBridge account.</p>
+          <h1 id="verify-title">Send a new code</h1>
+          <p className="muted">Enter the email you used when creating your VisionBridge account. We will send a new verification code when the account is eligible.</p>
           <div className="stack">
-            <label>Email<input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" /></label>
-            <button className="primary-btn" type="button" onClick={() => { if (email.trim()) otpRef.current?.focus(); }}>Continue</button>
+            <label>Email<input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" required /></label>
+            {error && <div className="alert error" role="alert">{error}</div>}
+            {message && <SuccessMessage>{message}</SuccessMessage>}
+            <button className="primary-btn" type="button" onClick={() => { if (email.trim()) void resend(); }} disabled={!email.trim() || resending || cooldown > 0}>
+              {resending ? "Sending…" : cooldown > 0 ? "Send code in " + cooldown + "s" : "Send verification code"}
+            </button>
             <Link className="text-btn" to="/login">Back to sign in</Link>
           </div>
-          <input ref={otpRef} aria-hidden="true" tabIndex={-1} className="visually-hidden" />
         </section>
       </main>
     );
