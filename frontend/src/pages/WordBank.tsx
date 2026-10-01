@@ -277,7 +277,7 @@ export default function WordBank() {
         </div>
 
         {!loading && !grouped.length && <Empty text="No vocabulary items match your search." />}
-        {loading && <LoadingStateFallback />}
+        {loading && <Loading />}
       </section>
 
       <section className="panel custom-word-panel">
