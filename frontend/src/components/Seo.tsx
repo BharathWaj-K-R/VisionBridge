@@ -5,13 +5,13 @@ const SITE = "https://visionbridge-2c7h.onrender.com";
 const META: Record<string, { title: string; description: string }> = {
   "/": { title: "VisionBridge | Indian Sign Language Recognition", description: "VisionBridge provides signer-adaptive Indian Sign Language A–Z recognition using hand landmarks in a focused browser-based recognition workspace for ISL." },
   "/login": { title: "Sign In | VisionBridge", description: "Sign in to VisionBridge to access Indian Sign Language letter recognition, signer calibration, recognition history, and signer profile controls in your browser." },
-  "/dashboard": { title: "Dashboard | VisionBridge", description: "Review VisionBridge recognition activity, model status, confidence, latency, and direct access to Indian Sign Language recognition tools from one dashboard." },
+  "/dashboard": { title: "Home | VisionBridge", description: "Choose camera translation or speech communication from the VisionBridge home screen and access everyday phrases quickly." },
   "/translate": { title: "Live Translate | VisionBridge", description: "Use VisionBridge Live Translate for real-time Indian Sign Language A–Z recognition with browser camera hand tracking and signer-adaptive inference." },
-  "/calibration": { title: "Calibration | VisionBridge", description: "Calibrate signer-specific Indian Sign Language letter prototypes in VisionBridge using a few clean hand examples for personalized recognition." },
-  "/history": { title: "Letter History | VisionBridge", description: "Review and export recorded Indian Sign Language letter recognition events from your VisionBridge signer session for quick analysis and reference." },
+  "/calibration": { title: "Personalize Recognition | VisionBridge", description: "Capture a few clean examples of your signs to personalize Indian Sign Language letter recognition." },
+  "/history": { title: "History | VisionBridge", description: "Review and export your recent Indian Sign Language letter recognition history." },
   "/settings": { title: "Settings | VisionBridge", description: "Manage VisionBridge signer adapters, account preferences, appearance, camera behavior, and secure browser session controls from one settings page." },
-  "/voice-to-sign": { title: "Voice to Sign | VisionBridge", description: "Speak a phrase and VisionBridge turns the recognized text into an animated A–Z fingerspelling sequence with a customizable browser avatar." },
-  "/word-bank": { title: "Word Bank | VisionBridge", description: "Browse daily communication phrases, speak words aloud, add custom phrases, and configure your ten VisionBridge quick-access slots." },
+  "/voice-to-sign": { title: "Speak | VisionBridge", description: "Speak naturally and VisionBridge organizes your speech into sentences and presents sign references in sequence." },
+  "/word-bank": { title: "Words & Quick Phrases | VisionBridge", description: "Save everyday communication phrases, add custom phrases, and manage your ten Quick Access slots." },
   "/personalization": { title: "My Profile | VisionBridge", description: "Manage personal VisionBridge profiles for avatar appearance, ten-slot Quick Access, favorites, signing speed, and preferred speech voice." },
   "/404": { title: "Page Not Found | VisionBridge", description: "The requested VisionBridge page could not be found. Return to the dashboard or choose another Indian Sign Language application section today." },
 };
