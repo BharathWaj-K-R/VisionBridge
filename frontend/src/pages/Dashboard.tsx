@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import { Empty, Loading, Metric, Page } from "../components/Page";
+import { ErrorState } from "../components/SystemStates";
 import Speakable from "../components/Speakable";
 
 export default function Dashboard() {
@@ -13,7 +14,7 @@ export default function Dashboard() {
 
   return (
     <Page title="Welcome to VisionBridge" subtitle="Choose how you want to communicate today.">
-      {error ? <div className="alert error" role="alert">{error}</div> : !data ? <Loading /> : (
+      {error ? <ErrorState title="Home could not be loaded" message="Check your connection and try again. Your saved data has not been changed." onRetry={() => { setError(""); api.dashboard().then(setData).catch((e) => setError(e instanceof Error ? e.message : "Home could not be loaded.")); }} home /> : !data ? <Loading /> : (
         <>
           <section className="welcome-panel" aria-labelledby="welcome-title">
             <div>
