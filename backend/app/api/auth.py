@@ -39,7 +39,8 @@ settings = get_settings()
 
 register_limiter = SlidingWindowRateLimiter(settings.REGISTER_RATE_LIMIT_PER_MINUTE)
 verify_limiter = SlidingWindowRateLimiter(settings.VERIFY_OTP_RATE_LIMIT_PER_MINUTE)
-resend_limiter = SlidingWindowRateLimiter(settings.RESEND_OTP_RATE_LIMIT_PER_HOUR, window_seconds=3600)
+resend_ip_limiter = SlidingWindowRateLimiter(settings.RESEND_OTP_RATE_LIMIT_PER_HOUR, window_seconds=3600)
+resend_identifier_limiter = SlidingWindowRateLimiter(settings.RESEND_OTP_RATE_LIMIT_PER_HOUR, window_seconds=3600)
 
 
 def _set_session_cookie(response: Response, user_id: int) -> str:
@@ -217,8 +218,8 @@ def resend_otp(
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
     email = _normalize_email(payload.email)
-    enforce_limit(resend_limiter, _client_key(request))
-    enforce_limit(resend_limiter, make_identifier_key(request, email))
+    enforce_limit(resend_ip_limiter, _client_key(request))
+    enforce_limit(resend_identifier_limiter, make_identifier_key(request, email))
 
     db.info["visionbridge_auth_operation"] = "resend_otp"
     db.info["visionbridge_auth_email"] = email
