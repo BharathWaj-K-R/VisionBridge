@@ -24,7 +24,6 @@ def me(current_user: User = Depends(get_current_user)):
         "username": current_user.username,
         "email": current_user.email,
         "created_at": current_user.created_at,
-        "is_verified": current_user.is_verified,
     }
 
 
