@@ -12,7 +12,7 @@ export default function VerifyEmail() {
   const emailFromQuery = new URLSearchParams(location.search).get("email") || "";
   const [email, setEmail] = useState(emailFromQuery);
   const [otp, setOtp] = useState("");
-  const [cooldown, setCooldown] = useState(RESEND_FALLBACK_SECONDS);
+  const [cooldown, setCooldown] = useState(emailFromQuery ? RESEND_FALLBACK_SECONDS : 0);
   const [busy, setBusy] = useState(false);
   const [resending, setResending] = useState(false);
   const [error, setError] = useState("");
