@@ -11,6 +11,7 @@ type Props = {
   onRepeat: () => void;
   onNext: () => void;
   onPrevious: () => void;
+  onSelectSentence: (index: number) => void;
   onClear: () => void;
   onSpeedChange: (value: number) => void;
 };
@@ -39,6 +40,7 @@ export default function SentencePlayer({
   onRepeat,
   onNext,
   onPrevious,
+  onSelectSentence,
   onClear,
   onSpeedChange,
 }: Props) {
@@ -69,9 +71,7 @@ export default function SentencePlayer({
               key={sentence.id}
               className={"sentence-queue-item " + state + (index === currentSentenceIndex ? " active" : "")}
               onClick={() => {
-                if (index !== currentSentenceIndex) {
-                  onNext();
-                }
+                onSelectSentence(index);
               }}
               title={sentence.text}
             >
