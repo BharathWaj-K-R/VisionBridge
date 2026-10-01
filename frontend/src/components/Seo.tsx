@@ -5,6 +5,7 @@ const SITE = "https://visionbridge-2c7h.onrender.com";
 const META: Record<string, { title: string; description: string }> = {
   "/": { title: "VisionBridge | Indian Sign Language Recognition", description: "VisionBridge provides signer-adaptive Indian Sign Language A–Z recognition using hand landmarks in a focused browser-based recognition workspace for ISL." },
   "/login": { title: "Sign In | VisionBridge", description: "Sign in to VisionBridge to access Indian Sign Language letter recognition, signer calibration, recognition history, and signer profile controls in your browser." },
+  "/verify-email": { title: "Verify Email | VisionBridge", description: "Verify your VisionBridge account with the 6-digit code sent to your email." },
   "/dashboard": { title: "Home | VisionBridge", description: "Choose camera translation or speech communication from the VisionBridge home screen and access everyday phrases quickly." },
   "/translate": { title: "Live Translate | VisionBridge", description: "Use VisionBridge Live Translate for real-time Indian Sign Language A–Z recognition with browser camera hand tracking and signer-adaptive inference." },
   "/calibration": { title: "Personalize Recognition | VisionBridge", description: "Capture a few clean examples of your signs to personalize Indian Sign Language letter recognition." },
