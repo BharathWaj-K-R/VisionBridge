@@ -83,13 +83,6 @@ def _client_key(request: Request) -> str:
     return f"ip:{client.host if client else 'unknown'}"
 
 
-def make_identifier_key(request: Request, identifier: str) -> str:
-    """Combine client address and a normalized identifier for anonymous auth flows."""
-    client = request.client
-    host = client.host if client else "unknown"
-    return f"ip:{host}|id:{identifier.lower().strip()}"
-
-
 def enforce_limit(limiter: SlidingWindowRateLimiter, key: str) -> None:
     allowed, retry_after = limiter.check(key)
     if not allowed:
