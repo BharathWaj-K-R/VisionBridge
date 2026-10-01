@@ -9,27 +9,14 @@ import uuid
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.api import auth as auth_api
 
 client = TestClient(app)
 client.__enter__()
-otp_by_email: dict[str, str] = {}
-
-
-def _fake_send(email: str, otp: str) -> None:
-    otp_by_email[email] = otp
-
-
-auth_api.send_verification_email = _fake_send
-
-
 def _register_and_login(username: str, password: str = "CorrectHorse1!") -> str:
     email = f"{username}@example.com"
     register_resp = client.post("/api/v1/auth/register", json={"username": username, "email": email, "password": password})
-    assert register_resp.status_code == 200, register_resp.text
-    verify_resp = client.post("/api/v1/auth/verify-otp", json={"email": email, "otp": otp_by_email[email]})
-    assert verify_resp.status_code == 200, verify_resp.text
-    return verify_resp.json()["access_token"]
+    assert register_resp.status_code == 201, register_resp.text
+    return register_resp.json()["access_token"]
 
 
 def test_export_csv_contains_the_users_own_prediction():
