@@ -1,196 +1,174 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { DEFAULT_VOCABULARY } from "../data/vocabulary";
-import { buildSubtitleUnits } from "../data/signSequence";
 import SpeechRecognizer from "../components/SpeechRecognizer";
-import SignQueue, { normalizeSignText, toSignQueue } from "../components/SignQueue";
-import SignSubtitle from "../components/SignSubtitle";
+import SentencePlayer from "../components/SentencePlayer";
+import SignReferenceStage from "../components/SignReferenceStage";
 import { usePersonalization } from "../components/PersonalizationContext";
+import { useSpeechToSentence } from "../hooks/useSpeechToSentence";
 import { Page } from "../components/Page";
 
 export default function VoiceToSign() {
   const { activeProfile, updateConfig } = usePersonalization();
-  const [transcript, setTranscript] = useState("");
-  const [interimTranscript, setInterimTranscript] = useState("");
-  const [speechError, setSpeechError] = useState("");
-  const [listening, setListening] = useState(false);
   const [customWords, setCustomWords] = useState<Array<{ phrase: string; category: string }>>([]);
-  const [queue, setQueue] = useState<string[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(-1);
-  const [playing, setPlaying] = useState(false);
-  const [lastPhrase, setLastPhrase] = useState("");
-  const lastQueuedPhraseRef = useRef("");
 
   useEffect(() => {
     let mounted = true;
     api.customWords()
       .then((items) => {
-        if (mounted) setCustomWords(items.map((item: any) => ({ phrase: String(item.phrase), category: String(item.category || "Custom") })));
+        if (mounted) {
+          setCustomWords(
+            items.map((item: any) => ({
+              phrase: String(item.phrase),
+              category: String(item.category || "Custom"),
+            })),
+          );
+        }
       })
       .catch(() => undefined);
-    return () => { mounted = false; };
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  const normalizedTranscript = useMemo(() => normalizeSignText(transcript), [transcript]);
-  const normalizedInterim = useMemo(() => normalizeSignText(interimTranscript), [interimTranscript]);
   const vocabulary = useMemo(
-    () => [...DEFAULT_VOCABULARY, ...customWords.map((item, index) => ({
-      id: "custom-" + index,
-      phrase: item.phrase,
-      category: item.category as any,
-      custom: true,
-    }))],
+    () => [
+      ...DEFAULT_VOCABULARY,
+      ...customWords.map((item, index) => ({
+        id: "custom-" + index,
+        phrase: item.phrase,
+        category: item.category as any,
+        custom: true,
+      })),
+    ],
     [customWords],
   );
-  const subtitleUnits = useMemo(() => buildSubtitleUnits(normalizedTranscript, vocabulary), [normalizedTranscript, vocabulary]);
-  const vocabularyMatches = useMemo(() => subtitleUnits.filter((item) => item.kind === "word").map((item) => item.text), [subtitleUnits]);
 
-  useEffect(() => {
-    const previous = lastQueuedPhraseRef.current;
-    if (!normalizedTranscript || normalizedTranscript === previous) return;
+  const profileSpeed = activeProfile?.config.signingSpeed || 1;
+  const speech = useSpeechToSentence(vocabulary, profileSpeed);
 
-    if (previous && normalizedTranscript.startsWith(previous)) {
-      const additions = toSignQueue(normalizedTranscript.slice(previous.length));
-      if (additions.length) {
-        setQueue((items) => items.concat(additions));
-        setPlaying(true);
-      }
-    } else {
-      const next = toSignQueue(normalizedTranscript);
-      setQueue(next);
-      setCurrentIndex(next.length ? 0 : -1);
-      setPlaying(next.length > 0);
-    }
-
-    lastQueuedPhraseRef.current = normalizedTranscript;
-    setLastPhrase(normalizedTranscript);
-  }, [normalizedTranscript]);
-
-  useEffect(() => {
-    if (!playing || currentIndex < 0 || currentIndex >= queue.length) return;
-    const timer = window.setTimeout(() => {
-      if (currentIndex + 1 >= queue.length) {
-        setPlaying(false);
-        return;
-      }
-      setCurrentIndex((index) => index + 1);
-    }, 900 / (activeProfile?.config.signingSpeed || 1));
-    return () => window.clearTimeout(timer);
-  }, [playing, currentIndex, queue.length, activeProfile?.config.signingSpeed]);
-
-  const play = () => {
-    if (!queue.length) return;
-    if (currentIndex < 0 || currentIndex >= queue.length) setCurrentIndex(0);
-    setPlaying(true);
+  const handleSpeedChange = (value: number) => {
+    speech.setSpeed(value);
+    void updateConfig({ signingSpeed: value });
   };
-  const pause = () => setPlaying(false);
-  const repeat = () => {
-    const next = toSignQueue(lastPhrase || normalizedTranscript);
-    setQueue(next);
-    setCurrentIndex(next.length ? 0 : -1);
-    setPlaying(next.length > 0);
-  };
-  const clearQueue = () => {
-    setQueue([]);
-    setCurrentIndex(-1);
-    setPlaying(false);
-  };
-
-  const supported = Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
-  const speed = activeProfile?.config.signingSpeed || 1;
-  const currentSign = queue[currentIndex] && /^[A-Z]$/.test(queue[currentIndex]) ? queue[currentIndex] : "";
-  const currentSignIndex = currentSign ? currentSign.charCodeAt(0) - 65 : -1;
-  const atlasColumn = currentSignIndex >= 0 ? currentSignIndex % 7 : 0;
-  const atlasRow = currentSignIndex >= 0 ? Math.floor(currentSignIndex / 7) : 0;
-  const atlasPosition = currentSignIndex >= 0
-    ? (atlasColumn / 6) * 100 + "% " + (atlasRow / 3) * 100 + "%"
-    : "50% 50%";
-
-  useEffect(() => {
-    const image = new Image();
-    image.src = "/signs/sign-atlas.webp";
-  }, []);
 
   return (
     <Page
-      title="Voice to Sign"
-      subtitle={"Speak naturally and VisionBridge turns your speech into synchronized signing for the " + (activeProfile?.name || "active") + " profile."}
+      title="Speak to Sentence"
+      subtitle="Speak naturally. VisionBridge builds complete sentences and presents the corresponding sign references in sequence."
     >
-      <div className="voice-layout">
+      <div className="voice-layout speak-to-sentence-layout">
         <div className="voice-main">
           <SpeechRecognizer
-            transcript={transcript}
-            interimTranscript={normalizedInterim}
-            listening={listening}
-            supported={supported}
-            error={speechError}
-            onTranscriptChange={setTranscript}
-            onInterimChange={setInterimTranscript}
-            onListeningChange={setListening}
-            onError={setSpeechError}
+            transcript={speech.transcript}
+            interimTranscript={speech.interimTranscript}
+            listening={speech.listening}
+            supported={speech.supported}
+            error={speech.speechError}
+            language={speech.language}
+            onLanguageChange={speech.setLanguage}
+            onStart={speech.startListening}
+            onStop={speech.stopListening}
+            onEndSentence={speech.endSentence}
           />
-          <SignQueue
-            queue={queue}
-            currentIndex={currentIndex}
-            playing={playing}
-            onPlay={play}
-            onPause={pause}
-            onRepeat={repeat}
-            onClear={clearQueue}
-            speed={speed}
-            onSpeedChange={(value) => void updateConfig({ signingSpeed: value })}
+
+          <SentencePlayer
+            sentences={speech.sentences}
+            currentSentenceIndex={speech.currentSentenceIndex}
+            currentTokenIndex={speech.currentTokenIndex}
+            playing={speech.playback === "playing"}
+            speed={speech.speed}
+            onPlay={speech.play}
+            onPause={speech.pause}
+            onRepeat={speech.repeat}
+            onNext={speech.nextSentence}
+            onPrevious={speech.previousSentence}
+            onClear={speech.clear}
+            onSpeedChange={handleSpeedChange}
           />
         </div>
 
         <div className="voice-side">
-          <section className="panel avatar-panel">
+          <section className="panel avatar-panel sentence-stage-panel">
             <div className="avatar-panel-head">
               <div>
                 <div className="eyebrow">SIGN REFERENCE</div>
-                <h2>A–Z signing sequence</h2>
+                <h2>Sentence signing stage</h2>
               </div>
-              <span className="status-pill">{playing ? "CYCLING" : "STANDBY"}</span>
+              <span className="status-pill">
+                {speech.playback === "playing"
+                  ? "PLAYING"
+                  : speech.playback === "complete"
+                    ? "COMPLETE"
+                    : "STANDBY"}
+              </span>
             </div>
 
-            <div className="sign-reference-meta">
-              <span>UPLOADED A–Z REFERENCE</span>
-              <strong>{currentSign || "—"}</strong>
-              <small>{currentSignIndex >= 0 ? String(currentSignIndex + 1).padStart(2, "0") + " / 26" : "READY"}</small>
+            <div className="sentence-stage-meta">
+              <div>
+                <span className="eyebrow">CURRENT SENTENCE</span>
+                <strong>{speech.currentSentence?.text || "Speak to build a sentence."}</strong>
+              </div>
+              <div className="sentence-stage-count">
+                <span>{speech.currentSentenceIndex >= 0 ? String(speech.currentSentenceIndex + 1).padStart(2, "0") : "--"}</span>
+                <small>{speech.sentences.length ? "/ " + String(speech.sentences.length).padStart(2, "0") : "/ --"}</small>
+              </div>
             </div>
 
-            <div className="sign-reference-stage">
-              <div
-                className={"sign-reference-frame" + (currentSign ? " active" : "")}
-                role="img"
-                aria-label={currentSign ? "ISL reference image for letter " + currentSign : "ISL reference image waiting for speech"}
-                style={{ backgroundPosition: atlasPosition }}
-              />
-              <div className="sign-reference-crosshair" />
-              <div className="sign-reference-corner top-left">REFERENCE · 26 LETTERS</div>
-              <div className="sign-reference-corner top-right">{playing ? "AUTO CYCLE" : "PAUSED"}</div>
-              <div className="sign-reference-corner bottom-left">ENHANCED SOURCE · IMAGE ATLAS</div>
-              <div className="sign-reference-corner bottom-right">{currentSign || "IDLE"}</div>
-            </div>
+            <SignReferenceStage
+              item={speech.currentToken}
+              sentenceText={speech.currentSentence?.text || ""}
+              sentenceIndex={speech.currentSentenceIndex}
+              tokenIndex={speech.currentTokenIndex}
+            />
 
-            <SignSubtitle units={subtitleUnits} currentIndex={currentIndex} />
+            <div className="sentence-stage-foot">
+              <div>
+                <span className="eyebrow">RESOLUTION</span>
+                <strong>
+                  {speech.currentToken
+                    ? speech.currentToken.kind === "letter"
+                      ? "A–Z FALLBACK"
+                      : speech.currentToken.kind.toUpperCase()
+                    : "WAITING"}
+                </strong>
+              </div>
+              <div>
+                <span className="eyebrow">SPEECH ENGINE</span>
+                <strong>WEB SPEECH · {speech.language.toUpperCase()}</strong>
+              </div>
+            </div>
 
             <p className="avatar-note">
-              The signing viewport cycles through the uploaded A–Z hand-reference images in queue order. Each source tile was cropped from the supplied sheet, enlarged and sharpened for clearer display. The images are visual references and do not claim additional word-level ISL motion validation.
+              The visual stage uses the uploaded A–Z reference atlas for letter-level fallback. Word and phrase sign assets are only used when validated assets are explicitly added to the signing asset registry.
             </p>
-
-            {vocabularyMatches.length > 0 && (
-              <div className="vocabulary-match-note">
-                <span className="eyebrow">KNOWN VOCABULARY</span>
-                <strong>{vocabularyMatches.join(" · ")}</strong>
-              </div>
-            )}
           </section>
         </div>
       </div>
 
       <section className="panel voice-limitation-panel">
         <div className="eyebrow">CURRENT SIGNING SCOPE</div>
-        <p>Vocabulary recognition is phrase-aware for the subtitle layer. Unknown words fall back to letter-by-letter fingerspelling. Word-level motion remains an extensibility point rather than a claim of validated ISL animation accuracy.</p>
+        <p>
+          Speak-to-Sentence understands speech as sentences rather than a character stream. Existing vocabulary is used for phrase-aware resolution, while words without validated visual assets fall back to A–Z fingerspelling. This refactor does not claim full sentence-level ISL translation.
+        </p>
+      </section>
+
+      <section className="panel sentence-architecture-panel">
+        <div className="eyebrow">PIPELINE</div>
+        <div className="sentence-pipeline">
+          <span>MICROPHONE</span>
+          <b>→</b>
+          <span>SPEECH ENGINE</span>
+          <b>→</b>
+          <span>TRANSCRIPT</span>
+          <b>→</b>
+          <span>SENTENCES</span>
+          <b>→</b>
+          <span>SIGN RESOLVER</span>
+          <b>→</b>
+          <span>REFERENCE STAGE</span>
+        </div>
       </section>
     </Page>
   );
