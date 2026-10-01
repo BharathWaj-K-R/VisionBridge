@@ -81,7 +81,7 @@ def _otp_cooldown_remaining(user: User) -> int:
     return max(0, settings.OTP_COOLDOWN_SECONDS - int(elapsed))
 
 
-@router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_200_OK)
 def register(
     payload: RegisterRequest,
     request: Request,
