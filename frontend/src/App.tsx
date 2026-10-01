@@ -57,8 +57,8 @@ function Auth({ onAuthed }: { onAuthed: () => void }) {
     finally { setBusy(false); }
   };
   return <div className="auth-page"><Seo /><section className="auth-card">
-    <div className="eyebrow">INDIAN SIGN LANGUAGE · LETTERS</div><h1>VisionBridge</h1>
-    <p className="muted">Signer-adaptive fingerspelling recognition from a few hand examples.</p>
+    <div className="eyebrow">INDIAN SIGN LANGUAGE</div><h1>VisionBridge</h1>
+    <p className="muted">A simple way to communicate with hand signs, speech, and everyday phrases.</p>
     <div className="auth-tabs"><button type="button" className={mode === "login" ? "auth-tab active" : "auth-tab"} onClick={() => setMode("login")}>Sign in</button><button type="button" className={mode === "register" ? "auth-tab active" : "auth-tab"} onClick={() => setMode("register")}>Create account</button></div>
     <form onSubmit={submit} className="stack">
       {mode === "register" ? <><label>Username<input value={username} onChange={e => setUsername(e.target.value)} autoComplete="username" required /></label><label>Email<input value={email} onChange={e => setEmail(e.target.value)} type="email" autoComplete="email" required /></label></> : <><div className="identifier-toggle" role="group" aria-label="Login identifier"><button type="button" className={identifierMode === "username" ? "active" : ""} onClick={() => setIdentifierMode("username")}>Username</button><button type="button" className={identifierMode === "email" ? "active" : ""} onClick={() => setIdentifierMode("email")}>Email</button></div><label>{identifierMode === "email" ? "Email" : "Username"}<input value={identifierMode === "email" ? email : username} onChange={e => identifierMode === "email" ? setEmail(e.target.value) : setUsername(e.target.value)} type={identifierMode === "email" ? "email" : "text"} autoComplete={identifierMode === "email" ? "email" : "username"} required /></label></>}
