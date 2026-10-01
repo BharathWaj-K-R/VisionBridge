@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import { WebSpeechEngine } from "../speech/WebSpeechEngine";
-import type { SpeechEngine, SpeechEngineState } from "../speech/speechTypes";
+import type { SpeechEngine } from "../speech/SpeechEngine";
+import type { SpeechEngineState } from "../speech/speechTypes";
 import { SentenceBuffer } from "../sentence/sentenceBuffer";
 import { appendReconciledText, reconcileInterimText } from "../sentence/transcriptReconciler";
 import { normalizeSentence } from "../sentence/normalizeSentence";
