@@ -204,7 +204,7 @@ export default function Recognize() {
                 <div className="camera-empty-state-card">
                   <div className="eyebrow">CAMERA</div>
                   <h3>Ready to start</h3>
-                  <p>Allow camera access, then keep your hand(s) fully visible inside the frame.</p>
+                  <p>{session.status !== "Ready" && session.status !== "Stopped" ? session.status : "Allow camera access, then keep your hand(s) fully visible inside the frame."}</p>
                   <button className="primary-btn" type="button" onClick={() => session.start().catch(() => undefined)}>Start camera</button>
                 </div>
               </div>
