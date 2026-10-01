@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { Empty, Loading, Page } from "../components/Page";
+import { EmptyState, ErrorState } from "../components/SystemStates";
 import Speakable from "../components/Speakable";
 
 export default function History() {
@@ -9,8 +10,15 @@ export default function History() {
   const [exporting, setExporting] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [message, setMessage] = useState("");
+  const [loadError, setLoadError] = useState("");
 
-  const refresh = () => api.history().then(setData).catch((err) => { setData({ items: [] }); setMessage(err instanceof Error ? err.message : "History could not be loaded."); });
+  const refresh = () => {
+    setLoadError("");
+    return api.history().then(setData).catch((err) => {
+      setData(undefined);
+      setLoadError(err instanceof Error ? err.message : "History could not be loaded.");
+    });
+  };
 
   useEffect(() => { void refresh(); }, []);
 
@@ -79,7 +87,7 @@ export default function History() {
 
         {message && <div className="alert history-message" role="status">{message}</div>}
 
-        {!data ? <Loading /> : rows.length ? (
+        {loadError ? <ErrorState title="History couldn't be loaded" message="Check your connection and try again. Your saved history has not been changed." onRetry={() => void refresh()} /> : !data ? <Loading /> : rows.length ? (
           <div className="table-wrap">
             <table>
               <thead><tr><th>Time</th><th>Letter</th><th>Confidence</th><th>Latency</th></tr></thead>
@@ -95,7 +103,7 @@ export default function History() {
               </tbody>
             </table>
           </div>
-        ) : <Empty text="No letter predictions yet." />}
+        ) : <EmptyState title="No history yet" message="Your recognized letters will appear here after you use Translate." to="/translate" actionLabel="Start translating" />}
       </section>
     </Page>
   );
