@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, clearLocalAuth, clearSessionHint } from "../api";
 import { Empty, Page } from "../components/Page";
+import { ErrorState } from "../components/SystemStates";
 
 export default function Settings() {
   const [user, setUser] = useState<any>();
@@ -23,7 +24,7 @@ export default function Settings() {
     document.documentElement.dataset.theme = theme;
     setSaved(true); window.setTimeout(() => setSaved(false), 1800);
   };
-  return <Page title="Settings" subtitle="Adjust how VisionBridge looks and behaves.">{loadError && <div className="alert error" role="alert">{loadError}</div>}
+  return <Page title="Settings" subtitle="Adjust how VisionBridge looks and behaves.">{loadError && <ErrorState title="Settings could not be loaded" message="Check your connection and try again. No settings were changed." onRetry={() => void refresh()} home />}
     <div className="settings-grid">
       <section className="panel"><div className="eyebrow">ACCOUNT</div><h2>{user?.username || "Loading…"}</h2><p className="muted">{user?.email || "No email on this account yet."}</p><p className="account-id">Your account is signed in securely.</p><div className="button-row"><button className="ghost-btn" onClick={() => void api.logout().then(() => { clearLocalAuth(); clearSessionHint(); window.location.assign("/login"); }).catch((err) => setMessage(err instanceof Error ? err.message : "Sign out failed. Please try again."))}>Sign out</button></div></section>
       <section className="panel"><div className="panel-head"><div><div className="eyebrow">APPEARANCE</div><h2>Make it comfortable</h2></div></div><div className="settings-form">
