@@ -130,7 +130,16 @@ export type LetterRecognitionEvent = { user_id: number; adapter_id: number | nul
 function localUser(username?: string): User {
   const raw = localStorage.getItem(LOCAL_USER_KEY);
   if (raw) {
-    try { return JSON.parse(raw) as User; } catch {}
+    try {
+      const saved = JSON.parse(raw) as Partial<User>;
+      return {
+        id: Number(saved.id) || 1,
+        username: saved.username || username || "Local User",
+        email: saved.email || null,
+        created_at: saved.created_at || new Date().toISOString(),
+        is_verified: saved.is_verified !== false,
+      };
+    } catch {}
   }
   const user: User = { id: 1, username: username || "Local User", email: null, created_at: new Date().toISOString(), is_verified: true };
   localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(user));
