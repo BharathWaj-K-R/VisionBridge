@@ -8,6 +8,8 @@ import { PersonalizationProvider } from "./components/PersonalizationContext";
 import ProfileSwitcher from "./components/ProfileSwitcher";
 import { QuickAccessProvider } from "./components/QuickAccessContext";
 import { OfflineBanner } from "./components/SystemStates";
+import VerifyEmail from "./pages/VerifyEmail";
+import { PASSWORD_REQUIREMENTS, isStrongPassword, passwordChecks, passwordStrengthLabel } from "./auth/password";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Recognize = lazy(() => import("./pages/Recognize"));
@@ -48,12 +50,33 @@ function Auth({ onAuthed }: { onAuthed: () => void }) {
   const [identifierMode, setIdentifierMode] = useState<"username" | "email">("username");
   const [username, setUsername] = useState(""); const [email, setEmail] = useState(""); const [password, setPassword] = useState(""); const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false); const [showConfirmPassword, setShowConfirmPassword] = useState(false); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
+  const checks = passwordChecks(password);
+  const strongPassword = isStrongPassword(password);
   useEffect(() => { const params = new URLSearchParams(location.search); const authError = params.get("auth_error"); if (authError) setError(authError.replaceAll("_", " ")); }, [location.search]);
   const submit = async (event: FormEvent) => {
     event.preventDefault(); setBusy(true); setError("");
     try {
-      if (mode === "register") { if (password !== confirmPassword) throw new Error("Passwords do not match."); await api.register(username, email, password); await api.login(username, password); }
-      else await api.login(identifierMode === "email" ? email : username, password);
+      if (mode === "register") {
+        if (!strongPassword) throw new Error("Please meet all password requirements before creating your account.");
+        if (password !== confirmPassword) throw new Error("Passwords do not match.");
+        const result = await api.register(username, email, password);
+        if (result.verification_required) {
+          navigate("/verify-email?email=" + encodeURIComponent(result.email), { replace: true });
+          return;
+        }
+        await api.login(username, password);
+      } else {
+        try {
+          await api.login(identifierMode === "email" ? email : username, password);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "Authentication failed";
+          if (message.toLowerCase().includes("verify your email") && identifierMode === "email" && email.trim()) {
+            navigate("/verify-email?email=" + encodeURIComponent(email.trim()), { replace: true });
+            return;
+          }
+          throw err;
+        }
+      }
       setSessionHint(); onAuthed(); navigate("/dashboard", { replace: true });
     } catch (err) { setError(err instanceof Error ? err.message : "Authentication failed"); }
     finally { setBusy(false); }
@@ -65,8 +88,14 @@ function Auth({ onAuthed }: { onAuthed: () => void }) {
     <form onSubmit={submit} className="stack">
       {mode === "register" ? <><label>Username<input value={username} onChange={e => setUsername(e.target.value)} autoComplete="username" required /></label><label>Email<input value={email} onChange={e => setEmail(e.target.value)} type="email" autoComplete="email" required /></label></> : <><div className="identifier-toggle" role="group" aria-label="Login identifier"><button type="button" className={identifierMode === "username" ? "active" : ""} onClick={() => setIdentifierMode("username")}>Username</button><button type="button" className={identifierMode === "email" ? "active" : ""} onClick={() => setIdentifierMode("email")}>Email</button></div><label>{identifierMode === "email" ? "Email" : "Username"}<input value={identifierMode === "email" ? email : username} onChange={e => identifierMode === "email" ? setEmail(e.target.value) : setUsername(e.target.value)} type={identifierMode === "email" ? "email" : "text"} autoComplete={identifierMode === "email" ? "email" : "username"} required /></label></>}
       <label>Password<span className="password-field"><input value={password} onChange={e => setPassword(e.target.value)} type={showPassword ? "text" : "password"} minLength={8} autoComplete={mode === "login" ? "current-password" : "new-password"} required /><button type="button" onClick={() => setShowPassword(v => !v)}>{showPassword ? "Hide" : "Show"}</button></span></label>
+      {mode === "register" && <div className="password-requirements" aria-live="polite">
+        <div className={"password-strength " + passwordStrengthLabel(password).toLowerCase().replace(" ", "-")}>Password strength: <strong>{password ? passwordStrengthLabel(password) : "Not set"}</strong></div>
+        <div className="password-rule-list">
+          {PASSWORD_REQUIREMENTS.map((rule) => <div key={rule.id} className={checks[rule.id] ? "password-rule met" : "password-rule"}><span aria-hidden="true">{checks[rule.id] ? "✓" : "○"}</span>{rule.label}</div>)}
+        </div>
+      </div>}
       {mode === "register" && <label>Confirm password<span className="password-field"><input value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} type={showConfirmPassword ? "text" : "password"} minLength={8} autoComplete="new-password" required /><button type="button" onClick={() => setShowConfirmPassword(v => !v)}>{showConfirmPassword ? "Hide" : "Show"}</button></span></label>}
-      {error && <div className="alert error" role="alert">{error}</div>}<button className="primary-btn auth-submit" disabled={busy}>{busy ? "Working…" : mode === "login" ? "Sign in" : "Create account"}</button>
+      {error && <div className="alert error" role="alert">{error}</div>}<button className="primary-btn auth-submit" disabled={busy || (mode === "register" && (!strongPassword || password !== confirmPassword))}>{busy ? "Working…" : mode === "login" ? "Sign in" : "Create account"}</button>
     </form>
   </section></div>;
 }
@@ -91,11 +120,13 @@ export default function App() {
   if (!authed) return <Routes>
     <Route path="/" element={<Navigate to="/login" replace />} />
     <Route path="/login" element={<Auth onAuthed={() => setAuthed(true)} />} />
+    <Route path="/verify-email" element={<VerifyEmail />} />
     <Route path="*" element={<Auth onAuthed={() => setAuthed(true)} />} />
   </Routes>;
   return <Shell username={username} onLogout={logout}><Suspense fallback={<LoadingFallback />}><Routes>
     <Route path="/" element={<Navigate to="/dashboard" replace />} />
     <Route path="/login" element={<Navigate to="/dashboard" replace />} />
+    <Route path="/verify-email" element={<Navigate to="/dashboard" replace />} />
     <Route path="/dashboard" element={<Dashboard />} />
     <Route path="/translate" element={<Recognize />} />
     <Route path="/calibration" element={<Calibration />} />
