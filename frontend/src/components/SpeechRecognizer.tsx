@@ -27,10 +27,11 @@ export default function SpeechRecognizer({
     <section className="panel voice-input-panel">
       <div className="panel-head">
         <div>
-          <div className="eyebrow">SPEECH INPUT</div>
-          <h2>Speak to sentence</h2>
+          <div className="eyebrow">SPEAK</div>
+          <h2>Speak naturally</h2>
+          <p className="assistive-copy">Press start, allow microphone access, then speak at your normal pace. Your sentence will appear below.</p>
         </div>
-        <span className={listening ? "status-chip dark" : "status-chip"}><i />{listening ? "LISTENING" : "IDLE"}</span>
+        <span className={listening ? "status-chip dark" : "status-chip"}><i />{listening ? "Listening" : "Ready"}</span>
       </div>
 
       <div className="voice-control-row sentence-speech-controls">
@@ -65,23 +66,21 @@ export default function SpeechRecognizer({
 
       {!supported && (
         <div className="alert error" role="alert">
-          Speech recognition is not available in this browser. Use a browser with Web Speech API support and microphone access.
+          Voice input is not available in this browser. Try a supported browser and make sure microphone access is allowed.
         </div>
       )}
 
       {error && <div className="alert error" role="alert">{error}</div>}
 
       <div className="transcript-box" aria-live="polite">
-        <span className="eyebrow">LIVE TRANSCRIPT</span>
-        <p>{transcript || "Start speaking to build sentences."}</p>
+        <span className="eyebrow">YOUR WORDS</span>
+        <p>{transcript || "Your words will appear here as you speak."}</p>
         {interimTranscript && <span className="transcript-interim">{interimTranscript}</span>}
       </div>
 
       <div className="sentence-input-hint">
-        <span>Automatic boundary</span>
-        <strong>punctuation or ~1.4s pause</strong>
-        <span>Manual boundary</span>
-        <strong>END SENTENCE</strong>
+        <span>Sentence ends when you pause or finish with punctuation.</span>
+        <strong>Use “Finish sentence” any time.</strong>
       </div>
     </section>
   );
