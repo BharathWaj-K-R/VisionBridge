@@ -81,7 +81,13 @@ export default function SentencePlayer({
             </button>
           );
         }) : (
-          <div className="empty">Speak a sentence and it will appear here ready to play.</div>
+          <div className="system-state-inline empty-state">
+            <div className="system-state-icon" aria-hidden="true">◉</div>
+            <div className="system-state-copy">
+              <h3>No sentences yet</h3>
+              <p>Use Start listening above and speak naturally. Finish a sentence when you are ready to play it.</p>
+            </div>
+          </div>
         )}
       </div>
 
