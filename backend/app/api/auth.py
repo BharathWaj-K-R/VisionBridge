@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import datetime as dt
-import re
-
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
@@ -208,8 +206,8 @@ def verify_email(
     user.otp_attempts = 0
     db.commit()
 
-    _set_session_cookie(response, user.id)
-    return Token(access_token=create_access_token(subject=str(user.id)))
+    token = _set_session_cookie(response, user.id)
+    return Token(access_token=token)
 
 
 @router.post("/resend-otp")
