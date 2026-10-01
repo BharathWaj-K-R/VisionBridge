@@ -107,6 +107,12 @@ class Settings:
         if self.OTP_MAX_ATTEMPTS < 1:
             raise RuntimeError("OTP_MAX_ATTEMPTS must be at least 1")
 
+        if self.ENV.lower() == "production":
+            if not self.RESEND_API_KEY:
+                raise RuntimeError("RESEND_API_KEY must be set in production")
+            if not self.RESEND_FROM_EMAIL:
+                raise RuntimeError("RESEND_FROM_EMAIL must be set in production")
+
 
 
 @lru_cache
