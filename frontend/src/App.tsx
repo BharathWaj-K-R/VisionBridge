@@ -8,7 +8,6 @@ import { PersonalizationProvider } from "./components/PersonalizationContext";
 import ProfileSwitcher from "./components/ProfileSwitcher";
 import { QuickAccessProvider } from "./components/QuickAccessContext";
 import { OfflineBanner } from "./components/SystemStates";
-import VerifyEmail from "./pages/VerifyEmail";
 import { PASSWORD_REQUIREMENTS, isStrongPassword, passwordChecks, passwordStrengthLabel } from "./auth/password";
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -59,23 +58,9 @@ function Auth({ onAuthed }: { onAuthed: () => void }) {
       if (mode === "register") {
         if (!strongPassword) throw new Error("Please meet all password requirements before creating your account.");
         if (password !== confirmPassword) throw new Error("Passwords do not match.");
-        const result = await api.register(username, email, password);
-        if (result.verification_required) {
-          navigate("/verify-email?email=" + encodeURIComponent(result.email), { replace: true });
-          return;
-        }
-        await api.login(username, password);
+        await api.register(username, email, password);
       } else {
-        try {
-          await api.login(identifierMode === "email" ? email : username, password);
-        } catch (err) {
-          const message = err instanceof Error ? err.message : "Authentication failed";
-          if (message.toLowerCase().includes("verify your email") && identifierMode === "email" && email.trim()) {
-            navigate("/verify-email?email=" + encodeURIComponent(email.trim()), { replace: true });
-            return;
-          }
-          throw err;
-        }
+        await api.login(identifierMode === "email" ? email : username, password);
       }
       setSessionHint(); onAuthed(); navigate("/dashboard", { replace: true });
     } catch (err) { setError(err instanceof Error ? err.message : "Authentication failed"); }
@@ -120,13 +105,11 @@ export default function App() {
   if (!authed) return <Routes>
     <Route path="/" element={<Navigate to="/login" replace />} />
     <Route path="/login" element={<Auth onAuthed={() => setAuthed(true)} />} />
-    <Route path="/verify-email" element={<VerifyEmail />} />
     <Route path="*" element={<Auth onAuthed={() => setAuthed(true)} />} />
   </Routes>;
   return <Shell username={username} onLogout={logout}><Suspense fallback={<LoadingFallback />}><Routes>
     <Route path="/" element={<Navigate to="/dashboard" replace />} />
     <Route path="/login" element={<Navigate to="/dashboard" replace />} />
-    <Route path="/verify-email" element={<Navigate to="/dashboard" replace />} />
     <Route path="/dashboard" element={<Dashboard />} />
     <Route path="/translate" element={<Recognize />} />
     <Route path="/calibration" element={<Calibration />} />
