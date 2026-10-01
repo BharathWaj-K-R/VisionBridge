@@ -3,14 +3,14 @@ import { Link, useLocation } from "react-router-dom";
 import Seo from "./Seo";
 
 const labels: Record<string, string> = {
-  "/dashboard": "Dashboard",
-  "/translate": "Live Translate",
-  "/calibration": "Few-Shot Calibration",
-  "/history": "Letter History",
+  "/dashboard": "Home",
+  "/translate": "Translate",
+  "/calibration": "Personalize recognition",
+  "/history": "History",
   "/settings": "Settings",
-  "/voice-to-sign": "Voice to Sign",
-  "/word-bank": "Word Bank",
-  "/personalization": "My Profile",
+  "/voice-to-sign": "Speak",
+  "/word-bank": "Words",
+  "/personalization": "Profile",
 };
 
 export function Breadcrumbs() {
@@ -24,7 +24,7 @@ export function Breadcrumbs() {
 
 export function Page({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
   return <div className="page"><Seo /><Breadcrumbs /><header className="page-header"><div>
-    <div className="eyebrow">VISIONBRIDGE / WORKSTATION</div><h1>{title}</h1><p className="muted">{subtitle}</p>
+    <div className="eyebrow">VISIONBRIDGE</div><h1>{title}</h1><p className="muted">{subtitle}</p>
   </div></header>{children}</div>;
 }
 export function Loading() { return <div className="loading" role="status" aria-live="polite">Loading workspace…</div>; }
