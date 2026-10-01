@@ -84,6 +84,7 @@ export default function VoiceToSign() {
             onRepeat={speech.repeat}
             onNext={speech.nextSentence}
             onPrevious={speech.previousSentence}
+            onSelectSentence={speech.selectSentence}
             onClear={speech.clear}
             onSpeedChange={handleSpeedChange}
           />
