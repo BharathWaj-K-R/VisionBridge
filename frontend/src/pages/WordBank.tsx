@@ -6,6 +6,7 @@ import Speakable from "../components/Speakable";
 import { QUICK_ACCESS_SLOTS, useQuickAccess } from "../components/QuickAccessContext";
 import { usePersonalization } from "../components/PersonalizationContext";
 import { Empty, Loading, Page } from "../components/Page";
+import { EmptyState, ErrorState } from "../components/SystemStates";
 
 type CustomWord = VocabularyItem & { custom: true; customId: number };
 
@@ -23,6 +24,7 @@ export default function WordBank() {
   const [editPhrase, setEditPhrase] = useState("");
   const [editCategory, setEditCategory] = useState<VocabularyCategory>("Greetings & Social");
   const [message, setMessage] = useState("");
+  const [loadError, setLoadError] = useState("");
 
   const { slots, assign, move, clear } = useQuickAccess();
   const { activeProfile, mostUsed, isFavorite, toggleFavorite } = usePersonalization();
@@ -39,7 +41,7 @@ export default function WordBank() {
         custom: true,
       })));
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Custom phrases could not be loaded.");
+      setLoadError(error instanceof Error ? error.message : "Custom phrases could not be loaded.");
     } finally {
       setLoading(false);
     }
@@ -275,10 +277,12 @@ export default function WordBank() {
         </div>
 
         {!loading && !grouped.length && <Empty text="No vocabulary items match your search." />}
-        {loading && <Loading />}
+        {loading && <LoadingStateFallback />}
       </section>
 
       <section className="panel custom-word-panel">
+        {loadError && <ErrorState title="Your custom phrases couldn't be loaded" message="Check your connection and try again. Your saved phrases have not been changed." onRetry={() => void loadCustomWords()} />}
+        {!loading && !loadError && !customWords.length && <EmptyState title="No custom phrases yet" message="Add a phrase you use often and it will be available in your Word Bank." />}
         <div className="panel-head">
           <div>
             <div className="eyebrow">YOUR WORDS</div>
