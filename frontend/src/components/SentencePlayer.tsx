@@ -50,10 +50,10 @@ export default function SentencePlayer({
     <section className="panel sentence-player-panel">
       <div className="panel-head">
         <div>
-          <div className="eyebrow">SENTENCE QUEUE</div>
-          <h2>Communication sequence</h2>
+          <div className="eyebrow">YOUR SENTENCES</div>
+          <h2>Ready to show</h2>
         </div>
-        <span className="mono">{sentences.length} SENTENCE{sentences.length === 1 ? "" : "S"}</span>
+        <span className="status-chip">{sentences.length} sentence{sentences.length === 1 ? "" : "s"}</span>
       </div>
 
       <div className="sentence-queue" aria-live="polite">
@@ -81,13 +81,13 @@ export default function SentencePlayer({
             </button>
           );
         }) : (
-          <div className="empty">Speak a complete sentence, then it will appear here.</div>
+          <div className="empty">Speak a sentence and it will appear here ready to play.</div>
         )}
       </div>
 
       {currentSentence && (
         <div className="sentence-token-strip">
-          <span className="eyebrow">CURRENT SENTENCE</span>
+          <span className="eyebrow">NOW PLAYING</span>
           <strong>{currentSentence.text}</strong>
           <div className="sentence-token-list">
             {currentSentence.signSequence.map((item, index) => (
@@ -108,15 +108,15 @@ export default function SentencePlayer({
 
       <div className="sentence-player-controls">
         {!playing ? (
-          <button type="button" className="primary-btn" onClick={onPlay} disabled={!sentences.length}>PLAY</button>
+          <button type="button" className="primary-btn" onClick={onPlay} disabled={!sentences.length}>Play</button>
         ) : (
-          <button type="button" className="primary-btn" onClick={onPause}>PAUSE</button>
+          <button type="button" className="primary-btn" onClick={onPause}>Pause</button>
         )}
-        <button type="button" className="ghost-btn" onClick={onPrevious} disabled={currentSentenceIndex <= 0}>PREVIOUS</button>
-        <button type="button" className="ghost-btn" onClick={onNext} disabled={currentSentenceIndex < 0 || currentSentenceIndex >= sentences.length - 1}>NEXT</button>
-        <button type="button" className="ghost-btn" onClick={onRepeat} disabled={!sentences.length}>REPEAT</button>
-        <button type="button" className="ghost-btn" onClick={onClear} disabled={!sentences.length}>CLEAR</button>
-        <label className="speed-control">SPEED
+        <button type="button" className="ghost-btn" onClick={onPrevious} disabled={currentSentenceIndex <= 0}>Previous</button>
+        <button type="button" className="ghost-btn" onClick={onNext} disabled={currentSentenceIndex < 0 || currentSentenceIndex >= sentences.length - 1}>Next</button>
+        <button type="button" className="ghost-btn" onClick={onRepeat} disabled={!sentences.length}>Repeat</button>
+        <button type="button" className="ghost-btn" onClick={onClear} disabled={!sentences.length}>Clear</button>
+        <label className="speed-control">Playback speed
           <select value={speed} onChange={(event) => onSpeedChange(Number(event.target.value))}>
             <option value="0.5">0.5×</option>
             <option value="0.75">0.75×</option>
