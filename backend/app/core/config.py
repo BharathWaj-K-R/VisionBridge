@@ -62,6 +62,17 @@ class Settings:
     TRANSLATE_RATE_LIMIT_PER_MINUTE = int(os.getenv("TRANSLATE_RATE_LIMIT_PER_MINUTE", "60"))
     CALIBRATION_RATE_LIMIT_PER_MINUTE = int(os.getenv("CALIBRATION_RATE_LIMIT_PER_MINUTE", "5"))
 
+    REGISTER_RATE_LIMIT_PER_MINUTE = int(os.getenv("REGISTER_RATE_LIMIT_PER_MINUTE", "5"))
+    VERIFY_OTP_RATE_LIMIT_PER_MINUTE = int(os.getenv("VERIFY_OTP_RATE_LIMIT_PER_MINUTE", "10"))
+    RESEND_OTP_RATE_LIMIT_PER_HOUR = int(os.getenv("RESEND_OTP_RATE_LIMIT_PER_HOUR", "5"))
+    OTP_EXPIRY_MINUTES = int(os.getenv("OTP_EXPIRY_MINUTES", "10"))
+    OTP_COOLDOWN_SECONDS = int(os.getenv("OTP_COOLDOWN_SECONDS", "60"))
+    OTP_MAX_ATTEMPTS = int(os.getenv("OTP_MAX_ATTEMPTS", "5"))
+
+    RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+    RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "")
+
+
     def validate_for_runtime(self) -> None:
         if self.ENV.lower() == "production":
             if self.SECRET_KEY == "dev-secret-change-me":
@@ -82,6 +93,25 @@ class Settings:
 
         if self.CALIBRATION_RATE_LIMIT_PER_MINUTE < 1:
             raise RuntimeError("CALIBRATION_RATE_LIMIT_PER_MINUTE must be at least 1")
+
+        if self.REGISTER_RATE_LIMIT_PER_MINUTE < 1:
+            raise RuntimeError("REGISTER_RATE_LIMIT_PER_MINUTE must be at least 1")
+        if self.VERIFY_OTP_RATE_LIMIT_PER_MINUTE < 1:
+            raise RuntimeError("VERIFY_OTP_RATE_LIMIT_PER_MINUTE must be at least 1")
+        if self.RESEND_OTP_RATE_LIMIT_PER_HOUR < 1:
+            raise RuntimeError("RESEND_OTP_RATE_LIMIT_PER_HOUR must be at least 1")
+        if self.OTP_EXPIRY_MINUTES < 1:
+            raise RuntimeError("OTP_EXPIRY_MINUTES must be at least 1")
+        if self.OTP_COOLDOWN_SECONDS < 1:
+            raise RuntimeError("OTP_COOLDOWN_SECONDS must be at least 1")
+        if self.OTP_MAX_ATTEMPTS < 1:
+            raise RuntimeError("OTP_MAX_ATTEMPTS must be at least 1")
+
+        if self.ENV.lower() == "production":
+            if not self.RESEND_API_KEY:
+                raise RuntimeError("RESEND_API_KEY must be set in production")
+            if not self.RESEND_FROM_EMAIL:
+                raise RuntimeError("RESEND_FROM_EMAIL must be set in production")
 
 
 @lru_cache
