@@ -1576,9 +1576,15 @@ Iteration 10 outcome:
     signer-independent evaluation           REQUIRED / BLOCKED BY VERIFIED SIGNER METADATA
     raw calibration data persistence         REMOVED
     calibration shot-count contract          ENFORCED
-    V3 binary checkpoint in repository      PENDING
+    V3 binary checkpoint in repository      PRESENT / VERIFIED BY RELEASE EVIDENCE
     browser real-device verification        NOT VERIFIED
     live Render real-mode verification      NOT VERIFIED
+    durable production database             VERIFIED BY RELEASE EVIDENCE
+    custom-auth PostgreSQL RLS              VERIFIED BY RELEASE EVIDENCE
+    active CI product-validation workflow   ENABLED
+    real-mode frontend build                CI VERIFIED
+    browser/Python numerical parity         CI VERIFIED
+    backend regression suite                CI VERIFIED
 
 ## Historical supersession rule
 
@@ -1974,3 +1980,32 @@ Frontend integration result:
     RESTART REQUIRED: NO
     downstream model-quality/deployment claims remain unchanged and explicitly
     unverified or blocked.
+
+### 2026-10-04 — Product-readiness audit iteration 24
+
+Changes on audit/product-readiness:
+    - restore an active GitHub Actions product-validation workflow
+    - add per-client login rate limiting and configuration validation
+    - make explicit bearer authentication take precedence over an ambient browser cookie
+    - remove real-mode localStorage fallbacks for backend-backed communication features
+    - make the production-build check reject local persistence fallback behavior
+    - repair exact case-insensitive uniqueness/usage matching and account-level usage scoping
+    - clean up orphaned legacy adapter files after calibration persistence failure
+    - align adapter regression coverage with the active database-backed payload contract
+    - isolate MediaPipe into the training-only dependency path for dataset preparation
+    - synchronize the frontend lockfile for clean npm ci
+    - document the current verification boundary without overwriting historical audit entries
+
+Verified evidence before this documentation update:
+    backend regression suite: CI VERIFIED
+    frontend TypeScript + Vite production build with VITE_LOCAL_MODE=false: CI VERIFIED
+    production artifact verification: CI VERIFIED
+    browser/Python numerical parity: CI VERIFIED
+
+Remaining explicit boundaries:
+    signer-independent held-out evaluation: BLOCKED pending verified signer metadata
+    physical browser camera execution: NOT VERIFIED in this environment
+    live Render end-to-end execution: NOT VERIFIED in this environment
+    dedicated pgTAP release evidence: NOT YET IMPLEMENTED
+
+The full restart rule remains in force: any newly discovered defect invalidates dependent evidence and requires another audit cycle.
