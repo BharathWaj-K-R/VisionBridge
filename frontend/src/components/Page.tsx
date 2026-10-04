@@ -19,13 +19,13 @@ export function Breadcrumbs() {
   const current = labels[location.pathname] || "VisionBridge";
   if (location.pathname === "/" || location.pathname === "/dashboard") return null;
   return <nav className="breadcrumbs" aria-label="Breadcrumb"><ol>
-    {current === "Dashboard" ? <li aria-current="page">Dashboard</li> : <><li><Link to="/dashboard">Dashboard</Link></li><li aria-current="page">{current}</li></>}
+    {current === "Home" ? <li aria-current="page">Home</li> : <><li><Link to="/dashboard">Home</Link></li><li aria-current="page">{current}</li></>}
   </ol></nav>;
 }
 
 export function Page({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
   return <div className="page"><Seo /><Breadcrumbs /><header className="page-header"><div>
-    <div className="eyebrow">VISIONBRIDGE</div><h1>{title}</h1><p className="muted">{subtitle}</p>
+    <div className="eyebrow">VisionBridge</div><h1>{title}</h1><p className="muted">{subtitle}</p>
   </div></header>{children}</div>;
 }
 export function Loading() { return <LoadingState label="Loading…" />; }
