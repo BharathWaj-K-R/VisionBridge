@@ -7,9 +7,6 @@ import json
 import urllib.request
 from pathlib import Path
 
-import mediapipe as mp
-from mediapipe.tasks import python
-from mediapipe.tasks.python import vision
 import numpy as np
 
 from app.services.letter_fewshot import normalize_hand_pair
@@ -67,6 +64,9 @@ def ensure_hand_model(model_path: Path) -> Path:
     return model_path
 
 def create_hand_landmarker(model_path: Path):
+    from mediapipe.tasks import python
+    from mediapipe.tasks.python import vision
+
     base_options = python.BaseOptions(
         model_asset_path=str(ensure_hand_model(model_path))
     )
@@ -90,6 +90,8 @@ def _sha256_file(path: Path) -> str:
 
 
 def extract_landmarks(image_path: Path, landmarker) -> np.ndarray | None:
+    import mediapipe as mp
+
     try:
         image = mp.Image.create_from_file(str(image_path))
         result = landmarker.detect(image)
