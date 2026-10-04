@@ -157,11 +157,11 @@ export default function SignAvatar({ letter, preferences, playing, view, express
   return (
     <div className={playing ? stageClass + " playing" : stageClass} data-letter={letter || ""}>
       <div className="avatar-stage-label">
-        <div><span className="eyebrow">CURRENT SIGN</span><strong>{displaySign}</strong></div>
+        <div><span className="eyebrow">Current sign</span><strong>{displaySign}</strong></div>
         <span className="avatar-expression-tag">{expression.toUpperCase()}</span>
       </div>
 
-      <svg viewBox={crop} role="img" aria-label={"2D signing avatar, current sign " + (displaySign === "SPACE" ? "space" : displaySign.toLowerCase())}>
+      <svg viewBox={crop} role="img" aria-label={"2D signing avatar showing " + (displaySign === "SPACE" ? "space" : displaySign.toLowerCase())}>
         <defs>
           <linearGradient id="avatar-shirt-refined" x1="0" x2="1">
             <stop offset="0" stopColor={preferences.shirtColor} />
@@ -218,7 +218,7 @@ export default function SignAvatar({ letter, preferences, playing, view, express
       </svg>
 
       <div className="avatar-status-strip">
-        <span>{playing ? "LISTENING / SIGNING" : "READY FOR NEXT SIGN"}</span>
+        <span>{playing ? "Listening / signing" : "Ready for the next sign"}</span>
         <div className="avatar-meter" aria-hidden="true">{[0,1,2,3,4].map((bar) => <i key={bar} className={playing ? "on" : ""} />)}</div>
       </div>
     </div>
