@@ -16,7 +16,7 @@ export function AppBootstrap({ text = "Starting VisionBridge…" }: { text?: str
       <section className="bootstrap-card">
         <div className="system-logo" aria-hidden="true">V</div>
         <div className="eyebrow">VISIONBRIDGE</div>
-        <h1>Getting things ready</h1>
+        <h1>Preparing VisionBridge</h1>
         <p>{text}</p>
         <span className="loading-dots" aria-hidden="true"><i /><i /><i /></span>
       </section>
@@ -24,7 +24,7 @@ export function AppBootstrap({ text = "Starting VisionBridge…" }: { text?: str
   );
 }
 
-export function FullPageLoading({ title = "Loading", message = "Just a moment…" }: { title?: string; message?: string }) {
+export function FullPageLoading({ title = "Loading", message = "Loading the requested view…" }: { title?: string; message?: string }) {
   return (
     <main className="system-full-page" role="status" aria-live="polite">
       <section className="system-state-card">
@@ -87,7 +87,7 @@ export function ErrorState({ title = "Something went wrong", message, actionLabe
         <p>{message}</p>
         <div className="system-state-actions">
           {onRetry ? <ActionButton onClick={onRetry}>{actionLabel}</ActionButton> : null}
-          {home ? <Link className="ghost-btn system-state-action" to="/dashboard">Go home</Link> : null}
+          {home ? <Link className="ghost-btn system-state-action" to="/dashboard">Home</Link> : null}
         </div>
       </div>
     </div>
@@ -112,11 +112,11 @@ export function PermissionGuidance({
       <div className="system-state-icon" aria-hidden="true">{camera ? "⌾" : "◉"}</div>
       <div className="system-state-copy">
         <div className="eyebrow">{camera ? "CAMERA ACCESS" : "MICROPHONE ACCESS"}</div>
-        <h3 id={"permission-" + kind}>{camera ? "Camera access is needed" : "Microphone access is needed"}</h3>
-        <p>Allow your browser to use the {device} for VisionBridge. If you already denied it, open your browser's site controls, allow {device} access, then return and try again.</p>
+        <h3 id={"permission-" + kind}>{camera ? "Camera access required" : "Microphone access required"}</h3>
+        <p>Allow browser access to the {device}. If access was denied, open this site's browser permissions, choose Allow, then try again.</p>
         <div className="system-state-actions">
           <ActionButton onClick={onRetry}>Try again</ActionButton>
-          <span className="permission-hint">Browser site controls → {device} → Allow</span>
+          <span className="permission-hint">Browser site permissions → {device} → Allow</span>
         </div>
       </div>
     </section>
@@ -139,7 +139,7 @@ export function OfflineBanner() {
   return (
     <div className="offline-banner" role="status" aria-live="polite">
       <span className="offline-dot" aria-hidden="true" />
-      <div><strong>You're offline.</strong><span>Account data and server-backed actions may need a connection. Your browser can still keep the page open.</span></div>
+      <div><strong>You're offline.</strong><span>Account data and server actions require a connection. The current page can remain open.</span></div>
     </div>
   );
 }
