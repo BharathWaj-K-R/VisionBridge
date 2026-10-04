@@ -149,10 +149,8 @@ def test_adapter_rejects_after_base_change(tmp_path, monkeypatch):
         model,
         [("A", _pair(1)), ("A", _pair(2)), ("A", _pair(3)), ("B", _pair(4)), ("B", _pair(5)), ("B", _pair(6))],
     )
-    path = letter_fewshot.save_prototype_adapter(fitted["payload"])
-
     with pytest.raises(ValueError, match="requires recalibration"):
-        letter_fewshot.load_prototype_adapter(path, changed)
+        letter_fewshot.validate_prototype_adapter_payload(fitted["payload"], changed)
 
 def test_browser_payload_matches_checkpoint(tmp_path):
     path = tmp_path / "base.pt"
@@ -193,10 +191,8 @@ def test_adapter_rejects_incompatible_preprocessing_metadata(tmp_path, monkeypat
         [("A", _pair(1)), ("A", _pair(2)), ("A", _pair(3)), ("B", _pair(4)), ("B", _pair(5)), ("B", _pair(6))],
     )
     fitted["payload"]["preprocessing_version"] = "wrong-contract"
-    path = letter_fewshot.save_prototype_adapter(fitted["payload"])
-
     with pytest.raises(ValueError, match="preprocessing"):
-        letter_fewshot.load_prototype_adapter(path, base)
+        letter_fewshot.validate_prototype_adapter_payload(fitted["payload"], base)
 
 
 @pytest.mark.parametrize("field", ["preprocessing_version", "landmark_runtime"])
@@ -233,10 +229,8 @@ def test_adapter_rejects_missing_runtime_contract_metadata(tmp_path, monkeypatch
         [("A", _pair(1)), ("A", _pair(2)), ("A", _pair(3)), ("B", _pair(4)), ("B", _pair(5)), ("B", _pair(6))],
     )
     fitted["payload"].pop(field)
-    path = letter_fewshot.save_prototype_adapter(fitted["payload"])
-
     with pytest.raises(ValueError, match="landmark runtime|preprocessing"):
-        letter_fewshot.load_prototype_adapter(path, base)
+        letter_fewshot.validate_prototype_adapter_payload(fitted["payload"], base)
 
 
 def test_adapter_does_not_persist_raw_calibration_landmarks(tmp_path, monkeypatch):
