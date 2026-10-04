@@ -2,6 +2,7 @@ import datetime as dt
 import json
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -59,7 +60,7 @@ def create_custom_word(
         db.query(CommunicationWord)
         .filter(
             CommunicationWord.user_id == current_user.id,
-            CommunicationWord.phrase.ilike(phrase),
+            func.lower(CommunicationWord.phrase) == phrase.lower(),
         )
         .first()
     )
@@ -98,7 +99,7 @@ def update_custom_word(
         .filter(
             CommunicationWord.user_id == current_user.id,
             CommunicationWord.id != word_id,
-            CommunicationWord.phrase.ilike(phrase),
+            func.lower(CommunicationWord.phrase) == phrase.lower(),
         )
         .first()
     )
@@ -164,8 +165,10 @@ def save_quick_access(
         for row in db.query(QuickAccessSlot).filter(QuickAccessSlot.user_id == current_user.id).all()
     }
 
+    normalized_slots: list[str | None] = []
     for slot, raw_phrase in enumerate(payload.slots):
         phrase = raw_phrase.strip() if isinstance(raw_phrase, str) else None
+        normalized_slots.append(phrase)
         row = existing.get(slot)
         if row is None:
             row = QuickAccessSlot(user_id=current_user.id, slot=slot)
@@ -173,7 +176,7 @@ def save_quick_access(
         row.phrase = phrase
 
     db.commit()
-    return {"slots": payload.slots}
+    return {"slots": normalized_slots}
 
 
 def _profile(item: PersonalizationProfile) -> dict:
@@ -217,7 +220,7 @@ def create_profile(
         db.query(PersonalizationProfile)
         .filter(
             PersonalizationProfile.user_id == current_user.id,
-            PersonalizationProfile.name.ilike(name),
+            func.lower(PersonalizationProfile.name) == name.lower(),
         )
         .first()
     )
@@ -266,7 +269,7 @@ def update_profile(
             .filter(
                 PersonalizationProfile.user_id == current_user.id,
                 PersonalizationProfile.id != profile_id,
-                PersonalizationProfile.name.ilike(name),
+                func.lower(PersonalizationProfile.name) == name.lower(),
             )
             .first()
         )
@@ -347,7 +350,7 @@ def record_usage(
 
     item_query = db.query(CommunicationUsage).filter(
         CommunicationUsage.user_id == current_user.id,
-        CommunicationUsage.phrase.ilike(phrase),
+        func.lower(CommunicationUsage.phrase) == phrase.lower(),
     )
     if profile_id is None:
         item_query = item_query.filter(CommunicationUsage.profile_id.is_(None))
@@ -378,7 +381,9 @@ def most_used(
     current_user: User = Depends(get_current_user),
 ):
     usage_query = db.query(CommunicationUsage).filter(CommunicationUsage.user_id == current_user.id)
-    if profileId is not None:
+    if profileId is None:
+        usage_query = usage_query.filter(CommunicationUsage.profile_id.is_(None))
+    else:
         owns_profile = (
             db.query(PersonalizationProfile)
             .filter(

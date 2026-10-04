@@ -20,6 +20,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 settings = get_settings()
 
 register_limiter = SlidingWindowRateLimiter(settings.REGISTER_RATE_LIMIT_PER_MINUTE)
+login_limiter = SlidingWindowRateLimiter(settings.LOGIN_RATE_LIMIT_PER_MINUTE)
 
 
 def _set_session_cookie(response: Response, user_id: int) -> str:
@@ -97,7 +98,13 @@ def register(
 
 
 @router.post("/login", response_model=Token)
-def login(payload: LoginRequest, response: Response, db: Session = Depends(get_db)):
+def login(
+    payload: LoginRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    enforce_limit(login_limiter, _client_key(request))
     identifier = payload.identifier.strip()
     db.info["visionbridge_auth_operation"] = "login"
     db.info["visionbridge_auth_identifier"] = identifier

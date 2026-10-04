@@ -92,6 +92,16 @@ def test_letter_routes_use_separate_calibration_and_recognition_limits():
     assert letter_api._recognition_limiter.limit == settings.TRANSLATE_RATE_LIMIT_PER_MINUTE
 
 
+def test_auth_routes_use_separate_login_and_registration_limits():
+    from app.api import auth as auth_api
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    assert auth_api.register_limiter.limit == settings.REGISTER_RATE_LIMIT_PER_MINUTE
+    assert auth_api.login_limiter.limit == settings.LOGIN_RATE_LIMIT_PER_MINUTE
+    assert auth_api.login_limiter is not auth_api.register_limiter
+
+
 def test_limiter_prunes_stale_client_buckets():
     limiter = SlidingWindowRateLimiter(limit=1, window_seconds=0.05)
     allowed, _ = limiter.check("stale-client")

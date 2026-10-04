@@ -184,9 +184,6 @@ function saveLocalUsage(items: Record<string, { count: number; lastUsedAt: strin
   localStorage.setItem(localScopeKey(key), JSON.stringify(items));
 }
 
-function isTransportError(error: unknown): boolean {
-  return !error || typeof error !== "object" || typeof (error as ApiError).status !== "number";
-}
 let browserModelPromise: Promise<BrowserLetterModel> | null = null;
 
 
@@ -280,7 +277,7 @@ export const api = {
   history: async (_params = "") => LOCAL_MODE ? { items: localHistory().reverse() } : request<any>("/history" + (_params ? "?" + _params : "")),
   customWords: async (): Promise<any[]> => {
     if (LOCAL_MODE) return localCustomWords();
-    try { return await request<any[]>("/communication/words"); } catch (error) { if (!isTransportError(error)) throw error; return localCustomWords(); }
+    return request<any[]>("/communication/words");
   },
   createCustomWord: async (phrase: string, category: string): Promise<any> => {
     if (LOCAL_MODE) {
@@ -291,17 +288,10 @@ export const api = {
       saveLocalCustomWords([...items, item]);
       return item;
     }
-    try {
-      return await request<any>("/communication/words", { method: "POST", body: JSON.stringify({ phrase, category }) });
-    } catch (error) {
-      if (!isTransportError(error)) throw error;
-      const items = localCustomWords();
-      const exists = items.some((item) => String(item.phrase).toLowerCase() === phrase.trim().toLowerCase());
-      if (exists) throw error;
-      const item = { id: Date.now(), phrase: phrase.trim(), category: category.trim(), created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
-      saveLocalCustomWords([...items, item]);
-      return item;
-    }
+    return request<any>("/communication/words", {
+      method: "POST",
+      body: JSON.stringify({ phrase, category }),
+    });
   },
   updateCustomWord: async (id: number, phrase: string, category: string): Promise<any> => {
     if (LOCAL_MODE) {
@@ -310,30 +300,21 @@ export const api = {
       saveLocalCustomWords(next);
       return next.find((item) => item.id === id);
     }
-    try {
-      return await request<any>("/communication/words/" + id, { method: "PUT", body: JSON.stringify({ phrase, category }) });
-    } catch (error) {
-      if (!isTransportError(error)) throw error;
-      const items = localCustomWords();
-      const next = items.map((item) => item.id === id ? { ...item, phrase: phrase.trim(), category: category.trim(), updated_at: new Date().toISOString() } : item);
-      saveLocalCustomWords(next);
-      const updated = next.find((item) => item.id === id);
-      if (!updated) throw error;
-      return updated;
-    }
+    return request<any>("/communication/words/" + id, {
+      method: "PUT",
+      body: JSON.stringify({ phrase, category }),
+    });
   },
   deleteCustomWord: async (id: number): Promise<void> => {
     if (LOCAL_MODE) {
       saveLocalCustomWords(localCustomWords().filter((item) => item.id !== id));
       return;
     }
-    try { await request<any>("/communication/words/" + id, { method: "DELETE" }); }
-    catch (error) { if (!isTransportError(error)) throw error; saveLocalCustomWords(localCustomWords().filter((item) => item.id !== id)); }
+    await request<any>("/communication/words/" + id, { method: "DELETE" });
   },
   profiles: async (): Promise<any[]> => {
     if (LOCAL_MODE) return localProfiles();
-    try { return await request<any[]>("/communication/profiles"); }
-    catch (error) { if (!isTransportError(error)) throw error; return localProfiles(); }
+    return request<any[]>("/communication/profiles");
   },
   createProfile: async (name: string, config: any): Promise<any> => {
     if (LOCAL_MODE) {
@@ -342,14 +323,10 @@ export const api = {
       saveLocalProfiles([...items, profile]);
       return profile;
     }
-    try { return await request<any>("/communication/profiles", { method: "POST", body: JSON.stringify({ name, config }) }); }
-    catch (error) {
-      if (!isTransportError(error)) throw error;
-      const items = localProfiles();
-      const profile = { id: Date.now(), name: name.trim(), config, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
-      saveLocalProfiles([...items, profile]);
-      return profile;
-    }
+    return request<any>("/communication/profiles", {
+      method: "POST",
+      body: JSON.stringify({ name, config }),
+    });
   },
   updateProfile: async (id: number, name: string, config: any): Promise<any> => {
     if (LOCAL_MODE) {
@@ -357,23 +334,17 @@ export const api = {
       saveLocalProfiles(items);
       return items.find((item) => item.id === id);
     }
-    try { return await request<any>("/communication/profiles/" + id, { method: "PUT", body: JSON.stringify({ name, config }) }); }
-    catch (error) {
-      if (!isTransportError(error)) throw error;
-      const items = localProfiles().map((item) => item.id === id ? { ...item, name: name.trim(), config, updated_at: new Date().toISOString() } : item);
-      saveLocalProfiles(items);
-      const item = items.find((item) => item.id === id);
-      if (!item) throw new Error("Profile not found.");
-      return item;
-    }
+    return request<any>("/communication/profiles/" + id, {
+      method: "PUT",
+      body: JSON.stringify({ name, config }),
+    });
   },
   deleteProfile: async (id: number): Promise<void> => {
     if (LOCAL_MODE) {
       saveLocalProfiles(localProfiles().filter((item) => item.id !== id));
       return;
     }
-    try { await request<any>("/communication/profiles/" + id, { method: "DELETE" }); }
-    catch (error) { if (!isTransportError(error)) throw error; saveLocalProfiles(localProfiles().filter((item) => item.id !== id)); }
+    await request<any>("/communication/profiles/" + id, { method: "DELETE" });
   },
   recordUsage: async (phrase: string, profileId?: number): Promise<void> => {
     const value = phrase.trim();
@@ -385,14 +356,10 @@ export const api = {
       saveLocalUsage(items, profileId);
       return;
     }
-    try { await request<{ phrase: string; usage_count: number }>("/communication/usage", { method: "POST", body: JSON.stringify({ phrase: value, profileId: profileId || null }) }); }
-    catch (error) {
-      if (!isTransportError(error)) return;
-      const items = localUsage(profileId);
-      const previous = items[value] || { count: 0, lastUsedAt: "" };
-      items[value] = { count: previous.count + 1, lastUsedAt: new Date().toISOString() };
-      saveLocalUsage(items, profileId);
-    }
+    await request<{ phrase: string; usage_count: number }>("/communication/usage", {
+      method: "POST",
+      body: JSON.stringify({ phrase: value, profileId: profileId || null }),
+    });
   },
   mostUsed: async (profileId?: number): Promise<any[]> => {
     if (LOCAL_MODE) {
@@ -402,16 +369,11 @@ export const api = {
         .slice(0, 12)
         .map(([phrase, value]) => ({ phrase, usage_count: value.count, last_used_at: value.lastUsedAt }));
     }
-    try { return await request<any[]>("/communication/most-used" + (profileId ? "?profileId=" + profileId : "")); } catch (error) {
-      if (!isTransportError(error)) throw error;
-      const items = localUsage(profileId);
-      return Object.entries(items).sort((a, b) => b[1].count - a[1].count || b[1].lastUsedAt.localeCompare(a[1].lastUsedAt)).slice(0, 12).map(([phrase, value]) => ({ phrase, usage_count: value.count, last_used_at: value.lastUsedAt }));
-    }
+    return request<any[]>("/communication/most-used" + (profileId ? "?profileId=" + profileId : ""));
   },
   quickAccess: async (): Promise<{ slots: Array<string | null> }> => {
     if (LOCAL_MODE) return { slots: localQuickAccess() };
-    try { return await request<{ slots: Array<string | null> }>("/communication/quick-access"); }
-    catch (error) { if (!isTransportError(error)) throw error; return { slots: localQuickAccess() }; }
+    return request<{ slots: Array<string | null> }>("/communication/quick-access");
   },
   saveQuickAccess: async (slots: Array<string | null>): Promise<{ slots: Array<string | null> }> => {
     const normalized = Array.from({ length: 10 }, (_, index) => slots[index] || null);
@@ -419,16 +381,10 @@ export const api = {
       saveLocalQuickAccess(normalized);
       return { slots: normalized };
     }
-    try {
-      return await request<{ slots: Array<string | null> }>("/communication/quick-access", {
-        method: "PUT",
-        body: JSON.stringify({ slots: normalized }),
-      });
-    } catch (error) {
-      if (!isTransportError(error)) throw error;
-      saveLocalQuickAccess(normalized);
-      return { slots: normalized };
-    }
+    return request<{ slots: Array<string | null> }>("/communication/quick-access", {
+      method: "PUT",
+      body: JSON.stringify({ slots: normalized }),
+    });
   },
   clearHistory: async (): Promise<{ deleted: number; storage: "database" | "browser" }> => {
     if (LOCAL_MODE) {

@@ -63,6 +63,7 @@ class Settings:
     CALIBRATION_RATE_LIMIT_PER_MINUTE = int(os.getenv("CALIBRATION_RATE_LIMIT_PER_MINUTE", "5"))
 
     REGISTER_RATE_LIMIT_PER_MINUTE = int(os.getenv("REGISTER_RATE_LIMIT_PER_MINUTE", "5"))
+    LOGIN_RATE_LIMIT_PER_MINUTE = int(os.getenv("LOGIN_RATE_LIMIT_PER_MINUTE", "5"))
 
     def validate_for_runtime(self) -> None:
         if self.ENV.lower() == "production":
@@ -87,6 +88,9 @@ class Settings:
 
         if self.REGISTER_RATE_LIMIT_PER_MINUTE < 1:
             raise RuntimeError("REGISTER_RATE_LIMIT_PER_MINUTE must be at least 1")
+
+        if self.LOGIN_RATE_LIMIT_PER_MINUTE < 1:
+            raise RuntimeError("LOGIN_RATE_LIMIT_PER_MINUTE must be at least 1")
 
 
 

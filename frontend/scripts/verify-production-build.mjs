@@ -19,6 +19,13 @@ if (marker !== "VISIONBRIDGE_DIST_ARTIFACT") {
 }
 
 const html = readFileSync(indexPath, "utf8");
+const apiSource = readFileSync(resolve("src", "api.ts"), "utf8");
+
+if (apiSource.includes("isTransportError") || /catch\s*\([^)]*\)[\s\S]{0,500}saveLocal/.test(apiSource)) {
+  throw new Error(
+    "Production build verification failed: real-mode API paths contain local-storage fallback behavior",
+  );
+}
 
 if (/\/src\/main\.tsx\b/.test(html) || /src=["']\/src\//.test(html)) {
   throw new Error(

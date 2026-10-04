@@ -105,6 +105,69 @@ def test_profile_crud_usage_and_delete_cleanup():
         db.close()
 
 
+def test_custom_phrase_and_profile_names_treat_like_wildcards_literally():
+    token, _ = _token_and_user()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    with TestClient(app) as client:
+        first_word = client.post(
+            "/api/v1/communication/words",
+            headers=headers,
+            json={"phrase": "safe phrase", "category": "Custom"},
+        )
+        wildcard_word = client.post(
+            "/api/v1/communication/words",
+            headers=headers,
+            json={"phrase": "safe%phrase", "category": "Custom"},
+        )
+        assert first_word.status_code == 201
+        assert wildcard_word.status_code == 201
+
+        home = client.post(
+            "/api/v1/communication/profiles",
+            headers=headers,
+            json={"name": "Home", "config": _config()},
+        )
+        wildcard_profile = client.post(
+            "/api/v1/communication/profiles",
+            headers=headers,
+            json={"name": "H%me", "config": _config()},
+        )
+        assert home.status_code == 201
+        assert wildcard_profile.status_code == 201
+
+
+def test_most_used_without_profile_only_returns_account_level_usage():
+    token, _ = _token_and_user()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    with TestClient(app) as client:
+        profile = client.post(
+            "/api/v1/communication/profiles",
+            headers=headers,
+            json={"name": "Home", "config": _config()},
+        )
+        assert profile.status_code == 201
+        profile_id = profile.json()["id"]
+
+        account_usage = client.post(
+            "/api/v1/communication/usage",
+            headers=headers,
+            json={"phrase": "Account phrase"},
+        )
+        profile_usage = client.post(
+            "/api/v1/communication/usage",
+            headers=headers,
+            json={"phrase": "Profile phrase", "profileId": profile_id},
+        )
+        assert account_usage.status_code == 200
+        assert profile_usage.status_code == 200
+
+        account_rows = client.get("/api/v1/communication/most-used", headers=headers)
+        assert account_rows.status_code == 200
+        assert [row["phrase"] for row in account_rows.json()] == ["Account phrase"]
+
+
 def test_profile_update_preserves_user_scope():
     token_one, user_one = _token_and_user()
     token_two, _user_two = _token_and_user()

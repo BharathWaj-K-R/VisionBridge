@@ -12,6 +12,7 @@ from app.main import app
 
 def _reset_auth_limiters() -> None:
     auth_api.register_limiter.reset()
+    auth_api.login_limiter.reset()
 
 
 def test_registration_requires_all_strong_password_rules():
@@ -89,6 +90,68 @@ def test_existing_user_can_log_in_normally():
         )
         assert response.status_code == 200
         assert response.cookies.get(get_settings().AUTH_COOKIE_NAME)
+
+
+def test_failed_logins_are_rate_limited_per_client(monkeypatch):
+    _reset_auth_limiters()
+    monkeypatch.setattr(auth_api.login_limiter, "limit", 2)
+    username = "rate-limit-" + uuid.uuid4().hex[:8]
+
+    with TestClient(app) as client:
+        for _ in range(2):
+            response = client.post(
+                "/api/v1/auth/login",
+                json={"identifier": username, "password": "WrongPass1!"},
+            )
+            assert response.status_code == 401
+
+        blocked = client.post(
+            "/api/v1/auth/login",
+            json={"identifier": username, "password": "WrongPass1!"},
+        )
+        assert blocked.status_code == 429
+        assert int(blocked.headers["Retry-After"]) >= 1
+
+    auth_api.login_limiter.reset()
+
+
+def test_explicit_bearer_token_takes_precedence_over_ambient_cookie():
+    from app.core.security import create_access_token
+
+    first_username = "cookie-user-" + uuid.uuid4().hex[:8]
+    second_username = "bearer-user-" + uuid.uuid4().hex[:8]
+    db = SessionLocal()
+    first = User(
+        username=first_username,
+        email=f"{first_username}@example.com",
+        hashed_password=hash_password("StrongPass1!"),
+    )
+    second = User(
+        username=second_username,
+        email=f"{second_username}@example.com",
+        hashed_password=hash_password("StrongPass1!"),
+    )
+    db.add_all([first, second])
+    db.commit()
+    db.refresh(first)
+    db.refresh(second)
+    first_id = first.id
+    second_id = second.id
+    db.close()
+
+    with TestClient(app) as client:
+        client.post(
+            "/api/v1/auth/login",
+            json={"identifier": first_username, "password": "StrongPass1!"},
+        )
+        bearer = create_access_token(str(second_id))
+        response = client.get(
+            "/api/v1/users/me",
+            headers={"Authorization": f"Bearer {bearer}"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["id"] == second_id
 
 
 def test_registration_rejects_duplicate_username_or_email():

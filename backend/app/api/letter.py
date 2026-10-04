@@ -110,8 +110,14 @@ def calibrate_letters(
         db.refresh(row)
     except Exception as exc:
         db.rollback()
-        # New adapters are database-backed; there is no ephemeral file to clean up.
-        # Keep the rollback path free of filesystem assumptions.
+        # Current adapters are database-backed, but clean up a newly-created
+        # filesystem adapter as well so legacy storage cannot leak orphaned files.
+        try:
+            candidate = Path(weights_path)
+            if candidate.name.startswith("letter_adapter_") and candidate.is_file():
+                candidate.unlink()
+        except OSError:
+            pass
         raise HTTPException(
             status_code=500,
             detail="Adapter could not be persisted safely",

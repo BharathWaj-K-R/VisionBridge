@@ -12,6 +12,7 @@ from app.main import app
 
 client = TestClient(app)
 client.__enter__()
+
 def _register_and_login(username: str, password: str = "CorrectHorse1!") -> str:
     email = f"{username}@example.com"
     register_resp = client.post("/api/v1/auth/register", json={"username": username, "email": email, "password": password})
