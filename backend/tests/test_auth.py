@@ -12,6 +12,7 @@ from app.main import app
 
 def _reset_auth_limiters() -> None:
     auth_api.register_limiter.reset()
+    auth_api.login_limiter.reset()
 
 
 def test_registration_requires_all_strong_password_rules():
@@ -89,6 +90,29 @@ def test_existing_user_can_log_in_normally():
         )
         assert response.status_code == 200
         assert response.cookies.get(get_settings().AUTH_COOKIE_NAME)
+
+
+def test_failed_logins_are_rate_limited_per_client(monkeypatch):
+    _reset_auth_limiters()
+    monkeypatch.setattr(auth_api.login_limiter, "limit", 2)
+    username = "rate-limit-" + uuid.uuid4().hex[:8]
+
+    with TestClient(app) as client:
+        for _ in range(2):
+            response = client.post(
+                "/api/v1/auth/login",
+                json={"identifier": username, "password": "WrongPass1!"},
+            )
+            assert response.status_code == 401
+
+        blocked = client.post(
+            "/api/v1/auth/login",
+            json={"identifier": username, "password": "WrongPass1!"},
+        )
+        assert blocked.status_code == 429
+        assert int(blocked.headers["Retry-After"]) >= 1
+
+    auth_api.login_limiter.reset()
 
 
 def test_registration_rejects_duplicate_username_or_email():
