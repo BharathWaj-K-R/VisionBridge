@@ -62,6 +62,28 @@ async function ensureCsrfToken(): Promise<string> {
   }
 }
 
+function formatApiDetail(detail: unknown): string | null {
+  if (typeof detail === "string" && detail.trim()) return detail.trim();
+
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map(item => {
+        if (!item || typeof item !== "object") return "";
+        const record = item as { loc?: unknown; msg?: unknown };
+        const path = Array.isArray(record.loc)
+          ? record.loc.filter(value => typeof value === "string").slice(1).join(".")
+          : "";
+        const message = typeof record.msg === "string" ? record.msg.trim() : "";
+        return message ? (path ? path + ": " + message : message) : "";
+      })
+      .filter(Boolean);
+
+    if (messages.length) return messages.join(" ");
+  }
+
+  return null;
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   if (!headers.has("Content-Type") && init.body) headers.set("Content-Type", "application/json");
@@ -96,7 +118,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       let detail = "Request failed (" + response.status + ")";
       try {
         const payload = await response.json();
-        if (typeof payload?.detail === "string") detail = payload.detail;
+        detail = formatApiDetail(payload?.detail) || detail;
       } catch (parseError) {
         void parseError;
       }
@@ -228,15 +250,19 @@ function localPredict(adapter: any, raw: number[]) {
 
 export const api = {
   register: async (username: string, email: string, password: string): Promise<Token> => {
+    const cleanUsername = username.trim();
+    const cleanEmail = email.trim().toLowerCase();
+
     if (LOCAL_MODE) {
-      localUser(username);
+      localUser(cleanUsername);
       localStorage.setItem(LOCAL_AUTH_KEY, "1");
       setSessionHint();
       return { access_token: "visionbridge-local-token", token_type: "bearer" };
     }
+
     const token = await request<Token>("/auth/register", {
       method: "POST",
-      body: JSON.stringify({ username, email, password }),
+      body: JSON.stringify({ username: cleanUsername, email: cleanEmail, password }),
     });
     setSessionHint();
     return token;
