@@ -60,6 +60,7 @@ def test_adapter_delete_preserves_history_and_clears_adapter_reference():
     )
     db.add(log)
     db.commit()
+    user_id = user.id
     log_id = log.id
     adapter_id = adapter.id
     db.close()
@@ -68,7 +69,7 @@ def test_adapter_delete_preserves_history_and_clears_adapter_reference():
     client.__enter__()
     try:
         from app.core.security import create_access_token
-        token = create_access_token(str(user.id))
+        token = create_access_token(str(user_id))
         response = client.delete(
             f"/api/v1/users/me/adapters/{adapter_id}",
             headers={"Authorization": f"Bearer {token}"},
