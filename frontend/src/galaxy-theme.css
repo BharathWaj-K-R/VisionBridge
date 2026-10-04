@@ -929,3 +929,25 @@ button,a{
   .quick-access-item{max-width:76vw!important}
   .prediction-line>strong{font-size:clamp(72px,24vw,118px)!important}
 }
+
+.top-actions .icon-btn svg{
+  width:19px;
+  height:19px;
+  display:block;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.7;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+
+.action-card .action-icon svg{
+  width:23px;
+  height:23px;
+  display:block;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.7;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
