@@ -6,6 +6,7 @@ import NotFound from "./NotFound";
 import { AppBootstrap, ErrorState } from "./components/SystemStates";
 import "./styles.css";
 import "./design-system.css";
+import "./galaxy-theme.css";
 
 type ErrorBoundaryProps = { children: ReactNode };
 type ErrorBoundaryState = { error: Error | null };
