@@ -110,8 +110,10 @@ def test_few_shot_adapter_tracks_current_base_version(tmp_path, monkeypatch):
         model,
         [("A", _pair(1)), ("A", _pair(1)), ("A", _pair(1)), ("B", _pair(2)), ("B", _pair(2)), ("B", _pair(2))],
     )
-    adapter_path = letter_fewshot.save_prototype_adapter(fitted["payload"])
-    loaded = letter_fewshot.load_prototype_adapter(adapter_path, base)
+    loaded = letter_fewshot.validate_prototype_adapter_payload(
+        fitted["payload"],
+        base,
+    )
     pred, conf, scores = letter_fewshot.predict_letter(model, loaded, _pair(1))
 
     assert loaded["method"] == "dynamic-base-embedding-prototype"
