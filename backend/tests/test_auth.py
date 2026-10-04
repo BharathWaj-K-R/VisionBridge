@@ -68,6 +68,31 @@ def test_registration_creates_active_user_and_sets_session_cookie():
         db.close()
 
 
+
+def test_registration_strips_outer_whitespace_before_validation():
+    _reset_auth_limiters()
+    username = "trim-" + uuid.uuid4().hex[:8]
+    email = f"{username}@example.com"
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/auth/register",
+            json={
+                "username": f"  {username}  ",
+                "email": f"  {email.upper()}  ",
+                "password": "StrongPass1!",
+            },
+        )
+
+    assert response.status_code == 201
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.username == username).one()
+        assert user.email == email
+    finally:
+        db.close()
+
+
 def test_existing_user_can_log_in_normally():
     _reset_auth_limiters()
     username = "existing-" + uuid.uuid4().hex[:8]
