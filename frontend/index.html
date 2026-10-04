@@ -3,7 +3,24 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#f1f5f3" />
+  <meta name="theme-color" content="#f5f8f7" />
+  <script>
+  (() => {
+    try {
+      const key = "theme-preference";
+      const legacyKey = "visionbridge_theme";
+      const stored = localStorage.getItem(key) || localStorage.getItem(legacyKey) || "system";
+      const preference = stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
+      if (preference === "light" || preference === "dark") document.documentElement.dataset.theme = preference;
+      else document.documentElement.removeAttribute("data-theme");
+      document.documentElement.dataset.themePreference = preference;
+    } catch {
+      document.documentElement.removeAttribute("data-theme");
+      document.documentElement.dataset.themePreference = "system";
+    }
+  })();
+  </script>
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;500;700&family=Literata:opsz,wght@7..72,500;7..72,600;7..72,700&family=Space+Mono:wght@400;700&display=swap" />
@@ -32,6 +49,16 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link rel="apple-touch-icon" href="/favicon.svg" />
   <link rel="manifest" href="/manifest.json" />
+  <style>
+  .boot-fallback{min-height:100vh;display:grid;place-items:center;padding:48px 24px;background:var(--vb-bg);color:var(--vb-text)}
+  .boot-fallback-card{width:min(900px,100%);padding:48px;background:var(--vb-surface);border:1px solid var(--vb-line);color:var(--vb-text)}
+  .boot-fallback-card p:first-child{margin:0 0 12px;font:700 11px/1.2 ui-monospace,SFMono-Regular,monospace;letter-spacing:.14em;color:var(--vb-muted);text-transform:uppercase}
+  .boot-fallback-card h1{margin:0 0 16px;font:700 clamp(36px,6vw,64px)/1.02 Georgia,serif;letter-spacing:-.04em;color:var(--vb-strong)}
+  .boot-fallback-card p{max-width:680px;margin:0 0 24px;font-size:20px;line-height:1.55;color:var(--vb-muted)}
+  .boot-fallback-card nav{display:flex;gap:10px;flex-wrap:wrap}
+  .boot-fallback-card a{padding:11px 16px;background:var(--vb-strong);color:var(--vb-bg);border:1px solid var(--vb-strong);text-decoration:none}
+  .boot-fallback-card a+a{background:var(--vb-surface);color:var(--vb-strong)}
+  </style>
   <title>VisionBridge | Indian Sign Language Recognition</title>
 
   <script type="application/ld+json">
@@ -53,17 +80,7 @@
 </head>
 <body>
   <div id="root">
-    <main style="min-height:100vh;display:grid;place-items:center;padding:48px 24px;background:#f7f7f5;color:#111;font-family:Arial,sans-serif">
-      <article style="width:min(900px,100%);padding:48px;background:#fff;border:1px solid #d8e2de">
-        <p style="margin:0 0 12px;font:700 11px/1.2 ui-monospace,SFMono-Regular,monospace;letter-spacing:.14em;color:#666;text-transform:uppercase">VisionBridge</p>
-        <h1 style="margin:0 0 16px;font:700 clamp(36px,6vw,64px)/1.02 Georgia,serif;letter-spacing:-.04em">Indian Sign Language Recognition</h1>
-        <p style="max-width:680px;margin:0 0 24px;font-size:20px;line-height:1.55;color:#5f706b">Signer-adaptive A–Z recognition using browser-based hand landmark tracking, with optional few-shot calibration for a signer’s style.</p>
-        <nav aria-label="Public pages" style="display:flex;gap:10px;flex-wrap:wrap">
-          <a href="/login" style="padding:11px 16px;background:#0b1512;color:#f1f5f3;text-decoration:none">Sign in</a>
-          <a href="/" style="padding:11px 16px;border:1px solid #0b1512;color:#0b1512;text-decoration:none">VisionBridge home</a>
-        </nav>
-      </article>
-    </main>
+    <main class="boot-fallback"><article class="boot-fallback-card"><p>VISIONBRIDGE</p><h1>Indian Sign Language Recognition</h1><p>Signer-adaptive A–Z recognition using browser-based hand landmark tracking, with optional few-shot calibration for a signer’s style.</p><nav aria-label="Public pages"><a href="/login">Sign in</a><a href="/">VisionBridge home</a></nav></article></main>
   </div>
   <noscript>
     <div style="padding:16px 24px;background:#111;color:#fff;font:600 14px/1.5 Arial,sans-serif;text-align:center">
