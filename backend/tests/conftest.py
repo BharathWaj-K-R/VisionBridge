@@ -12,5 +12,6 @@ os.environ["AUTH_COOKIE_SAMESITE"] = "lax"
 os.environ["ALLOWED_ORIGINS"] = "http://testserver"
 
 os.environ["REGISTER_RATE_LIMIT_PER_MINUTE"] = "100"
+os.environ["LOGIN_RATE_LIMIT_PER_MINUTE"] = "100"
 os.environ["VERIFY_OTP_RATE_LIMIT_PER_MINUTE"] = "100"
 os.environ["RESEND_OTP_RATE_LIMIT_PER_HOUR"] = "100"
