@@ -137,7 +137,7 @@ body:before{
   border:1px solid var(--gx-ink)!important;
   background:var(--gx-ink)!important;
   color:var(--gx-bg)!important;
-  font:850 15px/1 Inter,sans-serif!important;
+  font:850 15px/1 "Atkinson Hyperlegible",Arial,sans-serif!important;
 }
 
 .brand-copy strong{
@@ -161,7 +161,7 @@ body:before{
   border:1px solid transparent!important;
   border-radius:999px!important;
   color:var(--gx-muted)!important;
-  font:800 11px/1 Inter,sans-serif!important;
+  font:800 11px/1 "Atkinson Hyperlegible",Arial,sans-serif!important;
   letter-spacing:.07em!important;
   text-transform:uppercase!important;
   transition:transform .18s ease,background .18s ease,color .18s ease,border-color .18s ease;
@@ -205,7 +205,7 @@ body:before{
   border-radius:50%!important;
   background:var(--gx-ink)!important;
   color:var(--gx-bg)!important;
-  font:850 13px/1 Inter,sans-serif!important;
+  font:850 13px/1 "Atkinson Hyperlegible",Arial,sans-serif!important;
 }
 
 .profile-switcher select{
@@ -233,7 +233,7 @@ body:before{
 }
 
 .quick-access-label strong{
-  font:850 11px/1 Inter,sans-serif!important;
+  font:750 11px/1 "Atkinson Hyperlegible",Arial,sans-serif!important;
   letter-spacing:.08em!important;
   text-transform:uppercase!important;
   color:var(--gx-ink)!important;
@@ -307,7 +307,7 @@ body:before{
 .page-header h1{
   max-width:900px;
   margin:7px 0 10px!important;
-  font:850 clamp(46px,7vw,92px)/.93 Inter,sans-serif!important;
+  font:700 clamp(46px,7vw,92px)/.93 "Literata",Georgia,serif!important;
   letter-spacing:-.065em!important;
   color:var(--gx-ink)!important;
 }
@@ -349,7 +349,7 @@ body:before{
 }
 
 .panel h2{
-  font:800 24px/1.08 Inter,sans-serif!important;
+  font:700 24px/1.08 "Literata",Georgia,serif!important;
   letter-spacing:-.035em!important;
   color:var(--gx-ink)!important;
 }
@@ -439,7 +439,7 @@ body:before{
 .welcome-panel h2{
   margin:8px 0 14px!important;
   max-width:620px;
-  font:850 clamp(44px,6vw,78px)/.9 Inter,sans-serif!important;
+  font:700 clamp(44px,6vw,78px)/.9 "Literata",Georgia,serif!important;
   letter-spacing:-.065em!important;
   color:#fff!important;
 }
@@ -491,7 +491,7 @@ body:before{
 
 .action-card h3{
   margin:0!important;
-  font:800 22px/1.05 Inter,sans-serif!important;
+  font:800 22px/1.05 "Atkinson Hyperlegible",Arial,sans-serif!important;
   letter-spacing:-.035em!important;
   color:inherit!important;
 }
@@ -570,7 +570,7 @@ body:before{
 }
 
 .metric strong{
-  font:850 clamp(30px,4vw,48px)/1 Inter,sans-serif!important;
+  font:700 clamp(30px,4vw,48px)/1 "Literata",Georgia,serif!important;
   letter-spacing:-.055em!important;
   color:var(--gx-ink)!important;
 }
@@ -606,7 +606,7 @@ body:before{
 }
 
 .prediction-line>strong{
-  font:900 clamp(90px,13vw,160px)/.8 Inter,sans-serif!important;
+  font:700 clamp(90px,13vw,160px)/.8 "Literata",Georgia,serif!important;
   letter-spacing:-.09em!important;
   color:var(--gx-ink)!important;
 }
@@ -757,7 +757,7 @@ body:before{
 }
 
 .auth-card h1{
-  font:900 clamp(48px,8vw,86px)/.9 Inter,sans-serif!important;
+  font:700 clamp(48px,8vw,86px)/.9 "Literata",Georgia,serif!important;
   letter-spacing:-.07em!important;
 }
 
@@ -862,4 +862,62 @@ body:before{
   .primary-btn{
     transition:none!important;
   }
+}
+
+
+/* Type safety: long user content must stay inside its component. */
+.page h1,.page h2,.page h3,.page p,.panel-head,.action-card,.metric,.tip-card,
+.profile-card,.favorite-row,.activity-row,.adapter-row,.sentence-queue-item,
+.sentence-stage-meta,.sentence-stage-foot,.system-state-copy{
+  min-width:0;
+  overflow-wrap:anywhere;
+}
+
+button,a{
+  overflow-wrap:anywhere;
+}
+
+.quick-access-item{
+  max-width:240px!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+
+.action-card h3,.action-card p,.tip-card strong,.tip-card p{
+  overflow-wrap:normal;
+  word-break:normal;
+}
+
+.prediction-line{
+  min-width:0!important;
+  overflow:hidden!important;
+}
+
+.prediction-line>strong{
+  max-width:100%!important;
+  display:block!important;
+  overflow-wrap:normal!important;
+  white-space:nowrap!important;
+  text-overflow:clip!important;
+}
+
+.panel table{
+  min-width:0;
+}
+
+.panel td,.panel th{
+  overflow-wrap:anywhere;
+}
+
+.profile-card strong,
+.quick-profile-row strong,
+.activity-row strong,
+.adapter-row strong{
+  min-width:0;
+  overflow-wrap:anywhere;
+}
+
+@media(max-width:760px){
+  .quick-access-item{max-width:76vw!important}
+  .prediction-line>strong{font-size:clamp(72px,24vw,118px)!important}
 }
