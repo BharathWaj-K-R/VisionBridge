@@ -4,16 +4,44 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#f5f8f7" />
+  <style id="theme-critical">
+    :root{
+      --vb-bg:#f5f8f7;--vb-surface:#fff;--vb-soft:#edf4f2;--vb-text:#16302d;--vb-strong:#10221f;
+      --vb-muted:#5f716e;--vb-line:#d6e2df;--vb-accent:#0f766e;--vb-accent-2:#0b5f59;
+      --vb-focus:#1d4ed8;--vb-danger:#b42318;--vb-danger-soft:#fff1ef;color-scheme:light;
+    }
+    html[data-theme="dark"]{
+      --vb-bg:#101514;--vb-surface:#161c1a;--vb-soft:#202a27;--vb-text:#edf7f4;--vb-strong:#fff;
+      --vb-muted:#bbc8c4;--vb-line:#42504c;--vb-accent:#56c5b8;--vb-accent-2:#7de0d4;
+      --vb-focus:#79a7ff;--vb-danger:#ff8f86;--vb-danger-soft:#321b1b;color-scheme:dark;
+    }
+    @media(prefers-color-scheme:dark){
+      html:not([data-theme]){
+        --vb-bg:#101514;--vb-surface:#161c1a;--vb-soft:#202a27;--vb-text:#edf7f4;--vb-strong:#fff;
+        --vb-muted:#bbc8c4;--vb-line:#42504c;--vb-accent:#56c5b8;--vb-accent-2:#7de0d4;
+        --vb-focus:#79a7ff;--vb-danger:#ff8f86;--vb-danger-soft:#321b1b;color-scheme:dark;
+      }
+    }
+  </style>
   <script>
   (() => {
     try {
       const key = "theme-preference";
       const legacyKey = "visionbridge_theme";
-      const stored = localStorage.getItem(key) || localStorage.getItem(legacyKey) || "system";
-      const preference = stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
-      if (preference === "light" || preference === "dark") document.documentElement.dataset.theme = preference;
-      else document.documentElement.removeAttribute("data-theme");
-      document.documentElement.dataset.themePreference = preference;
+      const isPreference = value => value === "light" || value === "dark" || value === "system";
+      const primary = localStorage.getItem(key);
+      const legacy = localStorage.getItem(legacyKey);
+      const preference = isPreference(primary) ? primary : isPreference(legacy) ? legacy : "system";
+      const root = document.documentElement;
+      if (preference === "light" || preference === "dark") root.dataset.theme = preference;
+      else root.removeAttribute("data-theme");
+      root.dataset.themePreference = preference;
+      const resolved = preference === "system"
+        ? (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+        : preference;
+      root.style.colorScheme = resolved;
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.content = resolved === "dark" ? "#101514" : "#f5f8f7";
     } catch {
       document.documentElement.removeAttribute("data-theme");
       document.documentElement.dataset.themePreference = "system";
@@ -82,11 +110,7 @@
   <div id="root">
     <main class="boot-fallback"><article class="boot-fallback-card"><p>VISIONBRIDGE</p><h1>Indian Sign Language Recognition</h1><p>Signer-adaptive A–Z recognition using browser-based hand landmark tracking, with optional few-shot calibration for a signer’s style.</p><nav aria-label="Public pages"><a href="/login">Sign in</a><a href="/">VisionBridge home</a></nav></article></main>
   </div>
-  <noscript>
-    <div style="padding:16px 24px;background:#111;color:#fff;font:600 14px/1.5 Arial,sans-serif;text-align:center">
-      JavaScript is required for VisionBridge sign-in, camera tracking, calibration, and live recognition. The public overview above remains available without JavaScript.
-    </div>
-  </noscript>
+  <noscript><div>JavaScript is required for VisionBridge sign-in, camera tracking, calibration, and live recognition.</div></noscript>
   <script type="module" src="/src/main.tsx"></script>
 </body>
 </html>
