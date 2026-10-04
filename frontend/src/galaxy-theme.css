@@ -167,7 +167,7 @@ body:before{
   min-height:42px!important;
   padding:9px 14px!important;
   border:1px solid transparent!important;
-  border-radius:999px!important;
+  border-radius:2px!important;
   color:var(--gx-muted)!important;
   font:800 11px/1 "Atkinson Hyperlegible",Arial,sans-serif!important;
   letter-spacing:.07em!important;
@@ -219,7 +219,7 @@ body:before{
 .profile-switcher select{
   min-height:42px!important;
   border:1px solid var(--gx-line)!important;
-  border-radius:999px!important;
+  border-radius:2px!important;
   background:var(--gx-surface)!important;
   color:var(--gx-ink)!important;
   padding-inline:14px 34px!important;
@@ -254,7 +254,7 @@ body:before{
 .quick-access-item{
   min-height:36px!important;
   padding:7px 12px!important;
-  border-radius:999px!important;
+  border-radius:2px!important;
   border:1px solid var(--gx-line)!important;
   background:var(--gx-surface)!important;
   color:var(--gx-ink)!important;
@@ -276,7 +276,7 @@ body:before{
 .quick-access-config{
   min-height:36px!important;
   padding:7px 12px!important;
-  border-radius:999px!important;
+  border-radius:2px!important;
   border:1px solid var(--gx-ink)!important;
   background:var(--gx-ink)!important;
   color:var(--gx-bg)!important;
@@ -371,7 +371,7 @@ body:before{
 .danger-btn,
 .text-btn{
   min-height:46px!important;
-  border-radius:999px!important;
+  border-radius:2px!important;
   font-weight:800!important;
   letter-spacing:.02em!important;
 }
@@ -606,7 +606,7 @@ body:before{
 }
 
 .camera-corner{
-  border-radius:999px!important;
+  border-radius:2px!important;
 }
 
 .classification-card{
@@ -620,7 +620,7 @@ body:before{
 }
 
 .confidence-badge{
-  border-radius:999px!important;
+  border-radius:2px!important;
   background:var(--gx-accent-soft)!important;
   color:var(--gx-accent)!important;
 }
@@ -637,7 +637,7 @@ body:before{
 .voice-mic-btn{
   min-height:56px!important;
   padding:0 22px!important;
-  border-radius:999px!important;
+  border-radius:2px!important;
   border:1px solid var(--gx-ink)!important;
   background:var(--gx-ink)!important;
   color:var(--gx-bg)!important;
@@ -681,7 +681,7 @@ body:before{
 }
 
 .sentence-token{
-  border-radius:999px!important;
+  border-radius:2px!important;
 }
 
 .sentence-token.current{
@@ -692,7 +692,7 @@ body:before{
 .speed-control select,
 .voice-language select{
   min-height:44px!important;
-  border-radius:999px!important;
+  border-radius:2px!important;
   border:1px solid var(--gx-line)!important;
   background:var(--gx-surface)!important;
   color:var(--gx-ink)!important;
@@ -771,14 +771,14 @@ body:before{
 
 .auth-tabs,
 .identifier-toggle{
-  border-radius:999px!important;
+  border-radius:2px!important;
   background:var(--gx-surface-2)!important;
   border-color:var(--gx-line)!important;
 }
 
 .auth-tab,
 .identifier-toggle button{
-  border-radius:999px!important;
+  border-radius:2px!important;
 }
 
 .auth-tab.active,
@@ -798,7 +798,7 @@ body:before{
 .quick-manager-row select{
   min-height:48px!important;
   border:1px solid var(--gx-line)!important;
-  border-radius:999px!important;
+  border-radius:2px!important;
   background:var(--gx-surface)!important;
   color:var(--gx-ink)!important;
 }
