@@ -55,8 +55,8 @@ export default function VoiceToSign() {
 
   return (
     <Page
-      title="Speak to Sentence"
-      subtitle="Speak naturally. Your sentence appears as a sequence of sign references you can play, pause, and repeat."
+      title="Speak to sentence"
+      subtitle="Speak a sentence. VisionBridge resolves available sign references in sequence."
     >
       <div className="voice-layout speak-to-sentence-layout">
         <div className="voice-main">
@@ -94,15 +94,15 @@ export default function VoiceToSign() {
           <section className="panel avatar-panel sentence-stage-panel">
             <div className="avatar-panel-head">
               <div>
-                <div className="eyebrow">SIGN REFERENCE</div>
-                <h2>Sentence signing stage</h2>
+                <div className="eyebrow">Sign reference</div>
+                <h2>Sentence playback</h2>
               </div>
               <span className="status-pill">
                 {speech.playback === "playing"
-                  ? "PLAYING"
+                  ? "Playing"
                   : speech.playback === "complete"
-                    ? "COMPLETE"
-                    : "STANDBY"}
+                    ? "Complete"
+                    : "Standby"}
               </span>
             </div>
 
@@ -126,17 +126,17 @@ export default function VoiceToSign() {
 
             <div className="sentence-stage-foot">
               <div>
-                <span className="eyebrow">RESOLUTION</span>
+                <span className="eyebrow">Resolution</span>
                 <strong>
                   {speech.currentToken
                     ? speech.currentToken.kind === "letter"
-                      ? "A–Z FALLBACK"
+                      ? "A–Z fallback"
                       : speech.currentToken.kind.toUpperCase()
-                    : "WAITING"}
+                    : "Waiting"}
                 </strong>
               </div>
               <div>
-                <span className="eyebrow">SPEECH ENGINE</span>
+                <span className="eyebrow">Speech engine</span>
                 <strong>WEB SPEECH · {speech.language.toUpperCase()}</strong>
               </div>
             </div>
@@ -149,8 +149,8 @@ export default function VoiceToSign() {
       </div>
 
       <details className="panel advanced-details">
-        <summary>About how Speak works</summary>
-        <div className="assistive-copy">Speak-to-Sentence groups your speech into sentences, uses saved vocabulary when available, and uses letter-by-letter references when a matching visual asset is not available.</div>
+        <summary>How sentence playback works</summary>
+        <div className="assistive-copy">Speech is grouped into sentences. Saved vocabulary is used when available; otherwise the application falls back to letter-by-letter references.</div>
       </details>
     </Page>
   );
