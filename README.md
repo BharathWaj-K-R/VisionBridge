@@ -204,16 +204,18 @@ The old sentence translation screens are no longer the active product flow.
 
 ## Verification boundary
 
-The repository's GitHub Actions regression workflow is currently disabled. Historical CI runs verified the application code, frontend build, and backend tests, but no current CI result should be treated as active verification. Training still reports held-out validation and test measurements directly from the notebook.
+The repository's GitHub Actions product-validation workflow is active. The latest verified branch run completed the backend test suite, frontend production build in real mode, and browser/Python numerical parity check successfully. These checks verify software integration and build integrity; they do not replace the human production-device checklist.
+
+The current release evidence records the validated V3 checkpoint, held-out dataset evaluation, production database binding, and custom-auth RLS checks. This repair iteration does not claim a new model-quality measurement; it preserves the recorded V3 baseline of 4,633 held-out test samples with 98.143751% overall accuracy and 98.167981% macro accuracy. W remains the weakest recorded class at 72.625698%.
 
 Two separate measurements matter:
 
 1. Base-model accuracy on the held-out dataset test split.
 2. Few-shot signer accuracy on held-out examples from a signer not used during adapter calibration.
 
-No accuracy percentage is claimed here until those runs produce actual measurements.
+Signer-independent evaluation remains a required release gate. The active RealSign metadata does not expose verified signer IDs, so this gate is still BLOCKED and must not be bypassed.
 
-Signer-independent evaluation is a required release gate, not a feature that can be removed because the current dataset metadata is insufficient. The current RealSign class folders do not expose verified signer IDs, so this gate remains blocked until an explicit signer-labeled manifest or equivalent verified metadata is available.
+The repository is configured for real mode in production (VITE_LOCAL_MODE=false). Live camera execution on a physical device and live Render end-to-end verification remain NOT VERIFIED in this environment. A dedicated pgTAP RLS suite also remains a maintenance item rather than claimed release evidence.
 
 ## Evaluation
 
