@@ -9,8 +9,8 @@ type Props = {
   children?: ReactNode;
 };
 
-export default function Speak text aloudable({ text, className = "", label, children }: Props) {
-  const [speaking, setSpeak text alouding] = useState(false);
+export default function Speakable({ text, className = "", label, children }: Props) {
+  const [speaking, setSpeaking] = useState(false);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const { activeProfile, voices } = usePersonalization();
 
@@ -25,7 +25,7 @@ export default function Speak text aloudable({ text, className = "", label, chil
     if (!("speechSynthesis" in window) || !text.trim()) return;
 
     window.speechSynthesis.cancel();
-    setSpeak text alouding(true);
+    setSpeaking(true);
 
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = text.trim().length === 1 ? 0.8 : 0.95;
@@ -37,7 +37,7 @@ export default function Speak text aloudable({ text, className = "", label, chil
       if (preferred) utterance.voice = preferred;
     }
 
-    const finish = () => setSpeak text alouding(false);
+    const finish = () => setSpeaking(false);
     utterance.onend = finish;
     utterance.onerror = finish;
     utteranceRef.current = utterance;
@@ -50,9 +50,9 @@ export default function Speak text aloudable({ text, className = "", label, chil
       type="button"
       className={(speaking ? "speakable speaking " : "speakable ") + className}
       onClick={speak}
-      aria-label={label || "Speak text aloud " + text}
+      aria-label={label || "Speak " + text}
       aria-pressed={speaking}
-      title={"Speak text aloud: " + text}
+      title={"Speak: " + text}
     >
       {children || <span>{text}</span>}
       <small aria-hidden="true">{speaking ? "●" : "◌"}</small>
