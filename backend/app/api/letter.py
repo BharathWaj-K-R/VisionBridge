@@ -113,9 +113,8 @@ def calibrate_letters(
         # Current adapters are database-backed, but clean up a newly-created
         # filesystem adapter as well so legacy storage cannot leak orphaned files.
         try:
-            candidate = Path(weights_path).resolve()
-            adapter_root = Path(settings.ADAPTER_WEIGHTS_DIR).resolve()
-            if adapter_root in candidate.parents and candidate.is_file():
+            candidate = Path(weights_path)
+            if candidate.name.startswith("letter_adapter_") and candidate.is_file():
                 candidate.unlink()
         except OSError:
             pass
