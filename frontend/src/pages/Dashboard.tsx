@@ -24,12 +24,12 @@ export default function Dashboard() {
             </div>
             <div className="communication-actions">
               <Link to="/translate" className="action-card">
-                <span className="action-icon" aria-hidden="true">⌁</span>
+                <span className="action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><rect x="3.5" y="5" width="17" height="14" rx="1.5"/><path d="M8 16c1.2-1.8 2.4-2.7 3.6-2.7S13.9 14.2 15 16M7 9.5h.01M17 9.5h.01"/></svg></span>
                 <span><h3>Translate with camera</h3><p>Show your hand signs inside the frame and VisionBridge will recognize the letter.</p></span>
                 <span className="action-link">Open camera →</span>
               </Link>
               <Link to="/voice-to-sign" className="action-card">
-                <span className="action-icon" aria-hidden="true">◉</span>
+                <span className="action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M7 18.5 4.5 20l.7-2.9A7.5 7.5 0 1 1 19.5 12 7.5 7.5 0 0 1 7 18.5Z"/><path d="M8.5 10.5h7M8.5 13.5h5"/></svg></span>
                 <span><h3>Speak</h3><p>Speak a sentence, then play it back as sign references.</p></span>
                 <span className="action-link">Start speaking →</span>
               </Link>
