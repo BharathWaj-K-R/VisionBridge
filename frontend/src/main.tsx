@@ -7,6 +7,9 @@ import { AppBootstrap, ErrorState } from "./components/SystemStates";
 import "./styles.css";
 import "./design-system.css";
 import "./galaxy-theme.css";
+import { initializeThemeSystem } from "./theme";
+
+initializeThemeSystem();
 
 type ErrorBoundaryProps = { children: ReactNode };
 type ErrorBoundaryState = { error: Error | null };
@@ -38,10 +41,7 @@ function RouteGuard() {
   return knownPaths.has(pathname) ? <App /> : <NotFound />;
 }
 
-const savedTheme = localStorage.getItem("visionbridge_theme");
 const savedContrast = localStorage.getItem("visionbridge_contrast") === "high" ? "high" : "normal";
-const initialTheme = savedTheme === "dark" || savedTheme === "light" || savedTheme === "system" ? savedTheme : "system";
-document.documentElement.dataset.theme = initialTheme;
 document.documentElement.dataset.contrast = savedContrast;
 
 const root = document.getElementById("root");
