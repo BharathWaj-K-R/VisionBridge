@@ -3,11 +3,12 @@ import { Link } from "react-router-dom";
 import { api, clearLocalAuth, clearSessionHint } from "../api";
 import { Empty, Page } from "../components/Page";
 import { ErrorState } from "../components/SystemStates";
+import { applyThemePreference, getThemePreference, type ThemePreference } from "../theme";
 
 export default function Settings() {
   const [user, setUser] = useState<any>();
   const [adapters, setAdapters] = useState<any[]>([]);
-  const [theme, setTheme] = useState(localStorage.getItem("visionbridge_theme") || "system");
+  const [theme, setTheme] = useState<ThemePreference>(() => getThemePreference());
   const [contrast, setContrast] = useState(localStorage.getItem("visionbridge_contrast") || "normal");
   const [cameraFps, setCameraFps] = useState(localStorage.getItem("visionbridge_camera_fps") || "30");
   const [autoStart, setAutoStart] = useState(localStorage.getItem("visionbridge_auto_camera") === "1");
@@ -16,19 +17,43 @@ export default function Settings() {
   const [loadError, setLoadError] = useState("");
   const refresh = () => Promise.all([api.me(), api.letterAdapters()]).then(([u,a]) => { setUser(u); setAdapters(a); setLoadError(""); }).catch((err) => { setUser(undefined); setAdapters([]); setLoadError(err instanceof Error ? err.message : "Settings could not be loaded."); });
   useEffect(() => { void refresh(); }, []);
+  const chooseTheme = (next: ThemePreference) => {
+    setTheme(next);
+    applyThemePreference(next);
+    setSaved(false);
+  };
+
   const savePreferences = () => {
-    localStorage.setItem("visionbridge_theme", theme);
+    applyThemePreference(theme);
     localStorage.setItem("visionbridge_camera_fps", cameraFps);
     localStorage.setItem("visionbridge_contrast", contrast);
     localStorage.setItem("visionbridge_auto_camera", autoStart ? "1" : "0");
-    document.documentElement.dataset.theme = theme;
+    document.documentElement.dataset.contrast = contrast;
     setSaved(true); window.setTimeout(() => setSaved(false), 1800);
   };
   return <Page title="Settings" subtitle="Adjust how VisionBridge looks and behaves.">{loadError && <ErrorState title="Settings could not be loaded" message="Check your connection and try again. No settings were changed." onRetry={() => void refresh()} home />}
     <div className="settings-grid">
       <section className="panel"><div className="eyebrow">ACCOUNT</div><h2>{user?.username || "Loading…"}</h2><p className="muted">{user?.email || "No email on this account yet."}</p><p className="account-id">Your account is signed in securely.</p><div className="button-row"><button className="ghost-btn" onClick={() => void api.logout().then(() => { clearLocalAuth(); clearSessionHint(); window.location.assign("/login"); }).catch((err) => setMessage(err instanceof Error ? err.message : "Sign out failed. Please try again."))}>Sign out</button></div></section>
       <section className="panel"><div className="panel-head"><div><div className="eyebrow">APPEARANCE</div><h2>Make it comfortable</h2></div></div><div className="settings-form">
-        <label>Theme<select value={theme} onChange={e => setTheme(e.target.value)}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+        <div className="settings-field">
+          <span className="settings-field-label">Theme</span>
+          <div className="theme-picker" role="radiogroup" aria-label="Theme preference">
+            {([
+              ["light", "Light", "Always use the light workspace"],
+              ["dark", "Dark", "Always use the dark workspace"],
+              ["system", "System", "Follow your operating system"],
+            ] as const).map(([value, label, description]) => (
+              <button key={value} type="button" role="radio" aria-checked={theme === value}
+                className={theme === value ? "theme-option active" : "theme-option"}
+                onClick={() => chooseTheme(value)}>
+                <span className="theme-option-indicator" aria-hidden="true" />
+                <span className="theme-option-title">{label}</span>
+                <span className="theme-option-description">{description}</span>
+              </button>
+            ))}
+          </div>
+          <p className="settings-theme-note">Theme changes apply immediately and persist across reloads.</p>
+        </div>
         <label>Text contrast<select value={contrast} onChange={e => { setContrast(e.target.value); document.documentElement.dataset.contrast = e.target.value; }}><option value="normal">Standard</option><option value="high">High contrast</option></select></label>
         <label>Camera smoothness<select value={cameraFps} onChange={e => setCameraFps(e.target.value)}><option value="15">15 frames · lower battery use</option><option value="30">30 frames · balanced</option><option value="60">60 frames · smoother motion</option></select></label>
         <label className="setting-toggle"><input type="checkbox" checked={autoStart} onChange={e => setAutoStart(e.target.checked)} /> Start camera automatically on Translate</label>
