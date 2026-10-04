@@ -37,14 +37,14 @@ export default function History() {
       URL.revokeObjectURL(url);
       setMessage("History CSV exported.");
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "History CSV could not be exported.");
+      setMessage(err instanceof Error ? err.message : "History CSV export failed.");
     } finally {
       setExporting(false);
     }
   }
 
   async function clearHistory() {
-    if (!window.confirm("Clear all recognition history for this account? This permanently deletes the database history in API mode.")) return;
+    if (!window.confirm("Clear all recognition history for this account? In API mode, this permanently deletes the stored records.")) return;
     setClearing(true);
     setMessage("");
     try {
@@ -67,11 +67,11 @@ export default function History() {
   ) || [];
 
   return (
-    <Page title="History" subtitle="Recorded letter predictions from the current signer session.">
+    <Page title="History" subtitle="Review recorded letter predictions and export them as CSV.">
       <section className="panel">
         <div className="panel-head">
           <div>
-            <div className="eyebrow">EVENTS</div>
+            <div className="eyebrow">Events</div>
             <h2>History</h2>
           </div>
           <div className="history-actions">
@@ -87,7 +87,7 @@ export default function History() {
 
         {message && <div className="alert history-message" role="status">{message}</div>}
 
-        {loadError ? <ErrorState title="History couldn't be loaded" message="Check your connection and try again. Your saved history has not been changed." onRetry={() => void refresh()} /> : !data ? <Loading /> : rows.length ? (
+        {loadError ? <ErrorState title="History could not be loaded" message="Check your connection and try again. Your saved history has not been changed." onRetry={() => void refresh()} /> : !data ? <Loading /> : rows.length ? (
           <div className="table-wrap">
             <table>
               <thead><tr><th>Time</th><th>Letter</th><th>Confidence</th><th>Latency</th></tr></thead>
@@ -103,7 +103,7 @@ export default function History() {
               </tbody>
             </table>
           </div>
-        ) : <EmptyState title="No history yet" message="Your recognized letters will appear here after you use Translate." to="/translate" actionLabel="Start translating" />}
+        ) : <EmptyState title="No history yet" message="Recognized letters appear here after you use camera translation." to="/translate" actionLabel="Open camera translation" />}
       </section>
     </Page>
   );
