@@ -357,6 +357,39 @@ function drawMotionArrow(
   }, color, 2.5, 10, 0.78);
 }
 
+function drawTrackerConnections(
+  context: CanvasRenderingContext2D,
+  point: (index: number) => [number, number],
+  color: string,
+): void {
+  // Explicitly render every MediaPipe bone with a high-contrast under-stroke.
+  context.save();
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  context.setLineDash([]);
+
+  const drawLayer = (stroke: string, width: number, alpha: number, glow: number): void => {
+    context.strokeStyle = stroke;
+    context.lineWidth = width;
+    context.globalAlpha = alpha;
+    context.shadowColor = stroke;
+    context.shadowBlur = glow;
+
+    for (const [a, b] of HAND_CONNECTIONS) {
+      const first = point(a);
+      const second = point(b);
+      context.beginPath();
+      context.moveTo(first[0], first[1]);
+      context.lineTo(second[0], second[1]);
+      context.stroke();
+    }
+  };
+
+  drawLayer("#000000", 7.5, 0.78, 4);
+  drawLayer(color, 3.4, 1, 9);
+  context.restore();
+}
+
 function drawTrackerHand(
   context: CanvasRenderingContext2D,
   landmarks: LandmarkPoint[],
@@ -387,32 +420,14 @@ function drawTrackerHand(
     context.moveTo(hull[0][0], hull[0][1]);
     for (let index = 1; index < hull.length; index += 1) context.lineTo(hull[index][0], hull[index][1]);
     context.closePath();
-    context.fillStyle = hexToRgba(color, 0.07);
+    context.fillStyle = hexToRgba(color, 0.045);
     context.fill();
-    context.strokeStyle = hexToRgba(color, 0.38);
-    context.lineWidth = 1.4;
+    context.strokeStyle = hexToRgba(color, 0.2);
+    context.lineWidth = 1;
     context.stroke();
   }
 
-  drawGlowStroke(context, () => {
-    for (const [a, b] of HAND_CONNECTIONS) {
-      const first = point(a);
-      const second = point(b);
-      context.beginPath();
-      context.moveTo(first[0], first[1]);
-      context.lineTo(second[0], second[1]);
-    }
-  }, "#000000", 6, 6, 0.55);
-
-  drawGlowStroke(context, () => {
-    for (const [a, b] of HAND_CONNECTIONS) {
-      const first = point(a);
-      const second = point(b);
-      context.beginPath();
-      context.moveTo(first[0], first[1]);
-      context.lineTo(second[0], second[1]);
-    }
-  }, color, 2.7, 11);
+  drawTrackerConnections(context, point, color);
 
   for (let index = 0; index < 21; index += 1) {
     const [x, y] = point(index);
