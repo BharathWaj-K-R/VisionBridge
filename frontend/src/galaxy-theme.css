@@ -250,7 +250,7 @@ body:before{
   border:1px solid var(--gx-line)!important;
   background:var(--gx-surface)!important;
   color:var(--gx-ink)!important;
-  font:750 11px/1 Inter,sans-serif!important;
+  font:750 11px/1 "Atkinson Hyperlegible",Arial,sans-serif!important;
   transition:transform .16s ease,border-color .16s ease,background .16s ease;
 }
 
@@ -272,7 +272,7 @@ body:before{
   border:1px solid var(--gx-ink)!important;
   background:var(--gx-ink)!important;
   color:var(--gx-bg)!important;
-  font:800 10px/1 Inter,sans-serif!important;
+  font:800 10px/1 "Atkinson Hyperlegible",Arial,sans-serif!important;
   text-transform:uppercase;
   letter-spacing:.07em;
 }
