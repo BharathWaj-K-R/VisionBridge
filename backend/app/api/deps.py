@@ -16,9 +16,14 @@ def _user_from_credentials(
     credentials: HTTPAuthorizationCredentials | None,
     db: Session,
 ) -> User | None:
-    token = request.cookies.get(settings.AUTH_COOKIE_NAME)
-    if token is None and credentials is not None and credentials.scheme.lower() == "bearer":
+    # An explicit bearer token identifies the API caller and must take precedence
+    # over any ambient browser session cookie. Cookie auth remains the fallback for
+    # normal browser requests that do not send an Authorization header.
+    token = None
+    if credentials is not None and credentials.scheme.lower() == "bearer":
         token = credentials.credentials
+    if token is None:
+        token = request.cookies.get(settings.AUTH_COOKIE_NAME)
     if token is None:
         return None
     subject = decode_access_token(token)
