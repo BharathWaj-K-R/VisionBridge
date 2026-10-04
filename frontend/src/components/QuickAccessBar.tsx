@@ -32,14 +32,14 @@ export default function QuickAccessBar() {
           <Link
             to="/word-bank"
             className="quick-access-item empty"
-            aria-label="+ Add phrase"
+            aria-label="+ + Add phrase"
           >
-            + Add phrase
+            + + Add phrase
           </Link>
         )}
       </div>
 
-      <Link className="quick-access-config" to="/word-bank">Manage</Link>
+      <Link className="quick-access-config" to="/word-bank">Manage phrases</Link>
     </section>
   );
 }
