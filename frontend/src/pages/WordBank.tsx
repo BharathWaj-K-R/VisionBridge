@@ -99,9 +99,9 @@ export default function WordBank() {
         custom: true,
       }]);
       setPhrase("");
-      setMessage("Custom phrase saved.");
+      setMessage("Phrase saved.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Custom phrase could not be saved.");
+      setMessage(error instanceof Error ? error.message : "Phrase could not be saved.");
     } finally {
       setSaving(false);
     }
@@ -126,16 +126,16 @@ export default function WordBank() {
         category: item.category as VocabularyCategory,
       } : existing));
       setEditingId(null);
-      setMessage("Custom phrase updated.");
+      setMessage("Phrase updated.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Custom phrase could not be updated.");
+      setMessage(error instanceof Error ? error.message : "Phrase could not be updated.");
     } finally {
       setSaving(false);
     }
   }
 
   async function removeCustomWord(id: number) {
-    if (!window.confirm("Delete this custom phrase?")) return;
+    if (!window.confirm("Delete this phrase?")) return;
     setSaving(true);
     setMessage("");
     try {
@@ -147,7 +147,7 @@ export default function WordBank() {
           if (slots[index] === target.phrase) await clear(index);
         }
       }
-      setMessage("Custom phrase deleted.");
+      setMessage("Phrase deleted.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Custom phrase could not be deleted.");
     } finally {
@@ -167,14 +167,14 @@ export default function WordBank() {
   }
 
   return (
-    <Page title="Word Bank" subtitle={"Browse practical daily phrases for " + (activeProfile?.name || "this profile") + ", speak them aloud, favorite the ones you use most, and build a ten-slot communication bar."}>
+    <Page title="Word Bank" subtitle={"Browse communication phrases for " + (activeProfile?.name || "this profile") + ", speak or pin frequently used phrases, and manage ten Quick Access slots."}>
       <section className="panel alphabet-panel">
         <div className="panel-head">
           <div>
-            <div className="eyebrow">A–Z VOICE OUTPUT</div>
-            <h2>Every letter is speakable</h2>
+            <div className="eyebrow">A–Z voice output</div>
+            <h2>Speak any letter</h2>
           </div>
-          <span className="status-chip">CLICK TO SPEAK</span>
+          <span className="status-chip">Click to speak</span>
         </div>
         <div className="alphabet-grid">
           {LETTERS.map((letter) => <Speakable key={letter} text={letter} className="alphabet-tile" />)}
@@ -186,7 +186,7 @@ export default function WordBank() {
           <div className="panel-head">
             <div>
               <div className="eyebrow">FAVORITES</div>
-              <h2>My frequent phrases</h2>
+              <h2>Frequent phrases</h2>
             </div>
             <span className="status-chip">{activeProfile?.config.favorites.length || 0}</span>
           </div>
@@ -194,14 +194,14 @@ export default function WordBank() {
             <div className="priority-chip-grid">
               {activeProfile.config.favorites.map((item) => <Speakable key={item} text={item} className="priority-speak" />)}
             </div>
-          ) : <Empty text="Star a phrase below and it will become part of this profile." />}
+          ) : <Empty text="Favorite a phrase below to add it to this profile." />}
         </section>
 
         <section className="panel">
           <div className="panel-head">
             <div>
               <div className="eyebrow">MOST USED</div>
-              <h2>What you actually say</h2>
+              <h2>Most used phrases</h2>
             </div>
             <span className="status-chip">AUTO</span>
           </div>
@@ -209,21 +209,21 @@ export default function WordBank() {
             <div className="priority-chip-grid">
               {mostUsed.slice(0, 6).map((item) => <Speakable key={item.phrase} text={item.phrase} className="priority-speak"><span>{item.phrase}</span><small>{item.usage_count}×</small></Speakable>)}
             </div>
-          ) : <Empty text="Speak or click phrases to start building your usage list." />}
+          ) : <Empty text="Use or speak phrases to build usage counts." />}
         </section>
       </div>
 
       <section className="panel">
         <div className="panel-head">
           <div>
-            <div className="eyebrow">DAILY VOCABULARY</div>
-            <h2>Useful communication phrases</h2>
+            <div className="eyebrow">Daily vocabulary</div>
+            <h2>Communication phrases</h2>
           </div>
           <span className="mono">{filtered.length} ITEMS</span>
         </div>
 
         <div className="wordbank-filters">
-          <input className="compact-input wide-input" placeholder="Search words and phrases" value={query} onChange={(event) => setQuery(event.target.value)} />
+          <input className="compact-input wide-input" placeholder="Search phrases and words" value={query} onChange={(event) => setQuery(event.target.value)} />
           <select value={category} onChange={(event) => setCategory(event.target.value as "All" | VocabularyCategory)}>
             <option value="All">All categories</option>
             {VOCABULARY_CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}
@@ -245,10 +245,10 @@ export default function WordBank() {
                     <article key={item.id} className="word-card">
                       <Speakable text={item.phrase} className="word-speakable" />
                       <div className="word-card-foot">
-                        <span className="word-source">{custom ? "CUSTOM" : item.category.toUpperCase()}</span>
+                        <span className="word-source">{custom ? "Custom" : item.category.toUpperCase()}</span>
                         <div className="word-card-actions">
                           <button type="button" className={favorite ? "word-action favorite active" : "word-action favorite"} onClick={() => void toggleFavorite(item.phrase)} aria-pressed={favorite} aria-label={(favorite ? "Remove " : "Add ") + item.phrase + " from favorites"}>{favorite ? "★" : "☆"}</button>
-                          <button type="button" className="word-action" onClick={() => void pinPhrase(item.phrase)} aria-label={"Pin " + item.phrase + " to next empty Quick Access slot"}>PIN</button>
+                          <button type="button" className="word-action" onClick={() => void pinPhrase(item.phrase)} aria-label={"Add " + item.phrase + " to next empty Quick Access slot"}>PIN</button>
                           <label className="assign-control">SLOT
                             <select defaultValue="" onChange={(event) => {
                               const selected = event.target.value;
@@ -281,14 +281,14 @@ export default function WordBank() {
       </section>
 
       <section className="panel custom-word-panel">
-        {loadError && <ErrorState title="Your custom phrases couldn't be loaded" message="Check your connection and try again. Your saved phrases have not been changed." onRetry={() => void loadCustomWords()} />}
-        {!loading && !loadError && !customWords.length && <EmptyState title="No custom phrases yet" message="Add a phrase you use often and it will be available in your Word Bank." />}
+        {loadError && <ErrorState title="Your custom phrases could not be loaded" message="Check your connection and try again. Your saved phrases have not been changed." onRetry={() => void loadCustomWords()} />}
+        {!loading && !loadError && !customWords.length && <EmptyState title="No custom phrases yet" message="Add a phrase you use often and it will appear in your phrase list." />}
         <div className="panel-head">
           <div>
-            <div className="eyebrow">YOUR WORDS</div>
-            <h2>Add a custom phrase</h2>
+            <div className="eyebrow">Your phrases</div>
+            <h2>Add a phrase</h2>
           </div>
-          <span className="status-chip">PROFILE READY</span>
+          <span className="status-chip">Profile ready</span>
         </div>
         <div className="custom-word-form">
           <label>PHRASE<input value={phrase} onChange={(event) => setPhrase(event.target.value)} maxLength={200} placeholder="e.g. Please call my sister" /></label>
@@ -300,7 +300,7 @@ export default function WordBank() {
       <section className="panel quick-manager">
         <div className="panel-head">
           <div>
-            <div className="eyebrow">QUICK ACCESS CONFIG</div>
+            <div className="eyebrow">Quick Access settings</div>
             <h2>{activeProfile?.name || "Profile"} · 10 slots</h2>
           </div>
           <Link to="/personalization" className="text-btn">Open full profile →</Link>
@@ -328,7 +328,7 @@ export default function WordBank() {
       {editingId != null && (
         <div className="modal-backdrop">
           <section className="modal-card" role="dialog" aria-modal="true" aria-label="Edit custom phrase">
-            <div className="panel-head"><div><div className="eyebrow">CUSTOM PHRASE</div><h2>Edit phrase</h2></div></div>
+            <div className="panel-head"><div><div className="eyebrow">Custom PHRASE</div><h2>Edit phrase</h2></div></div>
             <div className="custom-word-form">
               <label>PHRASE<input value={editPhrase} onChange={(event) => setEditPhrase(event.target.value)} maxLength={200} /></label>
               <label>CATEGORY<select value={editCategory} onChange={(event) => setEditCategory(event.target.value as VocabularyCategory)}>{VOCABULARY_CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
