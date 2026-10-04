@@ -44,7 +44,7 @@ export default function Personalization() {
   }, [activeProfile?.id, slots.join("|")]);
 
   if (loading || !activeProfile) {
-    return <Page title="My Profile" subtitle="Loading your personal communication workspace."><LoadingState label="Loading profile…" /></Page>;
+    return <Page title="My Profile" subtitle="Loading your profile settings…"><LoadingState label="Loading profile…" /></Page>;
   }
 
   const profile = activeProfile;
@@ -98,13 +98,13 @@ export default function Personalization() {
   }
 
   return (
-    <Page title="My Profile" subtitle="Make VisionBridge feel like your communication tool. Each profile carries its own avatar, quick access, favorites, signing speed, and preferred voice.">
+    <Page title="My Profile" subtitle="Manage the settings that belong to this profile: avatar, Quick Access phrases, favorites, signing speed, and speech voice.">
       <div className="profile-workspace">
         <section className="panel profile-switch-panel">
           <div className="panel-head">
             <div>
-              <div className="eyebrow">PERSONAL PROFILES</div>
-              <h2>Switch your communication context</h2>
+              <div className="eyebrow">Personal profiles</div>
+              <h2>Choose a profile</h2>
             </div>
             <span className="status-chip">{profiles.length} PROFILE{profiles.length === 1 ? "" : "S"}</span>
           </div>
@@ -130,7 +130,7 @@ export default function Personalization() {
           </div>
 
           <div className="profile-presets">
-            <span className="eyebrow">QUICK PRESETS</span>
+            <span className="eyebrow">Quick presets</span>
             {Object.keys(PRESETS).map((name) => (
               <button type="button" key={name} className="ghost-btn profile-preset" onClick={() => void createNamedProfile(name + " " + (profiles.length + 1), PRESETS[name])} disabled={saving}>
                 + {name}
@@ -141,35 +141,35 @@ export default function Personalization() {
 
         <div className="profile-two-column">
           <section className="panel profile-identity-panel">
-            <div className="eyebrow">ACTIVE PROFILE</div>
+            <div className="eyebrow">Active profile</div>
             <h2>{profile.name}</h2>
             <div className="profile-name-editor">
-              <label>PROFILE NAME
+              <label>Profile name
                 <input value={nameDraft} onChange={(event) => setNameDraft(event.target.value)} maxLength={80} />
               </label>
               <button type="button" className="primary-btn" onClick={() => void saveName()} disabled={saving || !nameDraft.trim() || nameDraft.trim() === profile.name}>Save name</button>
             </div>
             <button type="button" className="danger-btn profile-delete" onClick={() => void removeProfile()} disabled={saving || profiles.length <= 1}>Delete profile</button>
-            <p className="muted profile-tip">Keep one profile for everyday communication. Home, Work, School, Clinic, Family, or any context you use repeatedly can each have their own vocabulary rhythm.</p>
+            <p className="muted profile-tip">Use separate profiles when your common phrases or settings differ by context.</p>
           </section>
 
           <section className="panel">
-            <div className="eyebrow">SIGNING PREFERENCES</div>
-            <h2>Speed & voice</h2>
+            <div className="eyebrow">Signing preferences</div>
+            <h2>Signing speed and voice</h2>
             <div className="profile-preference-form">
-              <label>SIGNING SPEED
+              <label>Signing speed
                 <select value={profile.config.signingSpeed} onChange={(event) => void updateConfig({ signingSpeed: Number(event.target.value) })}>
                   {PROFILE_SPEEDS.map((speed) => <option key={speed} value={speed}>{speed}×</option>)}
                 </select>
               </label>
-              <label>PREFERRED VOICE
+              <label>Preferred voice
                 <select value={profile.config.ttsVoice || ""} onChange={(event) => void updateConfig({ ttsVoice: event.target.value || null })}>
                   <option value="">Browser default</option>
                   {voices.map((voice) => <option key={voice.voiceURI || voice.name} value={voice.name}>{voice.name} · {voice.lang}</option>)}
                 </select>
               </label>
             </div>
-            <p className="muted profile-tip">{voices.length ? voices.length + " browser voices available on this device." : "Voice choices will appear when the browser exposes its speech voices."}</p>
+            <p className="muted profile-tip">{voices.length ? voices.length + " browser voices available on this device." : "Available voices depend on what the browser exposes."}</p>
           </section>
         </div>
 
@@ -178,8 +178,8 @@ export default function Personalization() {
         <section className="panel quick-profile-panel">
           <div className="panel-head">
             <div>
-              <div className="eyebrow">PROFILE QUICK ACCESS</div>
-              <h2>Ten slots for this context</h2>
+              <div className="eyebrow">Profile Quick Access</div>
+              <h2>Ten Quick Access slots</h2>
             </div>
             <span className="status-chip">10 / 10</span>
           </div>
@@ -214,9 +214,9 @@ export default function Personalization() {
             <div className="panel-head">
               <div>
                 <div className="eyebrow">FAVORITES</div>
-                <h2>My saved phrases</h2>
+                <h2>Saved phrases</h2>
               </div>
-              <Link to="/word-bank" className="text-btn">Browse Word Bank →</Link>
+              <Link to="/word-bank" className="text-btn">Browse phrases →</Link>
             </div>
             {profile.config.favorites.length ? (
               <div className="favorite-list">
@@ -227,16 +227,16 @@ export default function Personalization() {
                   </div>
                 ))}
               </div>
-            ) : <Empty text="Favorite a phrase in Word Bank and it will appear here." />}
+            ) : <Empty text="Favorite a phrase in the phrase list and it will appear here." />}
           </section>
 
           <section className="panel">
             <div className="panel-head">
               <div>
                 <div className="eyebrow">MOST USED</div>
-                <h2>What you actually say</h2>
+                <h2>Most used phrases</h2>
               </div>
-              <span className="status-chip">LIVE COUNTS</span>
+              <span className="status-chip">Usage counts</span>
             </div>
             {mostUsed.length ? (
               <div className="most-used-list">
@@ -244,7 +244,7 @@ export default function Personalization() {
                   <Speakable key={item.phrase} text={item.phrase} className="most-used-row"><span>{item.phrase}</span><small>{item.usage_count}×</small></Speakable>
                 ))}
               </div>
-            ) : <Empty text="Speak or click phrases to start building your personal usage list." />}
+            ) : <Empty text="Use or speak phrases to build usage counts." />}
           </section>
         </div>
 

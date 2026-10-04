@@ -31,7 +31,7 @@ function Shell({ children, username, onLogout }: { children: ReactNode; username
   const location = useLocation();
   return <PersonalizationProvider><QuickAccessProvider><div className="app-shell"><Seo />
     <header className="topbar">
-      <Link to="/dashboard" className="brand-lockup" aria-label="VisionBridge home"><span className="brand-mark">V</span><span className="brand-copy"><strong>VisionBridge</strong><small>COMMUNICATION TOOL</small></span></Link>
+      <Link to="/dashboard" className="brand-lockup" aria-label="VisionBridge home"><span className="brand-mark">V</span><span className="brand-copy"><strong>VisionBridge</strong><small>Communication tool</small></span></Link>
       <nav className="topnav" aria-label="Primary navigation">{navItems.map(([path, label]) => <Link key={path} to={path} className={location.pathname.startsWith(path) ? "topnav-link active" : "topnav-link"}>{label}</Link>)}</nav>
       <div className="top-actions"><ProfileSwitcher /><Link className="icon-btn" to="/settings" aria-label="Settings" title="Settings"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3.5a2.2 2.2 0 0 1 4.2 1.2l1.4.8a2.2 2.2 0 0 1 2.9 2.9l-.8 1.4a2.2 2.2 0 0 1-1.2 4.2l-.8 1.4a2.2 2.2 0 0 1-2.9 2.9l-1.4-.8a2.2 2.2 0 0 1-4.2 1.2l-1.4-.8a2.2 2.2 0 0 1-2.9-2.9l.8-1.4a2.2 2.2 0 0 1 1.2-4.2l.8-1.4A2.2 2.2 0 0 1 8.3 4.7l1.4.8A2.2 2.2 0 0 1 12 3.5Z" /><circle cx="12" cy="12" r="3.2" /></svg></Link><span className="user-avatar" title={username || "Signed in"} aria-label={username || "Signed in"}>{(username || "U").slice(0, 1).toUpperCase()}</span><button className="icon-btn" onClick={onLogout} aria-label="Sign out" title="Sign out"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 6H5.5A1.5 1.5 0 0 0 4 7.5v9A1.5 1.5 0 0 0 5.5 18H10" /><path d="M13 8l4 4-4 4M17 12H8" /></svg></button></div>
     </header>
@@ -82,7 +82,7 @@ function Auth({ onAuthed }: { onAuthed: () => void }) {
           throw new Error("Enter a valid email address.");
         }
         if (password.length < 8 || password.length > 72 || !strongPassword) {
-          throw new Error("Please meet all password requirements before creating your account.");
+          throw new Error("Meet all password requirements before creating the account.");
         }
         if (password !== confirmPassword) {
           throw new Error("Passwords do not match.");
@@ -93,7 +93,7 @@ function Auth({ onAuthed }: { onAuthed: () => void }) {
         const identifier = (identifierMode === "email" ? email : username).trim();
         if (!identifier) throw new Error("Enter your username or email.");
         if (password.length < 8 || password.length > 72) {
-          throw new Error("Your password must be between 8 and 72 characters.");
+          throw new Error("Password length must be between 8 and 72 characters.");
         }
         await api.login(identifier, password);
       }
@@ -102,7 +102,7 @@ function Auth({ onAuthed }: { onAuthed: () => void }) {
       onAuthed();
       navigate("/dashboard", { replace: true });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Authentication failed");
+      setError(err instanceof Error ? err.message : "Authentication failed. Check the fields and try again.");
     } finally {
       setBusy(false);
     }
@@ -118,35 +118,35 @@ function Auth({ onAuthed }: { onAuthed: () => void }) {
               <span className="brand-mark" aria-hidden="true">V</span>
               <div>
                 <div className="eyebrow">VISIONBRIDGE</div>
-                <strong>COMMUNICATION TOOL</strong>
+                <strong>Communication tool</strong>
               </div>
             </div>
-            <span className="auth-status"><i aria-hidden="true" /> SYSTEM READY</span>
+            <span className="auth-status"><i aria-hidden="true" /> System ready</span>
           </div>
 
           <div className="auth-intro-copy">
-            <div className="eyebrow">INDIAN SIGN LANGUAGE</div>
-            <h1 id="auth-title">Your signs.<br />Your workspace.</h1>
-            <p>Recognize A–Z letters, calibrate a signer profile, and keep your everyday communication tools in one place.</p>
+            <div className="eyebrow">Indian Sign Language</div>
+            <h1 id="auth-title">Recognize ISL<br />A–Z in the browser.</h1>
+            <p>Recognize A–Z letters, save signer-specific calibration, and keep frequently used phrases and recognition history in one account.</p>
           </div>
 
           <div className="auth-contract" aria-label="VisionBridge capabilities">
-            <div><span>01</span><strong>A–Z LETTERS</strong><small>Live hand-sign recognition</small></div>
-            <div><span>02</span><strong>SIGNER ADAPTATION</strong><small>Personal calibration profiles</small></div>
-            <div><span>03</span><strong>COMMUNICATION</strong><small>Words, history, and quick access</small></div>
+            <div><span>01</span><strong>A–Z recognition</strong><small>Recognize individual letters from the camera</small></div>
+            <div><span>02</span><strong>Signer calibration</strong><small>Capture examples for a signer-specific adapter</small></div>
+            <div><span>03</span><strong>Saved communication</strong><small>Keep phrases, history, and profiles in one place</small></div>
           </div>
 
           <div className="auth-footer-note">
-            <span>126D LANDMARK INPUT</span>
+            <span>126D landmark input</span>
             <span>·</span>
-            <span>LOCAL CAMERA INFERENCE</span>
+            <span>Browser-side inference</span>
           </div>
         </div>
 
         <div className="auth-form-panel">
           <div className="auth-form-header">
             <div>
-              <div className="eyebrow">{mode === "login" ? "RETURNING USER" : "NEW WORKSPACE"}</div>
+              <div className="eyebrow">{mode === "login" ? "Returning user" : "New account"}</div>
               <h2>{mode === "login" ? "Sign in" : "Create account"}</h2>
             </div>
             <span className="auth-step">{mode === "login" ? "01 / 02" : "02 / 02"}</span>
@@ -188,7 +188,7 @@ function Auth({ onAuthed }: { onAuthed: () => void }) {
                     aria-describedby="username-help"
                     required
                   />
-                  <small id="username-help" className="field-hint">Letters, numbers, dot, underscore, and hyphen.</small>
+                  <small id="username-help" className="field-hint">Use letters, numbers, dot, underscore, or hyphen.</small>
                 </label>
 
                 <label>
@@ -295,13 +295,13 @@ function Auth({ onAuthed }: { onAuthed: () => void }) {
               className="primary-btn auth-submit"
               disabled={busy || (mode === "register" && (!strongPassword || password !== confirmPassword))}
             >
-              <span>{busy ? "Working…" : mode === "login" ? "Sign in to workspace" : "Create workspace"}</span>
+              <span>{busy ? "Submitting…" : mode === "login" ? "Sign in" : "Create account"}</span>
               <span aria-hidden="true">↗</span>
             </button>
           </form>
 
           <div className="auth-form-foot">
-            <span>{mode === "login" ? "Use your VisionBridge account." : "Your account unlocks the full workspace."}</span>
+            <span>{mode === "login" ? "Use your VisionBridge account credentials." : "Your account provides access to saved profiles and recognition history."}</span>
             <span className="mono">SECURE SESSION</span>
           </div>
         </div>
@@ -345,4 +345,4 @@ export default function App() {
     <Route path="*" element={<NotFound />} />
   </Routes></Suspense></Shell>;
 }
-function LoadingFallback() { return <main className="loading-page" role="status" aria-live="polite"><div className="loading">Loading workspace…</div></main>; }
+function LoadingFallback() { return <main className="loading-page" role="status" aria-live="polite"><div className="loading">Loading VisionBridge…</div></main>; }

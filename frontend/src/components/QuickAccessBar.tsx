@@ -11,12 +11,12 @@ export default function QuickAccessBar() {
   return (
     <section className="quick-access-bar" aria-label="Quick access">
       <div className="quick-access-label">
-        <span className="eyebrow">EVERYDAY PHRASES</span>
+        <span className="eyebrow">Everyday phrases</span>
         <strong>Quick access</strong>
       </div>
 
       {!loading && phrases.length === 0 && (
-        <p className="quick-access-empty-copy">Save the phrases you use most and keep them one tap away.</p>
+        <p className="quick-access-empty-copy">Keep frequently used phrases within one tap.</p>
       )}
 
       <div className="quick-access-slots">
@@ -32,14 +32,14 @@ export default function QuickAccessBar() {
           <Link
             to="/word-bank"
             className="quick-access-item empty"
-            aria-label="Add a quick access phrase"
+            aria-label="+ + Add phrase"
           >
-            + Add phrase
+            + + Add phrase
           </Link>
         )}
       </div>
 
-      <Link className="quick-access-config" to="/word-bank">Manage</Link>
+      <Link className="quick-access-config" to="/word-bank">Manage phrases</Link>
     </section>
   );
 }

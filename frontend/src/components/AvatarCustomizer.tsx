@@ -55,14 +55,14 @@ export default function AvatarCustomizer({
     <section className="panel avatar-customizer">
       <div className="panel-head">
         <div>
-          <div className="eyebrow">2D CUSTOMIZATION</div>
-          <h2>Avatar profile</h2>
+          <div className="eyebrow">2D customization</div>
+          <h2>Avatar settings</h2>
         </div>
-        <span className="status-chip">{draft.highContrast ? "HIGH CONTRAST" : "STANDARD"}</span>
+        <span className="status-chip">{draft.highContrast ? "High contrast" : "Standard"}</span>
       </div>
 
       <div className="customizer-grid avatar-customizer-grid">
-        <label>BODY SHAPE
+        <label>Body shape
           <select value={draft.bodyShape} onChange={(event) => update({ bodyShape: event.target.value as AvatarPreferences["bodyShape"] })}>
             <option value="slim">Slim</option>
             <option value="average">Average</option>
@@ -70,15 +70,15 @@ export default function AvatarCustomizer({
           </select>
         </label>
 
-        <label>APPAREL
+        <label>Apparel
           <select value={draft.apparel} onChange={(event) => update({ apparel: event.target.value as AvatarPreferences["apparel"] })}>
-            <option value="tee">Fitted Tee</option>
+            <option value="tee">Fitted T-shirt</option>
             <option value="vest">Vest</option>
             <option value="button-down">Button-down</option>
           </select>
         </label>
 
-        <label>SKIN TONE
+        <label>Skin tone
           <span className="swatch-row">
             {["#f3e0d8", "#d7a17e", "#b97850", "#8c5539", "#5f3728", "#2c1b18"].map((tone) => (
               <button type="button" key={tone} className={draft.skinTone === tone ? "swatch selected" : "swatch"} style={{ background: tone }} onClick={() => update({ skinTone: tone })} aria-label={"Skin tone " + tone} />
@@ -86,7 +86,7 @@ export default function AvatarCustomizer({
           </span>
         </label>
 
-        <label>HAIR STYLE
+        <label>Hair style
           <select value={draft.hair} onChange={(event) => update({ hair: event.target.value as AvatarPreferences["hair"] })}>
             <option value="short">Short</option>
             <option value="curly">Curly</option>
@@ -94,7 +94,7 @@ export default function AvatarCustomizer({
           </select>
         </label>
 
-        <label>HAIR COLOR
+        <label>Hair color
           <span className="swatch-row">
             {["#161616", "#513527", "#8b442c", "#c4b39c"].map((tone) => (
               <button type="button" key={tone} className={draft.hairColor === tone ? "swatch selected" : "swatch"} style={{ background: tone }} onClick={() => update({ hairColor: tone })} aria-label={"Hair color " + tone} />
@@ -102,14 +102,14 @@ export default function AvatarCustomizer({
           </span>
         </label>
 
-        <label>HAND OUTLINES
+        <label>Hand outlines
           <button type="button" className={draft.highContrast ? "contrast-toggle on" : "contrast-toggle"} aria-pressed={draft.highContrast} onClick={() => update({ highContrast: !draft.highContrast })}>
             <span className="toggle-track"><i /></span>
             {draft.highContrast ? "High contrast on" : "High contrast off"}
           </button>
         </label>
 
-        <label>CLOTHING COLOR
+        <label>Clothing color
           <span className="swatch-row">
             {["#1e1e1e", "#1a2238", "#244f7a", "#226b68", "#6d314a", "#6a5639"].map((tone) => (
               <button type="button" key={tone} className={draft.shirtColor === tone ? "swatch selected" : "swatch"} style={{ background: tone }} onClick={() => update({ shirtColor: tone })} aria-label={"Clothing color " + tone} />
@@ -119,7 +119,7 @@ export default function AvatarCustomizer({
 
         {onResetView && (
           <button type="button" className="ghost-btn avatar-reset-view" onClick={onResetView}>
-            RESET VIEW
+            Reset view
           </button>
         )}
       </div>

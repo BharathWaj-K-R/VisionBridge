@@ -13,19 +13,19 @@ export default function Dashboard() {
   }, []);
 
   return (
-    <Page title="Welcome to VisionBridge" subtitle="Choose how you want to communicate today.">
+    <Page title="VisionBridge home" subtitle="Choose a communication method or review recent recognition.">
       {error ? <ErrorState title="Home could not be loaded" message="Check your connection and try again. Your saved data has not been changed." onRetry={() => { setError(""); api.dashboard().then(setData).catch((e) => setError(e instanceof Error ? e.message : "Home could not be loaded.")); }} home /> : !data ? <Loading /> : (
         <>
           <section className="welcome-panel" aria-labelledby="welcome-title">
             <div>
-              <div className="eyebrow">START HERE</div>
-              <h2 id="welcome-title">How would you like to communicate?</h2>
-              <p>Use the camera for hand signs, or speak naturally and turn your words into a sequence of sign references.</p>
+              <div className="eyebrow">Start here</div>
+              <h2 id="welcome-title">Choose a communication method</h2>
+              <p>Use the camera to recognize A–Z signs, or speak a sentence to build a sequence of sign references.</p>
             </div>
             <div className="communication-actions">
               <Link to="/translate" className="action-card">
                 <span className="action-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><rect x="3.5" y="5" width="17" height="14" rx="1.5"/><path d="M8 16c1.2-1.8 2.4-2.7 3.6-2.7S13.9 14.2 15 16M7 9.5h.01M17 9.5h.01"/></svg></span>
-                <span><h3>Translate with camera</h3><p>Show your hand signs inside the frame and VisionBridge will recognize the letter.</p></span>
+                <span><h3>Camera translation</h3><p>Place a hand sign inside the camera frame to recognize an A–Z letter.</p></span>
                 <span className="action-link">Open camera →</span>
               </Link>
               <Link to="/voice-to-sign" className="action-card">
@@ -38,19 +38,19 @@ export default function Dashboard() {
 
           <section className="panel">
             <div className="panel-head">
-              <div><div className="eyebrow">GETTING STARTED</div><h2>Three simple tips</h2></div>
+              <div><div className="eyebrow">Getting started</div><h2>Before you start</h2></div>
               <Link to="/settings" className="text-btn">Settings</Link>
             </div>
             <div className="getting-started-grid">
-              <article className="tip-card"><span className="tip-number">1</span><strong>Allow access</strong><p>Camera mode needs camera permission. Speak mode needs microphone permission.</p></article>
-              <article className="tip-card"><span className="tip-number">2</span><strong>Use a clear view</strong><p>Good light and hands fully inside the camera frame make recognition easier.</p></article>
-              <article className="tip-card"><span className="tip-number">3</span><strong>Personalize later</strong><p>Calibration is optional. Use it when you want recognition tuned to your signing.</p></article>
+              <article className="tip-card"><span className="tip-number">1</span><strong>Allow device access</strong><p>Camera translation requires camera access. Speak requires microphone access.</p></article>
+              <article className="tip-card"><span className="tip-number">2</span><strong>Use a clear camera view</strong><p>Use steady lighting and keep the full hand inside the frame.</p></article>
+              <article className="tip-card"><span className="tip-number">3</span><strong>Calibrate when useful</strong><p>Calibration is optional. Use it when the base model needs to adapt to a signer.</p></article>
             </div>
           </section>
 
           <section className="panel">
             <div className="panel-head">
-              <div><div className="eyebrow">RECENT ACTIVITY</div><h2>Recent letters</h2></div>
+              <div><div className="eyebrow">Recent activity</div><h2>Recent recognition</h2></div>
               <Link to="/history" className="text-btn">View history</Link>
             </div>
             {data.recent_activity?.length ? (
@@ -62,15 +62,15 @@ export default function Dashboard() {
                   </div>
                 ))}
               </div>
-            ) : <Empty text="No letters recognized yet. Start with the camera." />}
+            ) : <Empty text="No recognition events yet. Open camera translation to begin." />}
           </section>
 
           <details className="panel advanced-details">
             <summary>Show recognition details</summary>
             <div className="metric-grid">
-              <Metric label="Recognized" value={data.usage?.translation_events ?? 0} detail="recent recognition events" />
-              <Metric label="Confidence" value={data.usage?.average_confidence != null ? Math.round(data.usage.average_confidence * 100) + "%" : "—"} detail="recent average" />
-              <Metric label="Response time" value={data.usage?.average_latency_ms != null ? Math.round(data.usage.average_latency_ms) + " ms" : "—"} detail="recent average" />
+              <Metric label="Recognized" value={data.usage?.translation_events ?? 0} detail="Recent recognition events" />
+              <Metric label="Confidence" value={data.usage?.average_confidence != null ? Math.round(data.usage.average_confidence * 100) + "%" : "—"} detail="Recent average" />
+              <Metric label="Response time" value={data.usage?.average_latency_ms != null ? Math.round(data.usage.average_latency_ms) + " ms" : "—"} detail="Recent average" />
             </div>
           </details>
         </>

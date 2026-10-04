@@ -29,9 +29,9 @@ export default function SpeechRecognizer({
     <section className="panel voice-input-panel">
       <div className="panel-head">
         <div>
-          <div className="eyebrow">SPEAK</div>
-          <h2>Speak naturally</h2>
-          <p className="assistive-copy">Press start, allow microphone access, then speak at your normal pace. Your sentence will appear below.</p>
+          <div className="eyebrow">Speak</div>
+          <h2>Speak a sentence</h2>
+          <p className="assistive-copy">Start listening, allow microphone access, and speak at your normal pace. The transcript appears below.</p>
         </div>
         <span className={listening ? "status-chip dark" : "status-chip"}><i />{listening ? "Listening" : "Ready"}</span>
       </div>
@@ -45,7 +45,7 @@ export default function SpeechRecognizer({
           aria-pressed={listening}
         >
           <span aria-hidden="true">{listening ? "■" : "●"}</span>
-          {listening ? "STOP LISTENING" : "START LISTENING"}
+          {listening ? "Stop listening" : "Start listening"}
         </button>
 
         <button
@@ -54,11 +54,11 @@ export default function SpeechRecognizer({
           onClick={onEndSentence}
           disabled={!transcript && !interimTranscript}
         >
-          END SENTENCE
+          Finish sentence
         </button>
 
         <label className="voice-language">
-          LANGUAGE
+          Language
           <select value={language} onChange={(event) => onLanguageChange(event.target.value)}>
             <option value="en-IN">English · India</option>
             <option value="en-US">English · US</option>
@@ -68,7 +68,7 @@ export default function SpeechRecognizer({
 
       {!supported && (
         <div className="alert error" role="alert">
-          Voice input is not available in this browser. Try a supported browser with microphone access.
+          Voice input is not available in this browser. Use a supported browser with microphone access.
         </div>
       )}
 
@@ -77,14 +77,14 @@ export default function SpeechRecognizer({
         : <div className="alert error" role="alert">{error}</div>)}
 
       <div className="transcript-box" aria-live="polite">
-        <span className="eyebrow">YOUR WORDS</span>
-        <p>{transcript || "Your words will appear here as you speak."}</p>
+        <span className="eyebrow">Transcript</span>
+        <p>{transcript || "Your transcript will appear here."}</p>
         {interimTranscript && <span className="transcript-interim">{interimTranscript}</span>}
       </div>
 
       <div className="sentence-input-hint">
-        <span>Sentence ends when you pause or finish with punctuation.</span>
-        <strong>Use “Finish sentence” any time.</strong>
+        <span>A sentence ends when you pause or use punctuation.</span>
+        <strong>Use “Finish sentence” to end it manually.</strong>
       </div>
     </section>
   );

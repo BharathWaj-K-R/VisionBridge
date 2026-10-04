@@ -50,8 +50,8 @@ export default function SentencePlayer({
     <section className="panel sentence-player-panel">
       <div className="panel-head">
         <div>
-          <div className="eyebrow">YOUR SENTENCES</div>
-          <h2>Ready to show</h2>
+          <div className="eyebrow">Your sentences</div>
+          <h2>Sentence playback</h2>
         </div>
         <span className="status-chip">{sentences.length} sentence{sentences.length === 1 ? "" : "s"}</span>
       </div>
@@ -85,7 +85,7 @@ export default function SentencePlayer({
             <div className="system-state-icon" aria-hidden="true">◉</div>
             <div className="system-state-copy">
               <h3>No sentences yet</h3>
-              <p>Use Start listening above and speak naturally. Finish a sentence when you are ready to play it.</p>
+              <p>Start listening, speak a sentence, then play the available sign references.</p>
             </div>
           </div>
         )}
@@ -93,7 +93,7 @@ export default function SentencePlayer({
 
       {currentSentence && (
         <div className="sentence-token-strip">
-          <span className="eyebrow">NOW PLAYING</span>
+          <span className="eyebrow">Now playing</span>
           <strong>{currentSentence.text}</strong>
           <div className="sentence-token-list">
             {currentSentence.signSequence.map((item, index) => (

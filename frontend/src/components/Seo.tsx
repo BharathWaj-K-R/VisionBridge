@@ -3,17 +3,17 @@ import { useLocation } from "react-router-dom";
 
 const SITE = "https://visionbridge-2c7h.onrender.com";
 const META: Record<string, { title: string; description: string }> = {
-  "/": { title: "VisionBridge | Indian Sign Language Recognition", description: "VisionBridge provides signer-adaptive Indian Sign Language A–Z recognition using hand landmarks in a focused browser-based recognition workspace for ISL." },
-  "/login": { title: "Sign In | VisionBridge", description: "Sign in to VisionBridge to access Indian Sign Language letter recognition, signer calibration, recognition history, and signer profile controls in your browser." },
-  "/dashboard": { title: "Home | VisionBridge", description: "Choose camera translation or speech communication from the VisionBridge home screen and access everyday phrases quickly." },
-  "/translate": { title: "Live Translate | VisionBridge", description: "Use VisionBridge Live Translate for real-time Indian Sign Language A–Z recognition with browser camera hand tracking and signer-adaptive inference." },
-  "/calibration": { title: "Personalize Recognition | VisionBridge", description: "Capture a few clean examples of your signs to personalize Indian Sign Language letter recognition." },
-  "/history": { title: "History | VisionBridge", description: "Review and export your recent Indian Sign Language letter recognition history." },
-  "/settings": { title: "Settings | VisionBridge", description: "Manage VisionBridge signer adapters, account preferences, appearance, camera behavior, and secure browser session controls from one settings page." },
-  "/voice-to-sign": { title: "Speak | VisionBridge", description: "Speak naturally and VisionBridge organizes your speech into sentences and presents sign references in sequence." },
-  "/word-bank": { title: "Words & Quick Phrases | VisionBridge", description: "Save everyday communication phrases, add custom phrases, and manage your ten Quick Access slots." },
-  "/personalization": { title: "My Profile | VisionBridge", description: "Manage personal VisionBridge profiles for avatar appearance, ten-slot Quick Access, favorites, signing speed, and preferred speech voice." },
-  "/404": { title: "Page Not Found | VisionBridge", description: "The requested VisionBridge page could not be found. Return to the dashboard or choose another Indian Sign Language application section today." },
+  "/": { title: "VisionBridge | ISL A–Z recognition", description: "VisionBridge recognizes Indian Sign Language A–Z letters from browser camera input and supports signer-specific calibration." },
+  "/login": { title: "Sign in | VisionBridge", description: "Sign in to VisionBridge to use camera-based ISL A–Z recognition, signer calibration, and recognition history." },
+  "/dashboard": { title: "Home | VisionBridge", description: "Choose camera translation or speech input, then access saved communication phrases and recent recognition." },
+  "/translate": { title: "Camera translation | VisionBridge", description: "Use browser camera input for real-time Indian Sign Language A–Z recognition with optional signer calibration." },
+  "/calibration": { title: "Personalize recognition | VisionBridge", description: "Capture three examples per selected letter to create a signer-specific recognition adapter." },
+  "/history": { title: "History | VisionBridge", description: "Review and export recorded Indian Sign Language letter recognition events." },
+  "/settings": { title: "Settings | VisionBridge", description: "Manage account access, appearance, camera behavior, browser permissions, and signer adapters." },
+  "/voice-to-sign": { title: "Speak | VisionBridge", description: "Speak a sentence and review the available sign references in sequence." },
+  "/word-bank": { title: "Phrases & Quick Access | VisionBridge", description: "Browse communication phrases, add custom phrases, and manage ten Quick Access slots." },
+  "/personalization": { title: "My profile | VisionBridge", description: "Manage profiles for avatar appearance, Quick Access phrases, favorites, signing speed, and speech voice." },
+  "/404": { title: "Page not found | VisionBridge", description: "The requested VisionBridge page does not exist. Return to Home or choose another application section." },
 };
 
 function setMeta(name: string, content: string) {

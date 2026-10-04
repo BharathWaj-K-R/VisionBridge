@@ -16,7 +16,7 @@ export default function SignReferenceStage({ item, sentenceText, sentenceIndex, 
         SENTENCE {sentenceIndex >= 0 ? String(sentenceIndex + 1).padStart(2, "0") : "--"}
       </div>
       <div className="sign-reference-corner top-right">
-        {item ? "TOKEN " + String(tokenIndex + 1).padStart(2, "0") : "READY"}
+        {item ? "TOKEN " + String(tokenIndex + 1).padStart(2, "0") : "Ready"}
       </div>
 
       <div className={"sentence-reference-card" + (asset ? " active" : "")}>
@@ -35,19 +35,19 @@ export default function SignReferenceStage({ item, sentenceText, sentenceIndex, 
           <img className="sentence-sign-image sentence-sign-image-direct" src={asset.src} alt={asset.label} />
         ) : (
           <div className="sentence-sign-placeholder">
-            <span className="eyebrow">NO SIGN ASSET</span>
-            <strong>{item?.sourceText || "READY"}</strong>
-            <small>This token is handled without a visual asset.</small>
+            <span className="eyebrow">No sign asset</span>
+            <strong>{item?.sourceText || "Ready"}</strong>
+            <small>This token has no matching visual asset.</small>
           </div>
         )}
         {item && <div className="sentence-reference-token">{item.sourceText}</div>}
       </div>
 
       <div className="sign-reference-corner bottom-left">
-        {sentenceText || "SPEAK TO BUILD A SENTENCE"}
+        {sentenceText || "Speak to build a sentence"}
       </div>
       <div className="sign-reference-corner bottom-right">
-        {item?.kind?.toUpperCase() || "IDLE"}
+        {item?.kind?.toUpperCase() || "Idle"}
       </div>
       <div className="sign-reference-crosshair" />
     </div>

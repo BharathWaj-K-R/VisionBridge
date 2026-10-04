@@ -386,14 +386,14 @@ export default function SignAvatar3D({ letter, preferences, playing, view, expre
     <div className="sign-avatar-3d">
       <div className="avatar-3d-hud">
         <div>
-          <span className="eyebrow">3D HOLOGRAPHIC SIGNER</span>
+          <span className="eyebrow">3D signing avatar</span>
           <strong>{letter === " " ? "SPACE" : letter || "READY"}</strong>
         </div>
-        <span>{playing ? "LIVE · MOTION" : "READY · 3D"}</span>
+        <span>{playing ? "Live motion" : "Ready · 3D"}</span>
       </div>
       <div ref={mountRef} className="avatar-3d-canvas" />
-      <div className="avatar-3d-overlay avatar-3d-overlay-left">126D LANDMARK / SIGN RIG</div>
-      <div className="avatar-3d-overlay avatar-3d-overlay-right">{preferences.highContrast ? "HIGH CONTRAST" : "HOLOGRAPHIC MESH"}</div>
+      <div className="avatar-3d-overlay avatar-3d-overlay-left">126D landmarks · sign rig</div>
+      <div className="avatar-3d-overlay avatar-3d-overlay-right">{preferences.highContrast ? "High contrast" : "Holographic mesh"}</div>
       <div className="avatar-3d-scanline" />
     </div>
   );

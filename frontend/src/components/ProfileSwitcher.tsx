@@ -4,12 +4,12 @@ export default function ProfileSwitcher() {
   const { profiles, activeProfile, switchProfile, loading, saving } = usePersonalization();
 
   if (loading || !activeProfile) {
-    return <span className="profile-switcher loading">Profile…</span>;
+    return <span className="profile-switcher loading">Loading profile…</span>;
   }
 
   return (
     <label className="profile-switcher">
-      <span className="profile-switcher-label">PROFILE</span>
+      <span className="profile-switcher-label">Profile</span>
       <select
         value={activeProfile.id}
         onChange={(event) => void switchProfile(Number(event.target.value))}
