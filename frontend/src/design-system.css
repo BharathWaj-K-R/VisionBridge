@@ -1788,4 +1788,9 @@ html[data-theme="dark"] .not-found-page,html[data-theme="dark"] .auth-page{backg
 @media(prefers-reduced-motion:reduce){
   .action-card,.theme-option{transition:none!important}
 }
-
+/* Empty recognition state should occupy the full results grid. */
+.temporal-grid > .empty-state{
+  grid-column:1 / -1!important;
+  width:100%!important;
+  box-sizing:border-box!important;
+}
