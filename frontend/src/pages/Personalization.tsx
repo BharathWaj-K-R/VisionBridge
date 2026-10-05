@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import AvatarCustomizer from "../components/AvatarCustomizer";
 import Speakable from "../components/Speakable";
 import { QUICK_ACCESS_SLOTS, useQuickAccess } from "../components/QuickAccessContext";
@@ -34,10 +34,19 @@ export default function Personalization() {
   const [nameDraft, setNameDraft] = useState(activeProfile?.name || "");
   const [message, setMessage] = useState("");
   const [slotDrafts, setSlotDrafts] = useState<Array<string | null>>(slots);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const newProfileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (activeProfile) setNameDraft(activeProfile.name);
   }, [activeProfile?.id, activeProfile?.name]);
+
+  useEffect(() => {
+    if (searchParams.get("create") !== "1") return;
+    const timer = window.setTimeout(() => newProfileInputRef.current?.focus(), 0);
+    setSearchParams({}, { replace: true });
+    return () => window.clearTimeout(timer);
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     setSlotDrafts(slots);
@@ -125,7 +134,7 @@ export default function Personalization() {
           </div>
 
           <div className="profile-create-row">
-            <input value={newName} onChange={(event) => setNewName(event.target.value)} maxLength={80} placeholder="New profile name, e.g. Clinic" />
+            <input ref={newProfileInputRef} value={newName} onChange={(event) => setNewName(event.target.value)} maxLength={80} placeholder="New profile name, e.g. Clinic" aria-label="New profile name" />
             <button type="button" className="primary-btn" onClick={() => void createNamedProfile(newName)} disabled={!newName.trim() || saving}>Create profile</button>
           </div>
 
