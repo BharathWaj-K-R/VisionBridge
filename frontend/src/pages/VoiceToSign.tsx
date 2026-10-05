@@ -3,7 +3,6 @@ import { api } from "../api";
 import { DEFAULT_VOCABULARY } from "../data/vocabulary";
 import SpeechRecognizer from "../components/SpeechRecognizer";
 import SentencePlayer from "../components/SentencePlayer";
-import SignReferenceStage from "../components/SignReferenceStage";
 import { usePersonalization } from "../components/PersonalizationContext";
 import { useSpeechToSentence } from "../hooks/useSpeechToSentence";
 import { Page } from "../components/Page";
@@ -116,13 +115,6 @@ export default function VoiceToSign() {
                 <small>{speech.sentences.length ? "/ " + String(speech.sentences.length).padStart(2, "0") : "/ --"}</small>
               </div>
             </div>
-
-            <SignReferenceStage
-              item={speech.currentToken}
-              sentenceText={speech.currentSentence?.text || ""}
-              sentenceIndex={speech.currentSentenceIndex}
-              tokenIndex={speech.currentTokenIndex}
-            />
 
             <div className="sentence-stage-foot">
               <div>
