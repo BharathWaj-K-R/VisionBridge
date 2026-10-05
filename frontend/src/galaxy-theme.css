@@ -1471,3 +1471,19 @@ button,a{
   }
 }
 @media(prefers-color-scheme:dark){html:not([data-theme]){--gx-bg:#060908;--gx-surface:#0d1210;--gx-surface-2:#131a17;--gx-ink:#f4faf8;--gx-text:#e7f0ed;--gx-muted:#a9bab5;--gx-line:#27332f;--gx-accent:#4ed7c9;--gx-accent-soft:#12332e;--gx-focus:#82a7ff;--gx-danger:#ff8b80;--gx-danger-soft:#321c1a}}
+/* Editorial headings: wrap between words, never inside a word. */
+.page-header h1{
+  overflow-wrap:normal!important;
+  word-break:normal!important;
+  hyphens:none!important;
+  text-wrap:balance;
+}
+@media(max-width:760px){
+  .page-header h1{
+    max-width:100%!important;
+    font-size:clamp(42px,10vw,72px)!important;
+    line-height:.96!important;
+    overflow-wrap:normal!important;
+    word-break:normal!important;
+  }
+}
