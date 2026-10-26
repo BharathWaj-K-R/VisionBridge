@@ -35,6 +35,11 @@ jobs:
           python-version: "3.12"
           cache: pip
 
+      - name: Install MediaPipe native runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libgles2 libegl1
+
       - name: Install notebook executor
         run: python -m pip install --disable-pip-version-check nbconvert ipykernel
 
