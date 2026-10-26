@@ -1,13 +1,8 @@
 name: VisionBridge Accuracy Optimization
 
 on:
-  # Adding this workflow to main runs one guarded experiment. Later runs can be
-  # started explicitly from Actions → VisionBridge Accuracy Optimization.
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/model-accuracy-optimization.yml"
-      - "notebooks/train_letter_base_colab.ipynb"
+  # Deliberately manual: full-dataset landmark extraction and training are
+  # expensive. Routine commits should run product validation, not retrain V3.
   workflow_dispatch:
 
 permissions:
