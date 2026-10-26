@@ -1,0 +1,303 @@
+name: VisionBridge Accuracy Optimization
+
+on:
+  # Adding this workflow to main runs one guarded experiment. Later runs can be
+  # started explicitly from Actions → VisionBridge Accuracy Optimization.
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/model-accuracy-optimization.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: visionbridge-accuracy-optimization
+  cancel-in-progress: false
+
+jobs:
+  optimize:
+    name: Train, evaluate, and conditionally promote
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
+
+      - name: Set up notebook Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install notebook executor
+        run: python -m pip install --disable-pip-version-check nbconvert ipykernel
+
+      - name: Run pinned dataset training and accuracy gate
+        id: train
+        env:
+          MPLBACKEND: Agg
+          PYTHONUNBUFFERED: "1"
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/visionbridge-notebook-results
+          jupyter nbconvert \
+            --to notebook \
+            --execute notebooks/train_letter_base_colab.ipynb \
+            --output visionbridge_accuracy_run.ipynb \
+            --output-dir /tmp/visionbridge-notebook-results \
+            --ExecutePreprocessor.timeout=0 \
+            --ExecutePreprocessor.kernel_name=python3
+
+      - name: Read promotion decision
+        id: decision
+        if: ${{ steps.train.outcome == 'success' }}
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+
+          path = Path("/content/visionbridge_accuracy_experiments.json")
+          if not path.is_file():
+              raise SystemExit("Training ran without creating the experiment report.")
+          report = json.loads(path.read_text(encoding="utf-8"))
+          decision = report.get("promotion_decision", "")
+          accepted = decision == "CANDIDATE_ACCEPTED_FOR_CHECKPOINT_REVIEW"
+          print(f"accepted={'true' if accepted else 'false'}")
+          print(f"decision={decision}")
+          print(f"selected_candidate={report.get('selected_candidate', 'unknown')}")
+          print(f"overall_accuracy={report.get('selected_validation', {}).get('overall_accuracy', 'unknown')}")
+          print(f"worst_letter_accuracy={report.get('selected_validation', {}).get('worst_letter_accuracy', 'unknown')}")
+          PY
+
+      - name: Upload full training artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visionbridge-accuracy-experiment-${{ github.run_id }}
+          if-no-files-found: warn
+          retention-days: 30
+          path: |
+            /content/visionbridge_accuracy_experiments.json
+            /content/visionbridge_letter_evaluation.json
+            /content/visionbridge_v3_release_evidence.json
+            /content/visionbridge_accuracy_candidates/**
+            /content/visionbridge_baseline_validation.json
+            /content/visionbridge_v3_baseline.pt
+            /content/VisionBridge/backend/app/models/weights/letter_base_model.pt
+            /tmp/visionbridge-notebook-results/visionbridge_accuracy_run.ipynb
+
+      - name: Set up production validation Python
+        if: ${{ steps.decision.outputs.accepted == 'true' }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install backend validation dependencies
+        if: ${{ steps.decision.outputs.accepted == 'true' }}
+        run: python -m pip install -r backend/requirements.txt
+
+      - name: Stage candidate model and evaluation evidence
+        if: ${{ steps.decision.outputs.accepted == 'true' }}
+        env:
+          BASELINE_COMMIT: ${{ github.sha }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          test -s /content/VisionBridge/backend/app/models/weights/letter_base_model.pt
+          test -s /content/visionbridge_letter_evaluation.json
+          test -s /content/visionbridge_v3_release_evidence.json
+          test -s /content/visionbridge_accuracy_experiments.json
+
+          cp /content/VisionBridge/backend/app/models/weights/letter_base_model.pt backend/app/models/weights/letter_base_model.pt
+          cp /content/visionbridge_letter_evaluation.json visionbridge_letter_evaluation.json
+          cp /content/visionbridge_v3_release_evidence.json visionbridge_v3_release_evidence.json
+          cp /content/visionbridge_accuracy_experiments.json docs/release/visionbridge-accuracy-experiments.json
+
+      - name: Verify browser and Python numerical parity
+        if: ${{ steps.decision.outputs.accepted == 'true' }}
+        working-directory: backend
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python scripts/verify_browser_parity.py \
+            --checkpoint app/models/weights/letter_base_model.pt \
+            --samples 32 \
+            --tolerance 1e-5 \
+            --output-json ../docs/release/visionbridge-v3-browser-parity.json
+
+      - name: Attach parity execution metadata
+        if: ${{ steps.decision.outputs.accepted == 'true' }}
+        env:
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          checkpoint = Path("backend/app/models/weights/letter_base_model.pt")
+          digest = hashlib.sha256(checkpoint.read_bytes()).hexdigest()
+          path = Path("docs/release/visionbridge-v3-browser-parity.json")
+          report = json.loads(path.read_text(encoding="utf-8"))
+          report["execution"] = {
+              "runner": "GitHub Actions accuracy optimization",
+              "python": "3.11",
+              "checkpoint": "backend/app/models/weights/letter_base_model.pt",
+              "checkpoint_sha256": digest,
+              "run_id": int(os.environ["WORKFLOW_RUN_ID"]),
+              "commit": os.environ["SOURCE_COMMIT"],
+          }
+          path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+          PY
+
+      - name: Run backend regression suite with candidate checkpoint
+        if: ${{ steps.decision.outputs.accepted == 'true' }}
+        working-directory: backend
+        run: pytest -q
+
+      - name: Update release gate from the measured checkpoint
+        if: ${{ steps.decision.outputs.accepted == 'true' }}
+        env:
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          def read_json(path):
+              return json.loads(Path(path).read_text(encoding="utf-8"))
+
+          evaluation = read_json("visionbridge_letter_evaluation.json")
+          evidence = read_json("visionbridge_v3_release_evidence.json")
+          parity = read_json("docs/release/visionbridge-v3-browser-parity.json")
+          checkpoint = Path("backend/app/models/weights/letter_base_model.pt")
+          digest = hashlib.sha256(checkpoint.read_bytes()).hexdigest()
+
+          gate_path = Path("docs/release/visionbridge-v3-release-gate.json")
+          gate = read_json(gate_path)
+          gate["generated_at"] = datetime.now(timezone.utc).date().isoformat()
+          gate["checkpoint"].update({
+              "present": True,
+              "bytes": checkpoint.stat().st_size,
+              "sha256": digest,
+          })
+          gate["evaluation"].update({
+              "source": "visionbridge_v3_release_evidence.json",
+              "split": evaluation["split"],
+              "samples": evaluation["samples"],
+              "device": evaluation["device"],
+              "test_accuracy": evaluation["overall_accuracy"],
+              "macro_accuracy": evaluation["macro_accuracy"],
+              "worst_letter": evaluation["worst_letter"],
+              "worst_letter_accuracy": evaluation["worst_letter_accuracy"],
+              "per_letter_accuracy": "recorded in visionbridge_letter_evaluation.json",
+              "confusion_matrix": "recorded in visionbridge_letter_evaluation.json",
+          })
+          gate["browser_pytorch_parity"] = {
+              "source": "docs/release/visionbridge-v3-browser-parity.json",
+              "samples": parity["samples"],
+              "embedding_max_abs_error": parity["embedding_max_abs_error"],
+              "logits_max_abs_error": parity["logits_max_abs_error"],
+              "tolerance": parity["tolerance"],
+              "passed": parity["passed"],
+              "execution_run_id": int(os.environ["WORKFLOW_RUN_ID"]),
+              "execution_commit": os.environ["SOURCE_COMMIT"],
+          }
+          gate["limitations"]["weakest_letter"] = evaluation["worst_letter"]
+          gate["limitations"]["weakest_letter_accuracy"] = evaluation["worst_letter_accuracy"]
+          gate["release_rule"] = (
+              "Release is ready with documented limitations. Candidate model was selected "
+              "on validation, accepted only after the held-out test promotion gate, and checked "
+              "for browser/PyTorch parity and backend regression tests. Signer-independent "
+              "evaluation remains blocked without verified signer IDs."
+          )
+          gate_path.write_text(json.dumps(gate, indent=2) + "\n", encoding="utf-8")
+
+          readme_path = Path("docs/release/README.md")
+          readme = readme_path.read_text(encoding="utf-8")
+          artifact_line = "- `docs/release/visionbridge-accuracy-experiments.json`"
+          if artifact_line not in readme:
+              readme = readme.replace(
+                  "## Evidence artifacts",
+                  "## Evidence artifacts\n\n" + artifact_line,
+              )
+          readme = readme.replace(
+              "Held-out test evidence: 98.143751% overall accuracy, 98.167981% macro accuracy.",
+              f"Held-out test evidence: {evaluation['overall_accuracy']:.6%} overall accuracy, "
+              f"{evaluation['macro_accuracy']:.6%} macro accuracy.",
+          )
+          readme = readme.replace(
+              "- W is the weakest recorded class at 72.625698% accuracy.",
+              f"- {evaluation['worst_letter']} is the weakest recorded class at "
+              f"{evaluation['worst_letter_accuracy']:.6%} accuracy.",
+          )
+          readme_path.write_text(readme, encoding="utf-8")
+
+          evidence["checkpoint"]["path"] = "backend/app/models/weights/letter_base_model.pt"
+          evidence["checkpoint"]["bytes"] = checkpoint.stat().st_size
+          evidence["checkpoint"]["sha256"] = digest
+          Path("visionbridge_v3_release_evidence.json").write_text(
+              json.dumps(evidence, indent=2) + "\n", encoding="utf-8"
+          )
+          PY
+
+      - name: Commit accuracy-gated model to main
+        if: ${{ steps.decision.outputs.accepted == 'true' }}
+        env:
+          SELECTED_CANDIDATE: ${{ steps.decision.outputs.selected_candidate }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            backend/app/models/weights/letter_base_model.pt \
+            visionbridge_letter_evaluation.json \
+            visionbridge_v3_release_evidence.json \
+            docs/release/visionbridge-accuracy-experiments.json \
+            docs/release/visionbridge-v3-browser-parity.json \
+            docs/release/visionbridge-v3-release-gate.json \
+            docs/release/README.md
+          if git diff --cached --quiet; then
+            echo "No staged changes; refusing to create an empty model promotion commit."
+            exit 1
+          fi
+          git commit -m "model: promote accuracy-gated ISL checkpoint" \
+            -m "Selected candidate: ${SELECTED_CANDIDATE}" \
+            -m "Accuracy evaluation run: ${WORKFLOW_RUN_ID}"
+          git push origin HEAD:main
+
+      - name: Write outcome summary
+        if: always()
+        env:
+          TRAIN_OUTCOME: ${{ steps.train.outcome }}
+          ACCEPTED: ${{ steps.decision.outputs.accepted }}
+          DECISION: ${{ steps.decision.outputs.decision }}
+          SELECTED: ${{ steps.decision.outputs.selected_candidate }}
+        run: |
+          {
+            echo "## VisionBridge accuracy experiment"
+            echo
+            echo "- Training notebook: ${TRAIN_OUTCOME:-not run}"
+            echo "- Candidate: ${SELECTED:-not selected}"
+            echo "- Promotion decision: ${DECISION:-not available}"
+            if [ "${ACCEPTED:-false}" = "true" ]; then
+              echo "- Model promotion: passed held-out test gate, browser parity, and backend tests; committed to main."
+            elif [ "${TRAIN_OUTCOME:-}" = "success" ]; then
+              echo "- Model promotion: not approved. The V3 checkpoint was left unchanged; inspect the uploaded reports."
+            else
+              echo "- Model promotion: not attempted because the training/evaluation run did not finish successfully."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
