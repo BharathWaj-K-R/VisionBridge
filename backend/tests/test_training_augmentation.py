@@ -118,3 +118,52 @@ def test_validation_only_training_does_not_require_test_split(tmp_path):
     assert len(result["validation_per_letter"]) == 26
     assert (tmp_path / "candidate.pt").is_file()
 
+def test_training_cli_writes_metrics_json(tmp_path, monkeypatch):
+    import json
+    import sys
+
+    import numpy as np
+
+    from app.training.letter_base import main as training_main
+
+    labels = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    (tmp_path / "labels.json").write_text(
+        json.dumps({"labels": labels}),
+        encoding="utf-8",
+    )
+    rng = np.random.default_rng(91)
+    train_x = rng.normal(0.0, 0.25, size=(52, 126)).astype(np.float32)
+    train_y = np.repeat(np.arange(26, dtype=np.int64), 2)
+    val_x = rng.normal(0.0, 0.25, size=(26, 126)).astype(np.float32)
+    val_y = np.arange(26, dtype=np.int64)
+    np.savez_compressed(tmp_path / "train.npz", x=train_x, y=train_y)
+    np.savez_compressed(tmp_path / "val.npz", x=val_x, y=val_y)
+
+    checkpoint = tmp_path / "candidate.pt"
+    report_path = tmp_path / "candidate-report.json"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "letter_base.py",
+            "--data-dir", str(tmp_path),
+            "--output", str(checkpoint),
+            "--epochs", "1",
+            "--batch-size", "26",
+            "--hidden-dim", "16",
+            "--embedding-dim", "8",
+            "--dropout", "0",
+            "--validation-only",
+            "--output-json", str(report_path),
+        ],
+    )
+
+    training_main()
+
+    assert checkpoint.is_file()
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report["test_accuracy"] is None
+    assert report["test_per_letter"] is None
+    assert report["validation_macro_accuracy"] >= 0.0
+    assert len(report["validation_per_letter"]) == 26
+

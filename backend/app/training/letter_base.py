@@ -472,7 +472,7 @@ def main() -> None:
             "--target-class-accuracy must be > 0 and <= 1"
         )
 
-    train_model(
+    report = train_model(
         root=Path(args.data_dir),
         output_path=Path(args.output),
         epochs=args.epochs,
