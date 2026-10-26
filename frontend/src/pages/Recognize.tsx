@@ -6,6 +6,7 @@ import { normalizeHandPair, type TrackerMode } from "../landmarks";
 import { useLandmarkSession } from "../useLandmarkSession";
 import { Empty, Page } from "../components/Page";
 import { EmptyState, ErrorState, PermissionGuidance } from "../components/SystemStates";
+import CyberneticHandGlove from "../components/CyberneticHandGlove";
 
 export default function Recognize() {
   const configuredFps = Number(localStorage.getItem("visionbridge_camera_fps") || "30");
@@ -269,6 +270,8 @@ export default function Recognize() {
       </section>
 
       <section className="right-stack">
+        <CyberneticHandGlove readFrame={latestFrame} running={session.running} prediction={prediction} confidence={confidence} />
+
         <section className="panel classification-card">
           <div className="panel-head"><div><div className="eyebrow">Result</div><h2>Detected letter</h2></div><span className="confidence-badge">{Math.round(confidence * 100)}% confidence</span></div>
           <div className="prediction-line"><strong>{prediction}</strong><div><span>{adapterId ? "Signer-specific recognition" : "Base model recognition"}</span><small>{confidence >= COMMIT_CONFIDENCE ? "The prediction is stable enough to add to the message." : "Hold the gesture steady for a clearer result."}</small></div></div>
