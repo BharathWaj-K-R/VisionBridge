@@ -25,6 +25,7 @@ type HandRig = {
   joints: any[];
   rings: any[];
   bones: any[];
+  palmShell: any;
 };
 
 const WRIST_AXIS = new THREE.Vector3(0, 1, 0);
@@ -79,6 +80,21 @@ function createHandRig(side: "left" | "right", color: string): HandRig {
   const joints: any[] = [];
   const rings: any[] = [];
   const bones: any[] = [];
+  const palmGeometry = new THREE.BufferGeometry();
+  palmGeometry.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(18), 3));
+  palmGeometry.setIndex([0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 5, 0, 5, 1]);
+  const palmShell = new THREE.Mesh(
+    palmGeometry,
+    new THREE.MeshBasicMaterial({
+      color: side === "left" ? "#22d3ee" : "#8b7cff",
+      transparent: true,
+      opacity: 0.13,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    }),
+  );
+  palmShell.name = side + "-live-palm-shell";
+  root.add(palmShell);
 
   for (let index = 0; index < 21; index += 1) {
     const radius = index === 0 ? 0.052 : FINGERTIPS.has(index) ? 0.042 : 0.031;
@@ -112,7 +128,7 @@ function createHandRig(side: "left" | "right", color: string): HandRig {
     bones.push(bone);
   }
 
-  return { root, joints, rings, bones };
+  return { root, joints, rings, bones, palmShell };
 }
 
 function toWorldPoint(point: LandmarkPoint, horizontalRange: number) {
@@ -141,6 +157,21 @@ function updateHandRig(rig: HandRig, landmarks: LandmarkPoint[] | undefined, hor
 
   rig.joints.forEach((joint, index) => joint.position.copy(worldPoints[index]));
   rig.rings.forEach(({ mesh, index }) => mesh.position.copy(worldPoints[index]));
+
+  const palmLandmarkIndices = [0, 5, 9, 13, 17];
+  const palmCenter = new THREE.Vector3();
+  palmLandmarkIndices.forEach((index) => palmCenter.add(worldPoints[index]));
+  palmCenter.divideScalar(palmLandmarkIndices.length);
+  palmCenter.z -= 0.025;
+  const palmVertices = [palmCenter, ...palmLandmarkIndices.map((index) => worldPoints[index])];
+  const palmPositions = rig.palmShell.geometry.attributes.position.array;
+  palmVertices.forEach((point, index) => {
+    palmPositions[index * 3] = point.x;
+    palmPositions[index * 3 + 1] = point.y;
+    palmPositions[index * 3 + 2] = point.z;
+  });
+  rig.palmShell.geometry.attributes.position.needsUpdate = true;
+  rig.palmShell.geometry.computeVertexNormals();
 
   rig.bones.forEach((bone, index) => {
     const [startIndex, endIndex] = CONNECTIONS[index];
