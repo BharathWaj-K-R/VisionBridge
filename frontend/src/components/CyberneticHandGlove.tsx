@@ -201,8 +201,8 @@ function SvgHand({ landmarks, color }: { landmarks?: LandmarkPoint[]; color: str
 
 function handCount(frame: LandmarkFrame | null): number {
   if (!frame) return 0;
-  const left = Boolean(frame.leftVisible && frame.leftLandmarks?.length >= 21);
-  const right = Boolean(frame.rightVisible && frame.rightLandmarks?.length >= 21);
+  const left = Boolean(frame.leftVisible && (frame.leftLandmarks?.length ?? 0) >= 21);
+  const right = Boolean(frame.rightVisible && (frame.rightLandmarks?.length ?? 0) >= 21);
   return Number(left) + Number(right);
 }
 
