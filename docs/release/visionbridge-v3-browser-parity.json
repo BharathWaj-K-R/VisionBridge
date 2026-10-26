@@ -1,8 +1,8 @@
 {
   "samples": 32,
-  "embedding_max_abs_error": 0.0000019669532775878906,
-  "logits_max_abs_error": 0.000003814697265625,
-  "tolerance": 0.00001,
+  "embedding_max_abs_error": 1.9073486328125e-06,
+  "logits_max_abs_error": 4.76837158203125e-06,
+  "tolerance": 1e-05,
   "passed": true,
   "contract": {
     "input_dim": 126,
@@ -11,12 +11,11 @@
     "num_classes": 26
   },
   "execution": {
-    "runner": "GitHub Actions",
-    "python": "3.11.16",
+    "runner": "GitHub Actions accuracy optimization",
+    "python": "3.11",
     "checkpoint": "backend/app/models/weights/letter_base_model.pt",
-    "checkpoint_sha256": "03bcb9f08d44025a025f78a08d68b2303b231270395117815ffcb322ca090cdf",
-    "run_id": 36694299109,
-    "job_id": 109818465532,
-    "commit": "52da908f6bb17863bb49f1a63aaaa4f52ce0038f"
+    "checkpoint_sha256": "f903872e96f269c5fbee6ea897f0027b91e162f2fc45b4c9a115e8ba8e38c917",
+    "run_id": 40271318881,
+    "commit": "add639cb5f395291f1c70b773f0cdec0b5c950a6"
   }
 }

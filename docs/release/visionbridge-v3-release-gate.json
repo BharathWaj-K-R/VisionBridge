@@ -1,7 +1,7 @@
 {
   "release": "visionbridge-letter-base-v3",
   "status": "READY_WITH_LIMITATIONS",
-  "generated_at": "2026-09-30",
+  "generated_at": "2026-10-26",
   "contract": {
     "input_dim": 126,
     "hidden_dim": 128,
@@ -14,31 +14,30 @@
   "checkpoint": {
     "path": "backend/app/models/weights/letter_base_model.pt",
     "present": true,
-    "bytes": 111333,
-    "sha256": "03bcb9f08d44025a025f78a08d68b2303b231270395117815ffcb322ca090cdf"
+    "bytes": 111429,
+    "sha256": "f903872e96f269c5fbee6ea897f0027b91e162f2fc45b4c9a115e8ba8e38c917"
   },
   "evaluation": {
     "source": "visionbridge_v3_release_evidence.json",
     "split": "test",
     "samples": 4633,
-    "device": "cuda",
-    "test_accuracy": 0.9814375134901792,
-    "macro_accuracy": 0.9816798074640047,
+    "device": "cpu",
+    "test_accuracy": 0.9827325706885387,
+    "macro_accuracy": 0.9829129429244154,
     "worst_letter": "W",
-    "worst_letter_accuracy": 0.7262569832402235,
+    "worst_letter_accuracy": 0.7877094972067039,
     "per_letter_accuracy": "recorded in visionbridge_letter_evaluation.json",
     "confusion_matrix": "recorded in visionbridge_letter_evaluation.json"
   },
   "browser_pytorch_parity": {
     "source": "docs/release/visionbridge-v3-browser-parity.json",
     "samples": 32,
-    "embedding_max_abs_error": 0.0000019669532775878906,
-    "logits_max_abs_error": 0.000003814697265625,
-    "tolerance": 0.00001,
+    "embedding_max_abs_error": 1.9073486328125e-06,
+    "logits_max_abs_error": 4.76837158203125e-06,
+    "tolerance": 1e-05,
     "passed": true,
-    "execution_run_id": 36694299109,
-    "execution_job_id": 109818465532,
-    "execution_commit": "52da908f6bb17863bb49f1a63aaaa4f52ce0038f"
+    "execution_run_id": 40271318881,
+    "execution_commit": "add639cb5f395291f1c70b773f0cdec0b5c950a6"
   },
   "release_hardening_tests": {
     "source": "backend/tests/test_release_hardening.py",
@@ -78,12 +77,12 @@
   },
   "limitations": {
     "weakest_letter": "W",
-    "weakest_letter_accuracy": 0.7262569832402235,
+    "weakest_letter_accuracy": 0.7877094972067039,
     "scope": "A-Z letter recognition; not sentence-level/full ISL translation"
   },
   "remaining_release_maintenance": [
     "Add and run a dedicated pgTAP RLS suite through Supabase CLI/CI.",
     "Do not claim signer-independent evaluation without verified signer IDs."
   ],
-  "release_rule": "Release is ready with documented limitations. Runtime tests, browser/PyTorch parity, durable production database binding, and custom-auth RLS are verified. Signer-independent evaluation remains blocked and W remains the weakest recorded class."
+  "release_rule": "Release is ready with documented limitations. Candidate model was selected on validation, accepted only after the held-out test promotion gate, and checked for browser/PyTorch parity and backend regression tests. Signer-independent evaluation remains blocked without verified signer IDs."
 }

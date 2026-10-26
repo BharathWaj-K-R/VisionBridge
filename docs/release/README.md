@@ -10,7 +10,7 @@ Public baseline statement and human verification checklist: `docs/release/vision
 
 Verified gates:
 - V3 checkpoint present and SHA-256 verified.
-- Held-out test evidence: 98.143751% overall accuracy, 98.167981% macro accuracy.
+- Held-out test evidence: 98.273257% overall accuracy, 98.291294% macro accuracy.
 - Model contract: `126 -> 128 -> 64 -> 26`.
 - Browser/PyTorch parity passed on 32 samples at `1e-5` tolerance.
 - Release-hardening suite: 5/5 passed.
@@ -20,11 +20,13 @@ Verified gates:
 
 ## Known limitations
 
-- W is the weakest recorded class at 72.625698% accuracy.
+- W is the weakest recorded class at 78.770950% accuracy.
 - Signer-independent evaluation remains blocked because the active RealSign metadata does not expose verified signer IDs.
 - Product scope remains browser-based A-Z letter recognition with optional few-shot signer adaptation. It is not a claim of sentence-level/full ISL translation.
 
 ## Evidence artifacts
+
+- `docs/release/visionbridge-accuracy-experiments.json`
 
 - `docs/release/visionbridge-v3-release-gate.json`
 - `docs/release/visionbridge-v3-browser-parity.json`
