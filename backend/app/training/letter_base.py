@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 import torch
 from torch import nn
+import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
 
 from app.models.letter_model import INPUT_DIM, LETTER_LABELS, NUM_CLASSES, VisionBridgeLetterBaseModel, save_checkpoint
@@ -18,6 +19,102 @@ def seed_everything(seed: int) -> None:
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
+
+
+def augment_landmark_batch(
+    features: torch.Tensor,
+    *,
+    jitter_std: float = 0.0,
+    rotation_degrees: float = 0.0,
+) -> torch.Tensor:
+    """Apply mild label-preserving perturbations to normalized hand landmarks.
+
+    Augmentation is training-only. Empty hand slots stay exactly zero, wrist
+    anchors stay at the origin, and the 126D feature contract is unchanged.
+    """
+    if features.ndim != 2 or features.shape[1] != INPUT_DIM:
+        raise ValueError(f"Expected [batch, {INPUT_DIM}] features")
+    if not np.isfinite(jitter_std) or jitter_std < 0:
+        raise ValueError("jitter_std must be finite and non-negative")
+    if not np.isfinite(rotation_degrees) or not 0 <= rotation_degrees <= 15:
+        raise ValueError("rotation_degrees must be between 0 and 15")
+
+    if jitter_std == 0 and rotation_degrees == 0:
+        return features
+
+    augmented = features.reshape(-1, 2, 21, 3).clone()
+    radians = float(rotation_degrees) * np.pi / 180.0
+
+    for hand_index in range(2):
+        hand = augmented[:, hand_index]
+        active = hand.abs().amax(dim=(1, 2)) > 1e-8
+
+        if rotation_degrees > 0:
+            angles = (torch.rand(len(hand), device=hand.device) * 2.0 - 1.0) * radians
+            cosines = torch.cos(angles).unsqueeze(1)
+            sines = torch.sin(angles).unsqueeze(1)
+            x = hand[:, :, 0].clone()
+            y = hand[:, :, 1].clone()
+            rotated_x = x * cosines - y * sines
+            rotated_y = x * sines + y * cosines
+            active_points = active.unsqueeze(1)
+            hand[:, :, 0] = torch.where(active_points, rotated_x, x)
+            hand[:, :, 1] = torch.where(active_points, rotated_y, y)
+
+        if jitter_std > 0:
+            noise = torch.randn_like(hand) * float(jitter_std)
+            noise[:, 0, :] = 0.0
+            noise *= active[:, None, None]
+            hand.add_(noise)
+
+        augmented[:, hand_index] = hand
+
+    return augmented.reshape(-1, INPUT_DIM)
+
+
+def build_focus_weights(
+    labels: tuple[str, ...],
+    focus_letters: tuple[str, ...],
+    focus_weight: float,
+) -> torch.Tensor:
+    """Return per-class loss weights; focused labels get a configurable boost."""
+    if not np.isfinite(focus_weight) or focus_weight < 1.0:
+        raise ValueError("focus_weight must be finite and at least 1.0")
+    unknown = sorted(set(focus_letters) - set(labels))
+    if unknown:
+        raise ValueError("Unknown focus letter(s): " + ", ".join(unknown))
+
+    weights = torch.ones(len(labels), dtype=torch.float32)
+    for letter in focus_letters:
+        weights[labels.index(letter)] = float(focus_weight)
+    return weights
+
+
+def classification_loss(
+    logits: torch.Tensor,
+    targets: torch.Tensor,
+    *,
+    loss_name: str,
+    focal_gamma: float,
+    class_weights: torch.Tensor,
+) -> torch.Tensor:
+    """Cross-entropy or focal loss with optional hard-class weighting."""
+    if loss_name not in {"cross_entropy", "focal"}:
+        raise ValueError("loss_name must be 'cross_entropy' or 'focal'")
+    if not np.isfinite(focal_gamma) or focal_gamma < 0:
+        raise ValueError("focal_gamma must be finite and non-negative")
+
+    per_example = F.cross_entropy(logits, targets, reduction="none")
+    if loss_name == "focal":
+        probability_of_truth = F.softmax(logits, dim=1).gather(
+            1, targets.unsqueeze(1)
+        ).squeeze(1)
+        per_example = per_example * (1.0 - probability_of_truth).clamp_min(0.0).pow(
+            float(focal_gamma)
+        )
+
+    sample_weights = class_weights.to(logits.device)[targets]
+    return (per_example * sample_weights).sum() / sample_weights.sum().clamp_min(1e-8)
 
 
 def load_split(root: Path, name: str):
@@ -106,6 +203,13 @@ def train_model(
     hidden_dim: int,
     embedding_dim: int,
     dropout: float,
+    loss_name: str = "cross_entropy",
+    focal_gamma: float = 1.5,
+    landmark_jitter_std: float = 0.0,
+    rotation_degrees: float = 0.0,
+    focus_letters: tuple[str, ...] = (),
+    focus_weight: float = 1.0,
+    validation_only: bool = False,
 ) -> dict[str, object]:
     seed_everything(seed)
 
@@ -126,7 +230,7 @@ def train_model(
         TensorDataset(*load_split(root, "val")),
         batch_size=batch_size,
     )
-    test = DataLoader(
+    test = None if validation_only else DataLoader(
         TensorDataset(*load_split(root, "test")),
         batch_size=batch_size,
     )
@@ -163,9 +267,17 @@ def train_model(
         patience=max(2, min(8, epochs // 10)),
         min_lr=1e-5,
     )
-    loss_fn = nn.CrossEntropyLoss()
+    class_weights = build_focus_weights(labels, focus_letters, focus_weight).to(device)
+    if loss_name not in {"cross_entropy", "focal"}:
+        raise ValueError("loss_name must be 'cross_entropy' or 'focal'")
+    if not np.isfinite(focal_gamma) or focal_gamma < 0:
+        raise ValueError("focal_gamma must be finite and non-negative")
+    if not np.isfinite(landmark_jitter_std) or landmark_jitter_std < 0:
+        raise ValueError("landmark_jitter_std must be finite and non-negative")
+    if not np.isfinite(rotation_degrees) or not 0 <= rotation_degrees <= 15:
+        raise ValueError("rotation_degrees must be between 0 and 15")
 
-    best_key = (-1.0, -1.0)
+    best_key = (-1.0, -1.0, -1.0)
     best_state = None
     best_epoch = 0
     best_per_letter: dict[str, float] = {}
@@ -174,7 +286,10 @@ def train_model(
     print(
         f"device={device} "
         f"target_per_letter_accuracy={target_class_accuracy:.3f} "
-        f"max_epochs={epochs}"
+        f"loss={loss_name} focal_gamma={focal_gamma:.2f} "
+        f"jitter_std={landmark_jitter_std:.4f} rotation_degrees={rotation_degrees:.1f} "
+        f"focus_letters={','.join(focus_letters) or 'none'} focus_weight={focus_weight:.2f} "
+        f"validation_only={validation_only} max_epochs={epochs}"
     )
 
     for epoch in range(1, epochs + 1):
@@ -189,8 +304,20 @@ def train_model(
                 )
 
             optimizer.zero_grad(set_to_none=True)
-            logits = model(x.to(device))
-            loss = loss_fn(logits, y.to(device))
+            batch_x = augment_landmark_batch(
+                x.to(device),
+                jitter_std=landmark_jitter_std,
+                rotation_degrees=rotation_degrees,
+            )
+            batch_y = y.to(device)
+            logits = model(batch_x)
+            loss = classification_loss(
+                logits,
+                batch_y,
+                loss_name=loss_name,
+                focal_gamma=focal_gamma,
+                class_weights=class_weights,
+            )
 
             if not torch.isfinite(loss):
                 raise RuntimeError("Non-finite base-model loss")
@@ -212,6 +339,7 @@ def train_model(
         val_acc, per_letter, _ = class_accuracy(model, val, device)
         worst_letter = min(per_letter, key=per_letter.get)
         worst_score = per_letter[worst_letter]
+        val_macro_accuracy = float(sum(per_letter.values()) / len(per_letter))
         scheduler.step(worst_score)
 
         current_lr = optimizer.param_groups[0]["lr"]
@@ -219,12 +347,13 @@ def train_model(
             f"epoch={epoch:03d} "
             f"train_loss={total_loss / max(total, 1):.4f} "
             f"val_accuracy={val_acc:.4f} "
+            f"val_macro_accuracy={val_macro_accuracy:.4f} "
             f"worst={worst_letter}:{worst_score:.4f} "
             f"lr={current_lr:.6f}"
         )
         print(f"per_letter: {format_class_scores(per_letter)}")
 
-        score_key = (worst_score, val_acc)
+        score_key = (worst_score, val_macro_accuracy, val_acc)
         if score_key > best_key:
             best_key = score_key
             best_epoch = epoch
@@ -249,18 +378,23 @@ def train_model(
         raise RuntimeError("Base-model training produced no checkpoint")
 
     model.load_state_dict(best_state)
-    test_acc, test_per_letter, test_counts = class_accuracy(
-        model, test, device
-    )
+    if test is not None:
+        test_acc, test_per_letter, test_counts = class_accuracy(model, test, device)
+    else:
+        test_acc, test_per_letter, test_counts = None, None, None
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     save_checkpoint(model, output_path)
 
     print(f"best_epoch={best_epoch}")
-    print(f"best_validation_accuracy={best_key[1]:.4f}")
+    print(f"best_validation_accuracy={best_key[2]:.4f}")
+    print(f"best_validation_macro_accuracy={best_key[1]:.4f}")
     print(f"best_worst_letter_accuracy={best_key[0]:.4f}")
-    print(f"test_accuracy={test_acc:.4f}")
-    print(f"test_per_letter: {format_class_scores(test_per_letter)}")
+    if test_acc is not None:
+        print(f"test_accuracy={test_acc:.4f}")
+        print(f"test_per_letter: {format_class_scores(test_per_letter)}")
+    else:
+        print("test split was not loaded (validation-only experiment)")
     print(f"checkpoint={output_path}")
 
     if not reached_target:
@@ -278,12 +412,29 @@ def train_model(
     return {
         "reached_target": reached_target,
         "best_epoch": best_epoch,
-        "validation_accuracy": best_key[1],
+        "validation_accuracy": best_key[2],
+        "validation_macro_accuracy": best_key[1],
         "worst_validation_accuracy": best_key[0],
         "validation_per_letter": best_per_letter,
         "test_accuracy": test_acc,
         "test_per_letter": test_per_letter,
         "test_counts": test_counts,
+        "training": {
+            "loss": loss_name,
+            "focal_gamma": float(focal_gamma),
+            "landmark_jitter_std": float(landmark_jitter_std),
+            "rotation_degrees": float(rotation_degrees),
+            "focus_letters": list(focus_letters),
+            "focus_weight": float(focus_weight),
+            "seed": int(seed),
+            "hidden_dim": int(hidden_dim),
+            "embedding_dim": int(embedding_dim),
+            "dropout": float(dropout),
+            "epochs": int(epochs),
+            "batch_size": int(batch_size),
+            "learning_rate": float(learning_rate),
+            "weight_decay": float(weight_decay),
+        },
         "checkpoint": str(output_path),
     }
 
@@ -306,6 +457,14 @@ def main() -> None:
     parser.add_argument("--hidden-dim", type=int, default=128)
     parser.add_argument("--embedding-dim", type=int, default=64)
     parser.add_argument("--dropout", type=float, default=0.10)
+    parser.add_argument("--loss", choices=("cross_entropy", "focal"), default="cross_entropy")
+    parser.add_argument("--focal-gamma", type=float, default=1.5)
+    parser.add_argument("--landmark-jitter-std", type=float, default=0.0)
+    parser.add_argument("--rotation-degrees", type=float, default=0.0)
+    parser.add_argument("--focus-letters", nargs="*", default=[])
+    parser.add_argument("--focus-weight", type=float, default=1.0)
+    parser.add_argument("--validation-only", action="store_true")
+    parser.add_argument("--output-json", default=None)
     args = parser.parse_args()
 
     if not 0 < args.target_class_accuracy <= 1:
@@ -325,7 +484,19 @@ def main() -> None:
         hidden_dim=args.hidden_dim,
         embedding_dim=args.embedding_dim,
         dropout=args.dropout,
+        loss_name=args.loss,
+        focal_gamma=args.focal_gamma,
+        landmark_jitter_std=args.landmark_jitter_std,
+        rotation_degrees=args.rotation_degrees,
+        focus_letters=tuple(letter.upper() for letter in args.focus_letters),
+        focus_weight=args.focus_weight,
+        validation_only=args.validation_only,
     )
+    if args.output_json:
+        report_path = Path(args.output_json)
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+        print(f"report={report_path}")
 
 
 if __name__ == "__main__":
