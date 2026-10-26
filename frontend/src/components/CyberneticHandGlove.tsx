@@ -180,8 +180,10 @@ function updateHandRig(rig: HandRig, landmarks: LandmarkPoint[] | undefined, hor
     const direction = new THREE.Vector3().subVectors(end, start);
     const length = direction.length();
     bone.position.copy(start).add(end).multiplyScalar(0.5);
+    bone.visible = length >= 0.0001;
+    if (length < 0.0001) return;
     bone.quaternion.setFromUnitVectors(WRIST_AXIS, direction.normalize());
-    bone.scale.set(1, Math.max(length, 0.001), 1);
+    bone.scale.set(1, length, 1);
   });
 }
 
@@ -264,6 +266,7 @@ export default function CyberneticHandGlove({ readFrame, running, prediction, co
     let renderer: any;
     let animationFrame = 0;
     let observer: ResizeObserver | null = null;
+    let usingWindowResize = false;
     let disposed = false;
 
     try {
@@ -302,8 +305,13 @@ export default function CyberneticHandGlove({ readFrame, running, prediction, co
       renderer.setSize(width, height, false);
     };
     resize();
-    observer = new ResizeObserver(resize);
-    observer.observe(mount);
+    if (typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(resize);
+      observer.observe(mount);
+    } else {
+      window.addEventListener("resize", resize);
+      usingWindowResize = true;
+    }
 
     const tick = () => {
       if (disposed) return;
@@ -325,6 +333,7 @@ export default function CyberneticHandGlove({ readFrame, running, prediction, co
       disposed = true;
       cancelAnimationFrame(animationFrame);
       observer?.disconnect();
+      if (usingWindowResize) window.removeEventListener("resize", resize);
       scene.traverse((object: any) => {
         if (object.geometry?.dispose) object.geometry.dispose();
         const material = object.material;
