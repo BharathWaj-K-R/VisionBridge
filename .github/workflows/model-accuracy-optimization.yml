@@ -38,7 +38,9 @@ jobs:
         run: python -m pip install --disable-pip-version-check nbconvert ipykernel
 
       - name: Prepare Colab-compatible workspace
-        run: mkdir -p /content
+        run: |
+          sudo mkdir -p /content
+          sudo chown "$(id -u):$(id -g)" /content
 
       - name: Run pinned dataset training and accuracy gate
         id: train
