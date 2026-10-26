@@ -74,3 +74,47 @@ def test_focal_loss_is_finite_and_differentiable():
 def test_invalid_rotation_range_is_rejected():
     with pytest.raises(ValueError, match="rotation_degrees"):
         augment_landmark_batch(_sample_features(), rotation_degrees=20.0)
+
+def test_validation_only_training_does_not_require_test_split(tmp_path):
+    import json
+
+    import numpy as np
+
+    from app.training.letter_base import train_model
+
+    labels = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    (tmp_path / "labels.json").write_text(
+        json.dumps({"labels": labels}),
+        encoding="utf-8",
+    )
+
+    rng = np.random.default_rng(73)
+    train_x = rng.normal(0.0, 0.25, size=(52, 126)).astype(np.float32)
+    train_y = np.repeat(np.arange(26, dtype=np.int64), 2)
+    val_x = rng.normal(0.0, 0.25, size=(26, 126)).astype(np.float32)
+    val_y = np.arange(26, dtype=np.int64)
+    np.savez_compressed(tmp_path / "train.npz", x=train_x, y=train_y)
+    np.savez_compressed(tmp_path / "val.npz", x=val_x, y=val_y)
+
+    # Deliberately do not create test.npz. Candidate selection must use validation only.
+    result = train_model(
+        root=tmp_path,
+        output_path=tmp_path / "candidate.pt",
+        epochs=1,
+        batch_size=26,
+        learning_rate=1e-3,
+        weight_decay=1e-4,
+        target_class_accuracy=1.0,
+        seed=73,
+        hidden_dim=16,
+        embedding_dim=8,
+        dropout=0.0,
+        validation_only=True,
+    )
+
+    assert result["test_accuracy"] is None
+    assert result["test_per_letter"] is None
+    assert result["test_counts"] is None
+    assert len(result["validation_per_letter"]) == 26
+    assert (tmp_path / "candidate.pt").is_file()
+
