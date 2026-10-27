@@ -1,232 +1,329 @@
 # VisionBridge
 
-**Few-shot signer-adaptive Indian Sign Language letter recognition.**
+**VisionBridge is a browser-based communication portal with Indian Sign Language (ISL) A–Z fingerspelling recognition and optional signer-specific calibration.** It combines a live camera tracker, a compact browser inference path, calibration profiles, prediction history, speech input, and a communication word bank.
 
-VisionBridge's active product is a two-stage fingerspelling recognizer:
+> **Scope matters:** the verified ML task is isolated A–Z letter recognition. The portal also contains a speech-to-sentence and sign-token resolution prototype, but it is not a validated, general-purpose sentence-level ISL translator. See [Current limitations](#current-limitations).
 
-~~~text
+## What the portal currently includes
+
+| Area | Current behavior |
+|---|---|
+| **Camera Translate** | Uses the browser camera and MediaPipe Tasks Hand Landmarker to detect up to two hands, draw live landmarks, and recognize A–Z letters. |
+| **Cybernetic glove** | Shows a procedural Three.js visualization synchronized to detected hand landmarks. It is a visual tracker, not a second recognition model. |
+| **Signer calibration** | Captures examples for selected letters and fits a prototype adapter in the base model's 64D embedding space. Each calibrated letter needs at least three examples. |
+| **Current message** | Shows committed letters and provides Add space, Backspace, and Clear controls. The current implementation is a short rolling buffer, not a long-form text editor. |
+| **History** | Lists saved recognition events and supports CSV export. |
+| **Speak** | Uses browser speech-recognition capabilities to capture text, group it into sentences, and prepare a sequence of sign-reference tokens. Browser support and microphone permission are required. |
+| **Word Bank** | Provides built-in communication vocabulary, custom phrases, and assignment to Quick Access. |
+| **Quick Access and profiles** | Supports ten Quick Access slots, profile-specific communication preferences, signing speed, voice preferences, and avatar settings. |
+| **Settings and accounts** | Provides registration/sign-in, theme preferences, account controls, adapter management, and browser permission guidance. |
+
+## Application routes
+
+| Route | Purpose |
+|---|---|
+| ``/``, ``/login`` | Sign in or create an account |
+| ``/dashboard`` | Home and recent recognition activity |
+| ``/translate`` | Live camera recognition and letter composition |
+| ``/calibration`` | Capture examples and fit a signer adapter |
+| ``/voice-to-sign`` | Speech input, sentence queue, and sign-token resolution prototype |
+| ``/word-bank`` | Vocabulary, custom phrases, and Quick Access assignment |
+| ``/personalization`` | Profiles, avatar preferences, voice/speed settings, and saved phrases |
+| ``/history`` | Review, clear, and export recognition history |
+| ``/settings`` | Appearance, account, permissions, and adapter lifecycle |
+
+## Architecture
+
+### Camera recognition path
+
+```text
 Browser camera
-  -> MediaPipe Tasks Hand Landmarker 0.10.35 hand landmarks
-  -> normalized 126D two-hand vector
-  -> dynamic 26-class ISL letter base model
-  -> 64D embedding for signer adaptation
-  -> few-shot signer adapter
-  -> one predicted letter + confidence
-~~~
-
-## Base model + few-shot adapter
-
-### Base model
-
-The base model is a configurable MLP trained on general ISL A-Z data and can be retrained or scaled as new data becomes available.
-
-| Contract | Value |
-|---|---:|
-| Left hand | 63 XYZ values |
-| Right hand | 63 XYZ values |
-| Combined input | 126 |
-| Default embedding | 64 |
-| Default output classes | 26 (A-Z) |
-| Loss | Cross-entropy |
-
-The base model remains trainable, versioned, hot-reloadable, and replaceable after each validated training cycle.
-
-### Dynamic scaling
-
-The default model uses 126 input features, a 128-unit hidden layer, a 64D embedding, and 26 A-Z outputs. These are defaults, not immutable architecture limits.
-
-Hidden width, embedding width, and dropout are checkpoint-defined within the active V3 input/output contract. The active V3 runtime remains 126D input with the A-Z vocabulary. A future input or vocabulary change requires a new model version, updated preprocessing/runtime contracts, and a fresh validation cycle. The backend hot-reloads compatible checkpoints, while existing adapters record the model version and checkpoint hash and require recalibration when the embedding space changes.
-
-## Few-shot signer adapter
-
-The signer adapter operates on the current model's configured embedding. The signer captures a few examples for each letter they want to recognize. The adapter stores a normalized prototype for each calibrated letter and predicts by cosine similarity.
-
-The adapter records the exact base-model version and checkpoint SHA-256. Replacing the base checkpoint requires recalibration rather than silently mixing incompatible representations.
-Raw calibration landmarks are not stored in the active adapter payload; the adapter stores the derived letter prototypes and compatibility metadata instead.
-
-## Do I need to train anything?
-
-**Yes, an initial base-model training job is required. Future model upgrades use the same training pipeline; no separate offline adapter-training job is required.**
-
-You do **not** need to train the few-shot adapter offline.
-
-The lifecycle is:
-
-~~~text
-1. Prepare ISL alphabet landmarks
-2. Train or upgrade base model
-3. Validate base model on its held-out test split
-4. Install the small base checkpoint
-5. New signer captures 3 examples/letter
-6. Fit signer adapter at runtime
-7. Recognize unseen examples with the current validated base + adapter
-~~~
-
-The previous continuous sentence-level architecture is no longer part of the critical path.
-
-## Dataset
-
-The default training source is the public RealSign Indian Sign Language alphabet dataset. Its repository documents 26 ISL alphabet classes and separate training, testing, and validation folders.
-
-RealSign ISL alphabet dataset: https://github.com/RealSign62/RealSign-Indian-Sign-Language-Dataset
-
-The repository preparation script and browser runtime both use MediaPipe Tasks Hand Landmarker 0.10.35 with the same 21-point normalized landmark contract. The browser uses the version-pinned Tasks Vision package and the same hand-landmarker.task model bundle. The training notebook downloads the RealSign `Dataset.zip` archive directly from an immutable RealSign source commit via the public source media endpoint, then verifies its exact size and SHA-256 before extraction. VisionBridge does not require Git LFS for the training dataset.
-
-## Active API
-
-~~~text
-GET  /api/v1/letter/status
-GET  /api/v1/letter/model
-GET  /api/v1/letter/adapters/{id}
-POST /api/v1/letter/calibrate
-POST /api/v1/letter/predict
-POST /api/v1/letter/event
-~~~
-
-The active endpoints validate the hand contract, require authentication, enforce adapter ownership, rate-limit the expensive operations, and bind adapters to the base-model checksum.
-
-## Training notebook
-
-Run:
-
-~~~text
-notebooks/train_letter_base_colab.ipynb
-~~~
-
-The notebook downloads the RealSign archive directly from the public source, downloads the versioned MediaPipe Hand Landmarker task model, extracts the two-hand landmarks through the supported MediaPipe Tasks API, builds a stratified 80/20 train-validation split from the dataset's training + validation pools, and automatically iterates base-model training. After each epoch it measures accuracy for every A-Z class on the full validation split. Training can run for up to 1000 epochs and stops when every letter reaches the configured target. The dataset's original testing split is kept untouched and measured separately. The best checkpoint is always saved.
-
-Equivalent CLI training command:
-
-~~~bash
-PYTHONPATH=backend python -m app.training.letter_base \
-  --data-dir /content/visionbridge_letter_data \
-  --output backend/app/models/weights/letter_base_model.pt \
-  --epochs 1000 \
-  --target-class-accuracy 1.0
-~~~
-
-After the training run, commit the generated small checkpoint:
-
-~~~text
-backend/app/models/weights/letter_base_model.pt
-~~~
-
-The file is intentionally allowed by .gitignore because the production API needs the trained base model locally.
-
-### Migrating a legacy V3 checkpoint
-
-Some V3 checkpoints created before the current metadata contract may contain valid
-learned weights but lack the preprocessing/runtime metadata now required by the
-strict loader. Migrate such a checkpoint without changing its learned tensors:
-
-~~~bash
-PYTHONPATH=backend python -m scripts.migrate_v3_checkpoint   --input /path/to/legacy_v3.pt   --output backend/app/models/weights/letter_base_model.pt
-~~~
-
-The migration utility accepts only the active V3 architecture and A-Z vocabulary,
-adds the versioned preprocessing/runtime metadata, and refuses incompatible or
-non-finite checkpoints. The migrated checkpoint must still pass the canonical
-held-out test evaluation before it is accepted for deployment.
-
-## Real-time architecture
-
-Recognition is optimized so the per-frame hot path stays inside the browser:
-
-~~~text
-camera
   -> MediaPipe Tasks Hand Landmarker 0.10.35
-  -> 126D normalization
-  -> browser base-model inference
-  -> browser few-shot adapter
+  -> 21 landmarks per detected hand (x, y, z)
+  -> left-hand slot (63 values) + right-hand slot (63 values)
+  -> independent wrist-centering and scale normalization
+  -> 126D input vector
+  -> V3 base classifier (26 A-Z logits and 64D embedding)
+  -> optional signer adapter (normalized prototypes + cosine similarity)
   -> letter + confidence
-~~~
+  -> stability/confidence gate
+  -> on-screen message buffer and optional history event
+```
 
-The backend is used for authentication, one-time model/adapter loading, calibration persistence, and asynchronous recognition-event history. The real-time loop does not wait for FastAPI on every frame.
+The per-frame model path runs in the browser in real mode. The backend supplies the model and adapter payloads, handles calibration persistence and authentication, and records history events. Normal live inference does not need a FastAPI request for every camera frame.
 
-The camera also renders a live 21-point hand skeleton plus a short wrist-motion trail.
+The hand-tracking overlay and cybernetic glove use live MediaPipe landmarks. Neither changes the model's prediction. If a hand is absent, its feature slot is represented by zeros; the normalizer rejects an input when both slots are empty.
 
-The browser tracker uses the version-pinned MediaPipe Tasks Hand Landmarker 0.10.35 configuration documented above.
+### V3 model contract
 
-This targets near-zero network latency, not literal zero milliseconds. The actual result depends on the user's camera, browser, hardware, and tracking workload.
+| Property | Current contract |
+|---|---:|
+| Left-hand landmarks | 21 × XYZ = 63 values |
+| Right-hand landmarks | 21 × XYZ = 63 values |
+| Combined input | 126 values |
+| Hidden layer | 128 units by default |
+| Embedding | 64 dimensions by default |
+| Output vocabulary | 26 classes, A–Z |
+| Default loss | Cross-entropy |
+| Preprocessing version | ``two-hand-wrist-scale-v1`` |
+| Landmark runtime | ``mediapipe-hand-landmarker-0.10.35`` |
+| Model version | ``visionbridge-letter-base-v3`` |
 
-## Run locally
+The base model is a small, configurable MLP: LayerNorm, Linear, GELU, Dropout, Linear, LayerNorm, GELU, followed by a 26-class output head. Its checkpoint records model, preprocessing, runtime, dimension, vocabulary, and dropout metadata. Incompatible checkpoints and adapters are rejected. Adapters are tied to the base checkpoint SHA-256 and need recalibration if the base model changes.
 
-### 1. Train the base model
+### Speech and sign-token path
 
-Run `notebooks/train_letter_base_colab.ipynb`.
+The Speak page uses the browser Web Speech API for speech recognition, sentence buffering/reconciliation, and playback controls. Sentence text is resolved against the vocabulary and the sign-asset registry. The current registry contains A–Z letter-atlas entries, while the word and phrase asset maps are empty. Consequently, this path is a prototype for speech-to-sentence handling and sign-token resolution, **not** proof of accurate semantic ISL sentence translation. See [Current limitations](#current-limitations).
 
-Install the resulting checkpoint at:
+## Current recorded model evaluation
 
-~~~text
-backend/app/models/weights/letter_base_model.pt
-~~~
+The repository contains a recorded test evaluation in [``visionbridge_letter_evaluation.json``](visionbridge_letter_evaluation.json), bound to checkpoint SHA-256:
 
-### 2. Start the backend
+``f903872e96f269c5fbee6ea897f0027b91e162f2fc45b4c9a115e8ba8e38c917``
 
-~~~bash
+| Metric | Recorded result |
+|---|---:|
+| Prepared test samples evaluated | 4,633 |
+| Overall accuracy | 98.2733% |
+| Macro class accuracy | 98.2913% |
+| Weakest class | W |
+| W accuracy | 78.7710% |
+| Parameters | 26,582 |
+| Checkpoint size | 111,429 bytes |
+
+These are **stored dataset-evaluation results**, not a new run performed by reading this README, and not a live-webcam accuracy guarantee. Per-letter sample counts range from 137 to 200 in the stored report because landmark extraction can skip unusable images. The headline accuracy therefore describes the samples that reached the prepared test set, not every source image. The report includes per-letter counts and the full confusion matrix.
+
+The most important recorded confusion is W, often predicted as M, N, or O. Do not hide that class weakness behind the overall score.
+
+## Dataset and reproducible preparation
+
+The training source is the public [RealSign Indian Sign Language alphabet dataset](https://github.com/RealSign62/RealSign-Indian-Sign-Language-Dataset). The dataset archive is downloaded during training; it is **not stored in this repository**, and Git LFS is not required for the dataset.
+
+The training notebook pins a RealSign source commit and verifies the archive's expected size and SHA-256 before extracting it. It also downloads and verifies the MediaPipe Hand Landmarker ``.task`` asset. Dataset preparation is implemented in ``backend/scripts/prepare_letter_dataset.py`` and produces:
+
+```text
+visionbridge_letter_data/
+├── train.npz
+├── val.npz
+├── test.npz
+├── labels.json
+├── train_manifest.jsonl
+├── val_manifest.jsonl
+├── test_manifest.jsonl
+└── duplicate_report.json
+```
+
+The pipeline:
+- Extracts two-hand landmarks with MediaPipe Tasks Hand Landmarker 0.10.35.
+- Keeps the source testing split separate from training and validation.
+- Creates a stratified 80/20 train/validation split from the source training and validation pools.
+- Records source path, source split, class label, and exact image SHA-256 in manifests.
+- Groups exact duplicates during the generated train/validation split and checks exact-hash overlap against the test split.
+- Saves class counts and records images skipped when valid landmarks cannot be extracted.
+
+Exact-hash checks do not prove signer independence or detect every near-duplicate frame. The current source folder structure does not expose verified signer IDs, so signer-independent evaluation remains **blocked**.
+
+## Run the application locally
+
+### Prerequisites
+
+- Python 3.11 for the backend.
+- Node.js 20.x and npm for the frontend.
+- A modern browser with camera access. Camera access on deployed websites requires HTTPS; localhost is suitable for local development.
+- Internet access to load the pinned MediaPipe Tasks Vision runtime, hand-landmarker asset, and (in real mode) the model payload from the backend.
+
+### 1. Start the backend
+
+From the repository root:
+
+```bash
 cd backend
-python -m pip install -r requirements.txt
-uvicorn app.main:app --reload
-~~~
+python -m venv .venv
+```
 
-### 3. Start the frontend
+Activate the environment:
+
+```powershell
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
+```
+
+```bash
+# macOS / Linux
+source .venv/bin/activate
+```
+
+Install the backend dependencies and start FastAPI:
+
+```bash
+python -m pip install -r requirements.txt
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+The current checkpoint is committed at ``backend/app/models/weights/letter_base_model.pt``, so you do not need to train the model just to run the application. The backend defaults to a local SQLite database for development. Interactive API documentation is available at ``http://127.0.0.1:8000/docs``; health and readiness endpoints are under ``/api/v1/health`` and ``/api/v1/ready``.
+
+### 2. Start the frontend
 
 In a second terminal:
 
-~~~bash
+```bash
 cd frontend
-npm install
-npm run dev
-~~~
+npm ci
+```
 
-For the real model path, set:
+The checked-in ``.env.example`` documents the frontend variables. To use the full local backend, create ``frontend/.env`` (this file is ignored by Git) with:
 
-~~~text
-VITE_LOCAL_MODE=false
+```dotenv
 VITE_API_BASE_URL=http://127.0.0.1:8000/api/v1
-~~~
+VITE_LOCAL_MODE=false
+```
 
-The browser fetches the current model once, fetches the selected signer adapter once, and performs frame-by-frame prediction locally. The backend prediction endpoint remains available for diagnostics and fallback.
+Then start Vite:
 
-## Frontend
+```bash
+npm run dev
+```
 
-The active UI is:
+Open the URL Vite prints, normally ``http://localhost:5173``, and sign in or register. Grant camera permission for Translate and microphone permission for Speak when the browser asks.
 
-~~~text
-/dashboard   status and recent letter events
-/calibration capture few-shot signer examples
-/translate   live letter recognition
-/history     letter prediction history
-/settings    signer adapter lifecycle
-~~~
+### Local demo mode versus real mode
 
-The old sentence translation screens are no longer the active product flow.
+- **Local demo mode:** ``VITE_LOCAL_MODE=true``. The frontend's demo data, account-like state, adapter prototypes, history, word bank, profiles, and communication settings are stored in browser ``localStorage``. This is convenient for UI exploration but is not server-backed persistence or an end-to-end production test.
+- **Real mode:** ``VITE_LOCAL_MODE=false``. The frontend uses the configured FastAPI API and the committed base-model checkpoint. Calibration, authentication, adapters, and history use the backend/database path. Set ``VITE_API_BASE_URL`` to the matching API base URL.
 
-## Verification boundary
+Do not deploy with local demo mode when you expect server authentication and persistent account data.
 
-The repository's GitHub Actions product-validation workflow is active. The latest verified branch run completed the backend test suite, frontend production build in real mode, and browser/Python numerical parity check successfully. These checks verify software integration and build integrity; they do not replace the human production-device checklist.
+## Training and evaluation
 
-The current release evidence records the validated V3 checkpoint, held-out dataset evaluation, production database binding, and custom-auth RLS checks. This repair iteration does not claim a new model-quality measurement; it preserves the recorded V3 baseline of 4,633 held-out test samples with 98.143751% overall accuracy and 98.167981% macro accuracy. W remains the weakest recorded class at 72.625698%.
+Training is optional when using the committed model. Retrain only when preparing a candidate checkpoint for review.
 
-Two separate measurements matter:
+### Recommended reproducible training workflow
 
-1. Base-model accuracy on the held-out dataset test split.
-2. Few-shot signer accuracy on held-out examples from a signer not used during adapter calibration.
+Run the notebook in Colab:
 
-Signer-independent evaluation remains a required release gate. The active RealSign metadata does not expose verified signer IDs, so this gate is still BLOCKED and must not be bypassed.
+- [Train and compare accuracy candidates](https://colab.research.google.com/github/BharathWaj-K-R/VisionBridge/blob/main/notebooks/train_letter_base_colab.ipynb)
+- [Evaluate the currently committed V3 checkpoint](https://colab.research.google.com/github/BharathWaj-K-R/VisionBridge/blob/main/notebooks/evaluate_letter_base_v3_colab.ipynb)
 
-The repository is configured for real mode in production (VITE_LOCAL_MODE=false). Live camera execution on a physical device and live Render end-to-end verification remain NOT VERIFIED in this environment. A dedicated pgTAP RLS suite also remains a maintenance item rather than claimed release evidence.
+The training notebook creates an isolated Python 3.12 environment, verifies the pinned dataset and MediaPipe assets, prepares landmarks, trains controlled candidates, selects by validation metrics, and evaluates the selected candidate on the untouched test split. A GPU is recommended for training; dataset download and landmark extraction can still take time.
 
-## Evaluation
+The GitHub Actions workflow **VisionBridge Accuracy Optimization** is manually triggered. It runs the training notebook, uploads reports, and conditionally commits a candidate checkpoint and evidence to ``main`` only when the configured selection, held-out test, browser/PyTorch parity, and backend test gates pass. Normal commits do not automatically retrain the model.
 
-Use the canonical evaluator after preparing the dataset and installing a checkpoint:
+The underlying training module is ``backend/app/training/letter_base.py``. It supports configurable hidden/embedding widths, dropout, cross-entropy or focal loss, class-focused loss weights, and mild landmark jitter/rotation. Model selection should use validation data; do not repeatedly use the test set to tune hyperparameters.
 
-~~~bash
-PYTHONPATH=backend python -m app.training.evaluate_letter_base \
-  --checkpoint backend/app/models/weights/letter_base_model.pt \
-  --data-dir /content/visionbridge_letter_data \
-  --split test \
-  --output-json /content/visionbridge_letter_evaluation.json
-~~~
+### Evaluate a prepared checkpoint
 
-The evaluator reports overall accuracy, macro class accuracy, per-letter accuracy, the weakest class, the full A-Z confusion matrix, checkpoint size, parameter count, and model-only latency. Test results are for measurement only and must not be used repeatedly to tune training settings.
+Install training dependencies only when preparing data or running training locally:
+
+```bash
+python -m pip install -r backend/requirements-training.txt
+```
+
+From the repository root, run the canonical evaluator against a prepared dataset:
+
+```bash
+PYTHONPATH=backend python -m app.training.evaluate_letter_base --checkpoint backend/app/models/weights/letter_base_model.pt --data-dir /content/visionbridge_letter_data --split test --output-json /content/visionbridge_letter_evaluation.json
+```
+
+The evaluator reports overall and macro accuracy, per-letter accuracy, class counts, the confusion matrix, checkpoint hash/size, parameter count, and model-only latency. Test evaluation is for final measurement; use ``--split val`` when comparing candidate checkpoints.
+
+### Checkpoint compatibility
+
+A future change to input features, preprocessing, landmark runtime, or label vocabulary needs a new compatible model/runtime contract and fresh evaluation. The migration utility ``backend/scripts/migrate_v3_checkpoint.py`` is only for eligible legacy V3 checkpoints missing required metadata. It does not retrain or improve the learned weights, and migrated weights must still pass the evaluator and release checks.
+
+## Backend API overview
+
+The API version prefix is ``/api/v1``.
+
+| Area | Routes |
+|---|---|
+| Health | ``GET /health``, ``GET /ready`` |
+| Authentication | ``POST /auth/register``, ``POST /auth/login``, ``GET /auth/csrf``, ``POST /auth/logout`` |
+| Current user and adapters | ``GET /users/me``, ``GET /users/me/adapters``, ``DELETE /users/me/adapters/{id}`` |
+| Letter model | ``GET /letter/status``, ``GET /letter/model``, ``GET /letter/adapters/{id}`` |
+| Calibration and recognition | ``POST /letter/calibrate``, ``POST /letter/predict``, ``POST /letter/event`` |
+| Dashboard and history | ``GET /dashboard``, ``GET /history``, ``DELETE /history``, ``GET /history/export.csv`` |
+| Words and Quick Access | ``GET/POST /communication/words``, ``PUT/DELETE /communication/words/{id}``, ``GET/PUT /communication/quick-access`` |
+| Profiles and usage | ``GET/POST /communication/profiles``, ``PUT/DELETE /communication/profiles/{id}``, ``POST /communication/usage``, ``GET /communication/most-used`` |
+
+Protected routes require authentication. The API validates the active model/adapter contract, scopes user-owned records, and applies request limits to authentication, calibration, and recognition endpoints.
+
+## Configuration and deployment
+
+- ``render.yaml`` defines the Render Python API and static frontend services.
+- The frontend production configuration must use ``VITE_LOCAL_MODE=false`` and a valid ``VITE_API_BASE_URL``.
+- Production backend configuration requires a strong non-default ``SECRET_KEY``, a durable PostgreSQL ``DATABASE_URL`` (SQLite is rejected in production), correct ``ALLOWED_ORIGINS``, and valid secure-cookie settings.
+- The backend uses FastAPI JWT/HttpOnly-cookie authentication, a CSRF token/header for browser state-changing requests, password validation/hashing, security response headers, and in-process rate limiters.
+- Supabase SQL migrations define the custom ``visionbridge_app`` database role and owner-scoped row-level security for application tables. Review/apply the required migrations to the target database before relying on those controls. The release records include runtime RLS verification; a dedicated pgTAP suite is still listed as maintenance work.
+
+Relevant configuration examples are in ``backend/.env.example`` and ``frontend/.env.example``. Treat them as examples, not production secrets. The backend reads environment variables from its process environment; it does not load a ``.env`` file automatically.
+
+## Repository map
+
+```text
+.
+├── frontend/
+│   ├── src/App.tsx                         # Routes, auth, application shell
+│   ├── src/pages/                          # Dashboard, Translate, calibration, Speak, Words, history, settings, profiles
+│   ├── src/landmarks.ts                    # MediaPipe setup, normalization, tracking overlay
+│   ├── src/useLandmarkSession.ts            # Camera/landmark lifecycle
+│   ├── src/browserModel.ts                 # Browser-side V3 model and adapter inference
+│   ├── src/components/CyberneticHandGlove.tsx # Live procedural 3D hand display
+│   ├── src/api.ts                          # API client and local demo mode
+│   ├── src/signing/                        # Sign asset registry and token resolution
+│   └── public/signs/sign-atlas.webp        # A–Z reference atlas
+├── backend/
+│   ├── app/api/                            # Auth, letters, history, dashboard, communication, users, health
+│   ├── app/core/                           # Configuration, security, CSRF, rate limits
+│   ├── app/db/                             # SQLAlchemy models, sessions, PostgreSQL RLS context
+│   ├── app/models/letter_model.py          # V3 architecture and checkpoint contract
+│   ├── app/services/letter_fewshot.py       # Normalization and few-shot signer adapter
+│   ├── app/training/                       # Training and evaluation
+│   ├── scripts/                            # Dataset preparation, checkpoint migration, parity verification
+│   └── tests/                              # Backend, release, adapter, and training tests
+├── notebooks/                              # Colab training and evaluation notebooks
+├── data/README.md                          # Dataset source and prepared-data contract
+├── docs/release/                           # Release gates, accuracy experiments, parity and RLS evidence
+├── supabase/migrations/                    # PostgreSQL schema and RLS migrations
+├── visionbridge_letter_evaluation.json     # Stored test metrics and confusion matrix
+└── visionbridge_v3_release_evidence.json   # Checkpoint-bound release evidence
+```
+
+## Tests and CI
+
+The [Product Validation workflow](.github/workflows/product-validation.yml) runs on pushes and pull requests and includes:
+
+1. Backend regression tests: ``pytest -q`` in ``backend/``.
+2. Browser/PyTorch numerical parity: 32 generated input vectors, with a default maximum absolute error tolerance of ``1e-5``.
+3. Frontend TypeScript and Vite production build with ``VITE_LOCAL_MODE=false``.
+4. Production-artifact verification using ``frontend/scripts/verify-production-build.mjs``.
+
+Run the same checks locally:
+
+```bash
+# Backend tests
+cd backend
+python -m pip install -r requirements.txt
+pytest -q
+
+# Frontend build (in a second terminal, from the repository root)
+cd frontend
+npm ci
+npm run build
+node scripts/verify-production-build.mjs
+```
+
+The automated checks validate code contracts and builds; they do not replace testing camera/microphone permissions, live device behavior, signer-held-out accuracy, or a complete production deployment on a real browser/device.
+
+## Current limitations
+
+1. **A–Z isolated-letter scope.** The base model predicts a single alphabet letter from a frame. It does not perform continuous ISL grammar or sentence-level sign-language translation.
+2. **Voice-to-sign remains a prototype.** Browser speech recognition and sentence/token processing exist, but ``WORD_SIGN_ASSETS`` and ``PHRASE_SIGN_ASSETS`` are empty. Do not advertise the current flow as a validated semantic sign translator.
+3. **Short rolling camera buffer.** On committing a new letter, the current message buffer retains at most the latest six tokens. It needs a buffer behavior change before it can act as a long-form sentence composer.
+4. **Dataset coverage.** The recorded prepared test set has 4,633 samples with uneven per-letter support. Images that fail landmark preparation are skipped, so end-to-end failure rates across every source image are not represented by classification accuracy alone.
+5. **Signer generalization.** Verified signer IDs are absent from the active dataset metadata; signer-independent evaluation is blocked.
+6. **W-class weakness.** W is the weakest class in the current recorded test report at 78.77%; it is commonly confused with M, N, and O.
+7. **Live-device verification.** Automated CI does not exercise a real camera/microphone or prove accuracy in varying lighting, angles, users, and hardware.
+8. **Sign asset coverage.** The repository includes a static A–Z atlas. Word/phrase assets need to be added and validated before claiming broad visual ISL phrase coverage.
+9. **Database migration tests.** Runtime RLS evidence is recorded, but a dedicated pgTAP suite is not yet part of CI.
+
+Keep those limitations visible when publishing the project or reporting accuracy.
