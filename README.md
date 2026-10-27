@@ -314,6 +314,8 @@ node scripts/verify-production-build.mjs
 
 The automated checks validate code contracts and builds; they do not replace testing camera/microphone permissions, live device behavior, signer-held-out accuracy, or a complete production deployment on a real browser/device.
 
+> **Release gate: BLOCKED.** The committed checkpoint has recorded same-source held-out test metrics, but signer-independent evaluation remains a required gate and is blocked because the active dataset metadata does not expose verified signer IDs. A passing model test or CI run does not satisfy that gate.
+
 ## Current limitations
 
 1. **A–Z isolated-letter scope.** The base model predicts a single alphabet letter from a frame. It does not perform continuous ISL grammar or sentence-level sign-language translation.

@@ -1,6 +1,6 @@
 {
   "release": "visionbridge-letter-base-v3",
-  "status": "READY_WITH_LIMITATIONS",
+  "status": "BLOCKED",
   "generated_at": "2026-10-26",
   "contract": {
     "input_dim": 126,
@@ -32,9 +32,9 @@
   "browser_pytorch_parity": {
     "source": "docs/release/visionbridge-v3-browser-parity.json",
     "samples": 32,
-    "embedding_max_abs_error": 1.9073486328125e-06,
-    "logits_max_abs_error": 4.76837158203125e-06,
-    "tolerance": 1e-05,
+    "embedding_max_abs_error": 0.0000019073486328125,
+    "logits_max_abs_error": 0.00000476837158203125,
+    "tolerance": 0.00001,
     "passed": true,
     "execution_run_id": 40271318881,
     "execution_commit": "add639cb5f395291f1c70b773f0cdec0b5c950a6"
@@ -84,5 +84,13 @@
     "Add and run a dedicated pgTAP RLS suite through Supabase CLI/CI.",
     "Do not claim signer-independent evaluation without verified signer IDs."
   ],
-  "release_rule": "Release is ready with documented limitations. Candidate model was selected on validation, accepted only after the held-out test promotion gate, and checked for browser/PyTorch parity and backend regression tests. Signer-independent evaluation remains blocked without verified signer IDs."
+  "release_rule": "The current checkpoint has recorded same-source held-out test results and recorded browser/PyTorch parity plus backend regression evidence. Release sign-off remains BLOCKED until signer-independent evaluation is possible with verified signer identities. Aggregate image-split accuracy and passing CI do not satisfy this gate.",
+  "status_reviewed_at": "2026-10-27",
+  "release_blockers": [
+    {
+      "status": "BLOCKED",
+      "requirement": "Signer-independent held-out evaluation",
+      "reason": "The active RealSign dataset metadata does not expose verified signer IDs; the engineering contract defines this as a mandatory release gate."
+    }
+  ]
 }

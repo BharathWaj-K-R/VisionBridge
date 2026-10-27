@@ -2178,3 +2178,60 @@ STATUS:
     Base-model training and untouched-test evaluation evidence received and
     recorded. Deployment/live-camera verification is still a separate runtime
     step.
+
+
+---
+
+# 2026-10-27 — Documentation consistency audit and current evidence reconciliation
+
+SCOPE:
+    Documentation-only pass across the root README, engineering hand-off,
+    release baseline/gate, dataset guidance, UX notes, and public llms.txt.
+    No application source, model weights, dataset files, or training notebook
+    behavior were changed in this pass.
+
+CURRENT CHECKPOINT:
+    path: backend/app/models/weights/letter_base_model.pt
+    sha256: f903872e96f269c5fbee6ea897f0027b91e162f2fc45b4c9a115e8ba8e38c917
+    input_dim=126
+    hidden_dim=128
+    embedding_dim=64
+    num_classes=26
+    preprocessing_version=two-hand-wrist-scale-v1
+    landmark_runtime=mediapipe-hand-landmarker-0.10.35
+
+CURRENT RECORDED TEST EVALUATION:
+    prepared test samples: 4633
+    overall accuracy: 98.273257%
+    macro class accuracy: 98.291294%
+    weakest class: W (78.770950%)
+    source: visionbridge_letter_evaluation.json
+
+RECONCILIATION:
+    The dated 2026-09-26 test entry above records the then-submitted checkpoint
+    and its older SHA-256/metrics. It is historical evidence and is superseded
+    for the current committed checkpoint by the evaluation artifact identified
+    above. The old entry is retained rather than rewritten because it documents
+    the original run accurately.
+
+CI BOUNDARY:
+    The last observed product-validation workflow before this documentation
+    pass succeeded on commit a273fe09b6ed94d20e4878d40ca4323300e0b353:
+    https://github.com/BharathWaj-K-R/VisionBridge/actions/runs/40485483197
+    It passed backend tests, browser/PyTorch numerical parity, the frontend
+    production build, and production-artifact verification. This was before
+    the documentation update in this entry; a new run is needed to verify the
+    new commit.
+
+RELEASE DECISION:
+    BLOCKED. The active source metadata lacks verified signer IDs, so mandatory
+    signer-independent evaluation cannot currently be performed. Aggregate
+    same-source test accuracy does not establish signer-independent accuracy.
+    Physical browser camera/microphone execution is not exercised by CI.
+    Production PostgreSQL/RLS evidence is recorded separately, and a dedicated
+    pgTAP RLS suite remains unimplemented.
+
+STATUS:
+    Documentation facts reconciled to current repository artifacts.
+    No training, model promotion, live Render probe, or physical-device test was
+    performed as part of this documentation-only change.

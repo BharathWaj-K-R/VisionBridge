@@ -51,4 +51,4 @@ The production RLS implementation is active and runtime-verified. A dedicated pg
 ## Explicit limitations
 
 - Signer-independent evaluation remains blocked because verified signer IDs are not exposed by the active RealSign metadata.
-- W remains the weakest recorded letter at 72.625698% accuracy.
+- The current model report records W as the weakest letter at 78.770950% accuracy; see `docs/release/visionbridge-v3-public-baseline.md` for the full checkpoint hash and evaluation context.

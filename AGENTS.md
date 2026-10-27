@@ -16,6 +16,38 @@ Browser camera
 
 The project is intentionally scoped to single-letter recognition, not sentence translation.
 
+
+## Current repository status snapshot — 2026-10-27
+
+This snapshot supersedes older status statements in the dated engineering diary below. The diary is retained as historical audit evidence; entries describing a missing checkpoint, disabled CI, SQLite-only production, or unverified model metrics describe an earlier repository state and must not be used as the current status.
+
+### Current model artifact
+
+- Checkpoint: `backend/app/models/weights/letter_base_model.pt`
+- Model contract: 126 input values → 128 hidden units → 64D embedding → 26 A–Z logits.
+- Preprocessing: `two-hand-wrist-scale-v1`
+- Landmark runtime: `mediapipe-hand-landmarker-0.10.35`
+- Checkpoint SHA-256: `f903872e96f269c5fbee6ea897f0027b91e162f2fc45b4c9a115e8ba8e38c917`
+- Recorded held-out test report: 4,633 prepared samples; overall accuracy 98.273257%; macro class accuracy 98.291294%; W accuracy 78.770950%.
+- Source of metric values: `visionbridge_letter_evaluation.json`. These are stored dataset-evaluation results, not a live-camera accuracy guarantee. The older test report in the dated September 2026 log remains historical and is superseded by this artifact.
+
+### Current verification boundary
+
+- Product-validation workflow: the latest observed run before this documentation-only update passed backend tests, browser/PyTorch numerical parity, the frontend production build, and production-artifact verification: [run 40485483197](https://github.com/BharathWaj-K-R/VisionBridge/actions/runs/40485483197), for commit `a273fe09b6ed94d20e4878d40ca4323300e0b353`. This run predates the present documentation commit; the new commit must pass its own triggered CI.
+- Checkpoint/test evidence: recorded in the model evaluation and release-evidence JSON files.
+- Signer-independent evaluation: **BLOCKED** because verified signer IDs are not available in the active RealSign metadata. This is a mandatory release gate, not an optional metric.
+- Real camera/microphone behavior on a physical browser/device: **NOT VERIFIED by CI**.
+- Complete live production user journey: **NOT VERIFIED in this documentation pass**.
+- Production PostgreSQL/RLS checks: recorded in `docs/release/visionbridge-custom-auth-rls-verification.json`; that artifact is prior runtime evidence, not a new production probe performed during this documentation pass.
+- Dedicated pgTAP RLS CI suite: **NOT IMPLEMENTED**.
+
+### Release decision
+
+**Release gate status: BLOCKED.** A recorded same-source test score and passing code CI do not establish signer-independent generalization. Do not call the release fully validated until verified signer-held-out evaluation is possible and the required release checks are completed. Keep the recorded model metrics visible, including the W-class weakness.
+
+---
+
+
 ---
 
 # Maintainability standard
@@ -696,75 +728,66 @@ Do not revive inactive behavior merely to satisfy an old test or document.
 
 ---
 
-# 12. Verification status
+# 12. Verification status — current snapshot 2026-10-27
 
-Current known evidence:
+Current recorded evidence:
 
 ~~~text
 Active architecture source: STATIC VERIFIED
-Base model implementation: HISTORICAL CI VERIFIED
-Few-shot adapter implementation: HISTORICAL CI VERIFIED
-Letter API implementation: HISTORICAL CI VERIFIED
-Frontend TypeScript check: HISTORICAL CI VERIFIED
-Frontend production build: HISTORICAL CI VERIFIED
-Production artifact verification: HISTORICAL CI VERIFIED
-Base checkpoint trained on real data: NOT VERIFIED
-Base test accuracy: NOT VERIFIED
-Held-out signer accuracy: NOT VERIFIED
-Browser camera runtime in this environment: NOT VERIFIED
-Live Render end-to-end behavior: NOT VERIFIED
-Production database hardening: NOT VERIFIED
-Production HttpOnly authentication: NOT VERIFIED
+Model checkpoint contract and checkpoint hash: RECORDED / CHECKPOINT PRESENT
+Held-out dataset test report: RECORDED (4,633 prepared samples)
+Recorded overall accuracy: 98.273257%
+Recorded macro class accuracy: 98.291294%
+Recorded weakest class W: 78.770950%
+Backend regression tests: CI VERIFIED on the last observed workflow run
+Browser/PyTorch numerical parity: CI VERIFIED on the last observed workflow run (32 vectors, 1e-5 tolerance)
+Frontend production build and artifact verification: CI VERIFIED on the last observed workflow run
+Held-out signer accuracy: BLOCKED (verified signer IDs unavailable)
+Physical browser camera/microphone execution: NOT VERIFIED by CI
+Complete live production end-to-end journey: NOT VERIFIED in this documentation pass
+Production PostgreSQL/RLS runtime evidence: RECORDED in the release verification artifact
+Dedicated pgTAP RLS suite: NOT IMPLEMENTED
+Release gate: BLOCKED
 ~~~
 
-Known successful code verification:
+The last observed product-validation run before the present documentation-only change passed the backend tests, numerical parity job, frontend production build, and production-artifact verification: [GitHub Actions run 40485483197](https://github.com/BharathWaj-K-R/VisionBridge/actions/runs/40485483197), on commit `a273fe09b6ed94d20e4878d40ca4323300e0b353`. That result predates this documentation commit; do not treat it as CI for the updated documentation tree.
 
-~~~text
-Historical GitHub Actions run #197
-backend: 72 passed, 1 skipped
-Python compilation: PASS
-frontend TypeScript check: PASS
-Vite production build: PASS
-production artifact verification: PASS
-~~~
+The recorded held-out metrics come from `visionbridge_letter_evaluation.json`. They describe prepared test samples only, not all source images and not real-world camera performance. Refer to `docs/release/visionbridge-v3-public-baseline.md` for the current release decision.
 
-Do not extend the above evidence into claims about model quality or real-world recognition.
+Historical workflow/test records elsewhere in this file are intentionally retained as a dated audit trail. They are not the present verification status unless this section repeats the claim.
 
 ---
 
 # 13. Current blocker board
 
 ~~~text
-A  Train base model on real ISL A-Z data             NOT VERIFIED
-B  Record held-out base test performance             BLOCKED until A
-C  Validate few-shot adaptation on held-out signer   REQUIRED / BLOCKED until A+B+verified signer metadata
-D  Verify browser camera + real inference            NOT VERIFIED
-E  Verify live Render real-mode flow                 BLOCKED until A-D
-F  Durable production database                     NOT IMPLEMENTED
-G  Production HttpOnly authentication              NOT IMPLEMENTED
-H  Production rate limiting hardening              NOT VERIFIED
+A  Committed V3 checkpoint + recorded same-source test evaluation   EVIDENCE RECORDED
+B  Signer-independent held-out evaluation                           BLOCKED: verified signer IDs unavailable
+C  Few-shot adapter evaluation on unseen signers                    BLOCKED until B is possible
+D  Physical browser camera/microphone verification                  NOT VERIFIED by CI
+E  Complete live production real-mode journey                       NOT VERIFIED in this documentation pass
+F  Production PostgreSQL/RLS                                        Runtime evidence recorded; current re-probe not performed here
+G  Dedicated pgTAP RLS suite                                        NOT IMPLEMENTED
+H  Release sign-off                                                  BLOCKED by required signer-independent gate
 ~~~
 
-There is no additional hidden ML training requirement for the active architecture.
+The checkpoint's recorded accuracy must never be presented as signer-independent accuracy. The missing metadata is a blocker; do not bypass or weaken the gate to obtain a green status.
 
 ---
 
-# 14. Production boundaries
-
-Current infrastructure still has known limitations:
+# 14. Current production and deployment boundaries
 
 ~~~text
-SQLite on Render            -> disposable without external durable storage
-Client-side bearer token    -> still present in current deployment path
-Real-mode deployment        -> intentionally disabled
-Raw video server inference  -> not part of the active letter contract
+Local development database     -> SQLite by default
+Production database            -> PostgreSQL required by production configuration
+Database/RLS runtime evidence  -> recorded in docs/release/visionbridge-custom-auth-rls-verification.json
+JWT + HttpOnly cookie + CSRF   -> implemented and covered by backend tests; live browser behavior not re-probed here
+Real-mode frontend build       -> CI builds with VITE_LOCAL_MODE=false
+Physical camera/microphone     -> requires manual browser/device verification
+Full live production journey   -> not verified by the documentation pass
 ~~~
 
-Do not call the system production-ready while these boundaries remain unresolved.
-
-The active product can still be developed and validated independently of production hardening.
-
----
+Do not equate the recorded production database verification with a fresh production probe, and do not equate a successful production build with a tested live deployment. The release gate remains blocked until signer-independent evaluation is possible.
 
 # 15. Repository cleanliness rules
 

@@ -1,6 +1,6 @@
 # VisionBridge
 
-VisionBridge is a browser-based Indian Sign Language (ISL) A–Z recognition application.
+VisionBridge is a browser-based Indian Sign Language (ISL) A–Z isolated-letter recognition application with optional few-shot signer calibration.
 
 ## Application
 - Sign in: https://visionbridge-2c7h.onrender.com/login
@@ -9,22 +9,26 @@ VisionBridge is a browser-based Indian Sign Language (ISL) A–Z recognition app
 - Calibration: https://visionbridge-2c7h.onrender.com/calibration
 - Letter History: https://visionbridge-2c7h.onrender.com/history
 - Settings: https://visionbridge-2c7h.onrender.com/settings
-- Voice to Sign: https://visionbridge-2c7h.onrender.com/voice-to-sign
+- Speak prototype: https://visionbridge-2c7h.onrender.com/voice-to-sign
 - Word Bank: https://visionbridge-2c7h.onrender.com/word-bank
+- Personalization: https://visionbridge-2c7h.onrender.com/personalization
 
 ## Capabilities
-- Real-time browser camera hand tracking
-- Indian Sign Language A–Z letter recognition
-- Few-shot signer calibration
+- Browser camera hand tracking with MediaPipe
+- A–Z isolated-letter recognition
+- Optional few-shot signer calibration and adapter management
 - Recognition history and CSV export
-- Signer-specific adapter management
-- Voice-to-Sign speech input with animated A–Z fingerspelling
-- Categorized daily vocabulary, custom phrases, and ten-slot persistent Quick Access
+- Categorized vocabulary, custom phrases, and ten-slot Quick Access
+- Personalization profiles, signing-speed preference, and speech-voice preference
+- Browser speech recognition and sentence/token handling prototype
+
+## Important scope limits
+The validated ML task is single-frame A–Z letter classification. VisionBridge is not a validated full-sentence or semantic ISL translator. The Speak page is a prototype: the current word-sign and phrase-sign asset maps are empty, so do not describe it as playing animated semantic signs for arbitrary speech.
+
+The current recorded model evaluation reports 4,633 prepared test samples, 98.273257% overall accuracy, 98.291294% macro class accuracy, and 78.770950% accuracy for W, the weakest class. These are stored dataset-evaluation results, not a real-world webcam guarantee. Signer-independent evaluation remains blocked because the dataset metadata does not expose verified signer IDs; this is a required release gate.
 
 ## Technical context
-VisionBridge uses React, TypeScript, Vite, React Router, MediaPipe Hand Landmarker, and a 126-dimensional two-hand landmark pipeline.
+VisionBridge uses React, TypeScript, Vite, React Router, FastAPI, PyTorch, MediaPipe Tasks Hand Landmarker 0.10.35, and a 126-dimensional two-hand landmark pipeline.
 
-## Access
-Most application routes require authentication.
-- My Profile: https://visionbridge-2c7h.onrender.com/personalization
-- Personalization stores named context profiles with avatar, Quick Access, favorites, signing speed, and preferred speech voice.
+## Access and validation
+Most application routes require authentication. Camera access requires browser permission and HTTPS on deployed sites. CI does not replace physical-device camera/microphone or complete production end-to-end testing.

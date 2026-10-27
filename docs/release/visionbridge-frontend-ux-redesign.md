@@ -62,3 +62,8 @@ The redesign intentionally leaves the existing feature implementations and backe
 - Existing API/data contracts
 
 Automated build/deploy validation is required before release. Real camera and microphone interaction still requires a browser with working device permissions.
+
+
+## 6. Validation boundary
+
+This document records the intended/implemented interface and information-architecture changes; it is not evidence that every path was validated on physical devices. The active Speak page supports browser speech recognition and sentence/token handling, but the word and phrase sign-asset registries are empty. It must be described as a prototype, not as a validated semantic ISL translator. GitHub Actions validates the build and code contracts; real camera/microphone permission flows and full live production journeys require separate manual verification.

@@ -1,46 +1,63 @@
-# VisionBridge V3 Public Release Baseline
+# VisionBridge V3 Public Model Baseline
 
-## Current status
+## Status reviewed: 2026-10-27
 
-**READY WITH LIMITATIONS**
+**Model artifact status: recorded and test-evaluated. Release gate: BLOCKED.**
 
-VisionBridge V3 is a browser-based Indian Sign Language **A–Z letter recognition** system. It uses MediaPipe hand landmarks with the V3 letter model and supports optional few-shot signer adaptation.
+VisionBridge V3 is a browser-based Indian Sign Language **A–Z isolated-letter recognition** system. It uses MediaPipe hand landmarks and a compact letter model, with optional few-shot signer adaptation. The scope is single-letter recognition; the speech-to-sentence page is a prototype and is not a validated semantic ISL sentence translator.
 
-The current release baseline has verified model, runtime, persistence, authentication, and browser/PyTorch parity evidence. The release is suitable to be treated as the current production baseline within the documented scope below.
+This page distinguishes evidence for the current checkpoint from full release readiness. A same-source random/stratified image test is not signer-independent evaluation.
 
-## What is verified
+## Current checkpoint
 
-- V3 checkpoint is present and SHA-256 verified.
-- Held-out test evaluation contains 4,633 samples.
-- Overall held-out accuracy: **98.143751%**.
-- Macro held-out accuracy: **98.167981%**.
+- Path: `backend/app/models/weights/letter_base_model.pt`
+- SHA-256: `f903872e96f269c5fbee6ea897f0027b91e162f2fc45b4c9a115e8ba8e38c917`
 - Model contract: **126 → 128 → 64 → 26**.
-- Browser/PyTorch parity passed on 32 samples with a `1e-5` tolerance.
-- Release-hardening test suite: **5/5 passed**.
-- Production Render database binding is verified against the VisionBridge Supabase PostgreSQL instance.
-- Production database execution uses the non-bypass `visionbridge_app` role.
-- Custom FastAPI JWT/cookie authentication is integrated with PostgreSQL RLS.
-- RLS is enabled on all seven application tables.
+- Preprocessing: `two-hand-wrist-scale-v1`
+- Landmark runtime: `mediapipe-hand-landmarker-0.10.35`
+- Parameters: **26,582**
+- File size: **111,429 bytes**
 
-## Known limitations
+## Current recorded test evaluation
 
-### W-class weakness
+The committed `visionbridge_letter_evaluation.json` report records the following results for the prepared test split:
 
-W is the weakest recorded class in the held-out evaluation: **72.625698% accuracy**.
+| Metric | Result |
+|---|---:|
+| Prepared test samples | 4,633 |
+| Overall accuracy | 98.273257% |
+| Macro class accuracy | 98.291294% |
+| Weakest class | W |
+| W accuracy | 78.770950% |
 
-The aggregate 98.14% result must therefore not be interpreted as uniform performance across all letters.
+The report includes per-letter counts and a confusion matrix. W is commonly confused with M, N, and O. The per-letter prepared test counts range from 137 to 200; samples where landmark extraction fails are skipped during preparation. These metrics are not a live-webcam accuracy guarantee and do not characterize every source image.
 
-### No signer-independent proof
+Previously published metrics from an earlier checkpoint remain historical records in the dated experiment/debug evidence. Do not present archived values as the current checkpoint's results.
 
-Signer-independent evaluation remains **BLOCKED**.
+## What has recorded verification evidence
 
-The active RealSign source metadata does not expose verified signer IDs, so this release does not claim signer-independent generalization.
+- Current checkpoint is present in the repository and its expected hash is recorded.
+- Prepared held-out test evaluation is stored in `visionbridge_letter_evaluation.json`.
+- Browser/PyTorch numerical parity passed for 32 generated vectors at `1e-5` tolerance in the recorded workflow run.
+- Release-hardening test file recorded 5/5 passing tests in its cited run.
+- A production PostgreSQL/RLS verification artifact records checks against the non-bypass `visionbridge_app` role.
 
-### Letter-level scope
+These artifacts are dated evidence, not a claim that every corresponding external service or physical device was re-tested on 2026-10-27. The latest observed product-validation run before this documentation update is [GitHub Actions run 40485483197](https://github.com/BharathWaj-K-R/VisionBridge/actions/runs/40485483197); the documentation commit requires its own new CI result.
 
-VisionBridge currently recognizes **A–Z letters** with optional few-shot signer adaptation.
+## Release blocker: signer-independent evaluation
 
-It does **not** claim full sentence-level Indian Sign Language translation, continuous linguistic translation, or broad signer-independent ISL understanding.
+Signer-independent evaluation is **BLOCKED** because the active RealSign metadata does not expose verified signer IDs. The engineering contract treats signer-independent evaluation as a mandatory release gate. Until a dataset with verified signer identities can support a proper signer-held-out test, this release must not be described as fully validated or ready for release.
+
+A strong aggregate accuracy on the available prepared image split does not establish generalization to unseen signers.
+
+## Other limitations
+
+- The W class remains materially weaker than most other classes.
+- The model predicts isolated A–Z letters from a frame; it does not decode continuous ISL grammar or sentence-level sign language.
+- The browser speech/sentence path is a prototype; the word and phrase sign-asset maps are currently empty.
+- Automated CI does not exercise actual camera/microphone permissions or performance on physical devices.
+- A dedicated pgTAP RLS suite has not yet been added and run in CI.
+- Real-browser and complete live production end-to-end behavior must be manually verified.
 
 ## Evidence of record
 
@@ -52,79 +69,41 @@ It does **not** claim full sentence-level Indian Sign Language translation, cont
 - `visionbridge_letter_evaluation.json`
 - `supabase/migrations/20260930103000_custom_auth_rls.sql`
 
-The checkpoint referenced by the evidence is `backend/app/models/weights/letter_base_model.pt`.
+## Human verification checklist
 
-SHA-256: `03bcb9f08d44025a025f78a08d68b2303b231270395117815ffcb322ca090cdf`
-
-## Remaining maintenance
-
-### pgTAP RLS test suite
-
-A dedicated pgTAP suite is intentionally **not part of this release change**.
-
-Future maintenance should add tests covering:
-
-1. RLS enabled on every application table.
-2. Application role has `BYPASSRLS=false`.
-3. User A cannot read User B's history, adapters, profiles, words, quick-access rows, or usage rows.
-4. User A cannot update or delete User B's rows.
-5. Missing or invalid `app.user_id` cannot access user-owned rows.
-6. Login identifier lookup remains limited to the requested account.
-7. Registration INSERT remains limited to the registration operation context.
-8. Transaction-local identity does not leak between pooled connections.
-
-The pgTAP suite should be run through the Supabase CLI/CI against a controlled test database before being considered release evidence.
-
-## Human production-baseline checklist
-
-Run this on a real device using the production deployment.
+Run this on a real device using the production deployment. Check these items only after actually performing each one.
 
 ### Browser and permissions
-- [ ] Open the production VisionBridge site in a supported desktop/mobile browser.
+- [ ] Open the deployed VisionBridge site in a supported desktop/mobile browser.
 - [ ] Confirm the page loads without a blank screen or fatal application error.
-- [ ] Grant camera permission.
-- [ ] Confirm the camera preview starts.
-- [ ] Grant microphone permission when using the voice-to-sign flow.
-- [ ] Confirm denying/regranting permissions does not leave the application permanently stuck.
+- [ ] Grant camera permission and confirm the preview starts.
+- [ ] Grant microphone permission when testing the Speak prototype.
+- [ ] Confirm denying and re-granting permissions does not leave the app permanently stuck.
 
 ### Authentication and persistence
 - [ ] Register or log in with a test account.
-- [ ] Refresh the page and confirm the authenticated session remains usable.
-- [ ] Open history and confirm previous test translations are visible only to the logged-in account.
+- [ ] Refresh and confirm the authenticated session remains usable.
+- [ ] Confirm history belongs to the logged-in account.
 - [ ] Log out and confirm protected account data is no longer accessible.
 
-### Letter recognition
-- [ ] Open the recognition flow.
+### Letter recognition and adaptation
 - [ ] Hold several clearly formed A–Z signs in front of the camera.
-- [ ] Confirm predictions update without obvious UI freezing.
 - [ ] Hold one sign steady and confirm the same letter is not repeatedly committed every frame.
-- [ ] Change from one letter to another and confirm the new stable letter is eventually committed.
-- [ ] Move the hand out of frame and confirm the UI does not crash.
-- [ ] Test reasonable changes in distance and lighting.
-- [ ] Confirm both-hand input behaves as expected where applicable.
+- [ ] Change letters and confirm the next stable letter is committed.
+- [ ] Move the hand out of frame and test reasonable lighting/distance changes.
+- [ ] Test adapter calibration, persistence, and mismatch rejection if calibration is used.
 
-### Personalization / adapter path
-- [ ] If using the optional few-shot adapter, create a small test calibration set.
-- [ ] Confirm the adapter can be saved.
-- [ ] Refresh the application.
-- [ ] Confirm the saved adapter remains available.
-- [ ] Confirm an incompatible model/checkpoint is rejected rather than silently used.
+### Speak prototype
+- [ ] Speak a short test phrase and confirm the page responds or reports its current failure state clearly.
+- [ ] Confirm microphone denial produces a usable recovery state.
+- [ ] Do not treat a successful speech transcript as proof of semantic ISL translation.
 
-### Voice / microphone path
-- [ ] Open the existing voice-to-sign flow.
-- [ ] Grant microphone permission.
-- [ ] Speak a short test phrase.
-- [ ] Confirm the flow responds or reports its existing failure state cleanly.
-- [ ] Confirm microphone denial produces a usable error state rather than a crash.
-
-### Basic resilience
+### Resilience
 - [ ] Refresh during normal use.
-- [ ] Temporarily disable/re-enable the network and confirm the application fails visibly rather than silently corrupting state.
-- [ ] Verify no test data from one account appears after switching to another account.
-- [ ] Confirm the production site remains usable after a normal browser restart.
+- [ ] Test a temporary network interruption and recovery.
+- [ ] Verify that one account's data is not shown after switching accounts.
+- [ ] Confirm the deployment remains usable after a normal browser restart.
 
 ## Baseline decision
 
-If the human checklist passes, treat **VisionBridge V3 as the current production baseline** within the stated A–Z letter-recognition scope.
-
-Do not remove or weaken the documented W-class limitation or signer-independent-evaluation limitation when publishing the project.
+The model artifact and its recorded same-source test evaluation are documented. **Release sign-off remains blocked** by the required signer-independent evaluation gate. Passing the manual browser checklist alone does not resolve the missing signer-identity evidence.
