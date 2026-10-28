@@ -27,6 +27,10 @@ def _signed_pm(metric: dict) -> str:
     return f"{_signed(float(metric['mean']))} ± {float(metric['std']) * 100:.3f} pp"
 
 
+def _count_pm(metric: dict) -> str:
+    return f"{float(metric['mean']):+.3f} ± {float(metric['std']):.3f} counts"
+
+
 def load_standalone_reports(paths: list[Path]) -> dict[str, dict]:
     reports: dict[str, dict] = {}
     expected_phase2_hash = expected_winner = expected_seeds = expected_splits = None
@@ -88,9 +92,9 @@ def render_results_table(reports: dict[str, dict]) -> str:
                 threshold=_signed(float(candidate["required_gain_threshold"])),
                 keep="KEEP" if candidate["keep_candidate"] else "DROP",
                 reject=_pct(float(rejection["rejection_rate"])),
-                wm=_signed_pm(w["W_to_M"]),
-                wn=_signed_pm(w["W_to_N"]),
-                wo=_signed_pm(w["W_to_O"]),
+                wm=_count_pm(w["W_to_M"]),
+                wn=_count_pm(w["W_to_N"]),
+                wo=_count_pm(w["W_to_O"]),
                 latency=_pm(summary["mean_batch_latency_ms"]),
             )
         )

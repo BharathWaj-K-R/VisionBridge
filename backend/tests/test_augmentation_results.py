@@ -51,6 +51,10 @@ def test_aggregation_renders_only_supplied_reports_and_marks_gaps() -> None:
     assert "| gaussian_jitter | 91.000% ± 1.000% | +2.000 pp |" in rendered
     assert "| in_plane_rotation | NOT RUN | NOT RUN |" in rendered
     assert "W→M count" in rendered
+    assert "-1.000 ± 0.500 counts" in rendered
+    assert "-2.000 ± 0.500 counts" in rendered
+    assert "0.000 ± 0.000 counts" in rendered
+    assert "100.000 pp" not in rendered
     assert "W_to_M" not in rendered
 
 
