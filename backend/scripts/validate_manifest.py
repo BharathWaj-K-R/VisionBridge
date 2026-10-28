@@ -132,7 +132,7 @@ def validate_manifest_records(records: Iterable[dict[str, Any]]) -> list[dict[st
         failure_reason = row.get("failure_reason")
         if failure_reason is not None and not isinstance(failure_reason, str):
             errors.append(f"{prefix}: failure_reason must be a string or null")
-        if status in {"no_hand", "low_conf", "failed"} and (
+        if isinstance(status, str) and status in {"no_hand", "low_conf", "failed"} and (
             not isinstance(failure_reason, str) or not failure_reason.strip()
         ):
             errors.append(f"{prefix}: failure_reason is required when landmark_status is not ok")

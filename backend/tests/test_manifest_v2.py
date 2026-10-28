@@ -12,6 +12,7 @@ from scripts.prepare_letter_dataset import (
     find_near_duplicate_landmarks,
 )
 from scripts.validate_manifest import ManifestValidationError, validate_manifest_records
+from app.training.evaluate_letter_base import load_extraction_failure_summary
 
 
 CAPTURE = {
@@ -90,6 +91,40 @@ def test_manifest_validator_rejects_incomplete_metadata_and_failed_status_withou
         validate_manifest_records([row])
     assert "capture_metadata missing field(s): lighting" in str(exc.value)
     assert "failure_reason is required" in str(exc.value)
+
+
+def test_manifest_validator_rejects_non_string_landmark_status() -> None:
+    row = manifest_row("sample-1", landmark_status=["ok"])
+    with pytest.raises(ManifestValidationError, match="landmark_status must be one of"):
+        validate_manifest_records([row])
+
+
+def test_evaluator_uses_test_split_extraction_failure_rate(tmp_path) -> None:
+    report_path = tmp_path / "extraction_failure_report.json"
+    report_path.write_text(
+        __import__("json").dumps({
+            "total_attempted": 100,
+            "total_skipped": 15,
+            "failure_rate": 0.15,
+            "per_split": {
+                "train": {"attempted": 60, "skipped": 6, "failure_rate": 0.10},
+                "test": {"attempted": 20, "skipped": 5, "failure_rate": 0.25},
+            },
+        }),
+        encoding="utf-8",
+    )
+    result = load_extraction_failure_summary(tmp_path, "test")
+    assert result["available"] is True
+    assert result["scope"] == "test"
+    assert result["total_attempted"] == 20
+    assert result["total_skipped"] == 5
+    assert result["failure_rate"] == 0.25
+
+
+def test_evaluator_marks_missing_extraction_report_unavailable(tmp_path) -> None:
+    result = load_extraction_failure_summary(tmp_path, "test")
+    assert result["available"] is False
+    assert result["failure_rate"] is None
 
 
 def test_signer_split_is_deterministic_disjoint_and_stratified_when_possible() -> None:
