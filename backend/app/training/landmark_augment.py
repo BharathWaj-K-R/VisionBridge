@@ -414,3 +414,72 @@ def apply_augmentation_with_fallback(
         "rejected_samples_fallback": "original raw sample",
     }
     return output, report
+
+
+
+def combined_raw_augmentation(
+    raw: np.ndarray | list[float],
+    *,
+    augmentations: tuple[str, ...] | list[str],
+    seed: int,
+) -> np.ndarray:
+    """Apply only a previously validated keep-set, in deterministic component order."""
+    components = tuple(augmentations)
+    valid_components = tuple(name for name in AUGMENTATION_NAMES if name not in {"none"})
+    if not components or len(set(components)) != len(components):
+        raise ValueError("A combined run requires a non-empty list of unique kept augmentations")
+    if any(name not in valid_components for name in components):
+        raise ValueError("Combined components must be standalone augmentation IDs")
+    if isinstance(seed, bool) or not isinstance(seed, (int, np.integer)):
+        raise ValueError("Augmentation seed must be an integer")
+
+    value = _as_raw_pair(raw)
+    for position, augmentation in enumerate(components):
+        child_seed = int(np.random.SeedSequence([int(seed), position]).generate_state(1)[0])
+        value = augment_raw_landmarks(value, augmentation=augmentation, seed=child_seed)
+    return value
+
+
+def apply_combined_augmentation_with_fallback(
+    raw_samples: np.ndarray,
+    *,
+    augmentations: tuple[str, ...] | list[str],
+    seed: int,
+) -> tuple[np.ndarray, dict]:
+    """Apply one gated combined run; joint-angle rejection falls back to the original row."""
+    samples = np.asarray(raw_samples, dtype=np.float32)
+    if samples.ndim != 2 or samples.shape[1] != RAW_PAIR_DIM or len(samples) == 0:
+        raise ValueError(f"raw_samples must be a non-empty [N, {RAW_PAIR_DIM}] float32 matrix")
+    components = tuple(augmentations)
+    # Validate the component list even for an empty input or an all-rejected batch.
+    combined_raw_augmentation(samples[0], augmentations=components, seed=seed)
+    output = np.empty_like(samples)
+    rejections: Counter[str] = Counter()
+    accepted = 0
+    for index, sample in enumerate(samples):
+        row_seed = int(np.random.SeedSequence([int(seed), index]).generate_state(1)[0])
+        try:
+            output[index] = combined_raw_augmentation(
+                sample,
+                augmentations=components,
+                seed=row_seed,
+            )
+            accepted += 1
+        except ImplausibleLandmarkSample as exc:
+            if "finger_joint_angles" not in components:
+                raise
+            output[index] = sample
+            rejections[str(exc).split(":", 1)[0]] += 1
+    attempted = len(samples)
+    rejected = attempted - accepted
+    return output, {
+        "augmentation": "combined",
+        "components": list(components),
+        "seed": int(seed),
+        "attempted": attempted,
+        "accepted": accepted,
+        "rejected": rejected,
+        "rejection_rate": rejected / attempted,
+        "rejection_reasons": dict(sorted(rejections.items())),
+        "rejected_samples_fallback": "original raw sample",
+    }

@@ -19,9 +19,10 @@ import numpy as np
 from app.services.letter_fewshot import normalize_hand_pair, normalize_hand_pair_v2
 from app.training.evaluate_letter_base import evaluate
 from app.training.landmark_augment import (
-    AUGMENTATION_NAMES,
     apply_augmentation_with_fallback,
+    apply_combined_augmentation_with_fallback,
 )
+from scripts.aggregate_augmentation_results import AUGMENTATIONS, load_standalone_reports
 from app.training.letter_base import load_split, train_model
 from app.models.letter_model import INPUT_DIM, LETTER_LABELS
 
@@ -31,6 +32,7 @@ SUPPORTED_EXPERIMENT_AUGMENTATIONS = (
     "depth_scale",
     "finger_joint_angles",
 )
+RUNNER_AUGMENTATIONS = (*SUPPORTED_EXPERIMENT_AUGMENTATIONS, "combined")
 PHASE2_VARIANTS = (
     "v3_mlp",
     "v4_features_old_mlp",
@@ -283,7 +285,7 @@ def _train_and_validate(
     return {
         "role": role,
         "seed": seed,
-        "checkpoint_path": str(checkpoint),
+        "checkpoint_path": str(checkpoint.resolve()),
         "checkpoint_sha256": sha256_file(checkpoint),
         "training_best_epoch": training["best_epoch"],
         "training_epochs_completed": training["epochs_completed"],
@@ -305,21 +307,63 @@ def run_augmentation_experiment(
     batch_size: int,
     learning_rate: float,
     weight_decay: float,
+    standalone_results: tuple[Path, ...] = (),
+    experiment_root: Path | None = None,
 ) -> dict:
-    if augmentation not in SUPPORTED_EXPERIMENT_AUGMENTATIONS:
-        raise ValueError("Exactly one supported augmentation must be named per run")
+    if augmentation not in RUNNER_AUGMENTATIONS:
+        raise ValueError("Choose one standalone augmentation or a gated combined run")
+    if augmentation != "combined" and standalone_results:
+        raise ValueError("Standalone results are only accepted when requesting the combined run")
     if len(seeds) < 3 or len(set(seeds)) != len(seeds):
         raise ValueError("At least three distinct seeds are required")
     if epochs <= 0 or batch_size <= 0:
         raise ValueError("epochs and batch_size must be positive")
 
     winner, feature_contract, model_version, v4_variant = _load_phase2_selection(phase2_report)
+    phase2_hash = sha256_file(phase2_report)
+    components: tuple[str, ...] = ()
+    combined_marker: Path | None = None
+    if augmentation == "combined":
+        reports = load_standalone_reports(list(standalone_results))
+        if set(reports) != set(AUGMENTATIONS):
+            raise ValueError("A combined run requires all four standalone augmentation result reports")
+        if any(
+            report["phase2_report_sha256"] != phase2_hash
+            or report["phase2_winner"] != winner
+            or report["seeds"] != list(seeds)
+            for report in reports.values()
+        ):
+            raise ValueError("Standalone reports must match this Phase 2 winner and seed set")
+        components = tuple(
+            name for name in AUGMENTATIONS
+            if reports[name]["candidate"]["keep_candidate"]
+        )
+        if len(components) < 2:
+            raise ValueError("Combined augmentation is allowed only when at least two standalone augmentations are kept")
+        if experiment_root is None:
+            raise ValueError("Combined run requires a shared --experiment-root to enforce the one-run limit")
+        experiment_root = experiment_root.resolve()
+        experiment_root.mkdir(parents=True, exist_ok=True)
+        combined_marker = experiment_root / "combined_augmentation_attempted.json"
+        if combined_marker.exists():
+            raise FileExistsError(f"The single combined augmentation attempt has already been recorded: {combined_marker}")
+
     source_data_dir = data_dir_v1 if feature_contract == "two-hand-wrist-scale-v1" else data_dir_v4
     input_dim = 126 if feature_contract == "two-hand-wrist-scale-v1" else 141
 
     # This reads only train and val manifests and arrays. It never opens test files.
     split_evidence = verify_train_val_alignment(source_data_dir, raw_dir, input_dim)
     raw_meta = json.loads((raw_dir / "labels.json").read_text(encoding="utf-8"))
+    if combined_marker is not None:
+        combined_marker.write_text(json.dumps({
+            "status": "attempt_started",
+            "created_at_utc": datetime.now(timezone.utc).isoformat(),
+            "phase2_report_sha256": phase2_hash,
+            "phase2_winner": winner,
+            "seeds": list(seeds),
+            "kept_components": list(components),
+            "output_dir": str(output_dir.resolve()),
+        }, indent=2), encoding="utf-8")
     if raw_meta.get("raw_landmark_contract") != "raw-mediapipe-xyz-before-normalization-v1":
         raise ValueError("Raw input lacks the required pre-normalization coordinate contract")
 
@@ -352,11 +396,18 @@ def run_augmentation_experiment(
             weight_decay=weight_decay,
         ))
 
-        augmented_raw, rejection_report = apply_augmentation_with_fallback(
-            raw_train_x,
-            augmentation=augmentation,
-            seed=seed,
-        )
+        if augmentation == "combined":
+            augmented_raw, rejection_report = apply_combined_augmentation_with_fallback(
+                raw_train_x,
+                augmentations=components,
+                seed=seed,
+            )
+        else:
+            augmented_raw, rejection_report = apply_augmentation_with_fallback(
+                raw_train_x,
+                augmentation=augmentation,
+                seed=seed,
+            )
         augmented_features = _normalized_augmented_features(
             augmented_raw,
             left_present,
@@ -415,6 +466,8 @@ def run_augmentation_experiment(
         "status": "validation_completed",
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "augmentation": augmentation,
+        "augmentation_components": list(components) if augmentation == "combined" else [augmentation],
+        "combined_run_marker": str(combined_marker) if combined_marker is not None else None,
         "phase2_winner": winner,
         "phase2_report_sha256": sha256_file(phase2_report),
         "feature_contract": feature_contract,
@@ -475,7 +528,9 @@ def main() -> None:
     parser.add_argument("--data-dir-v4", required=True, type=Path)
     parser.add_argument("--raw-dir", required=True, type=Path)
     parser.add_argument("--output-dir", required=True, type=Path)
-    parser.add_argument("--augmentation", required=True, choices=SUPPORTED_EXPERIMENT_AUGMENTATIONS)
+    parser.add_argument("--augmentation", required=True, choices=RUNNER_AUGMENTATIONS)
+    parser.add_argument("--standalone-result", action="append", type=Path, default=[], help="Required four times for the gated combined run.")
+    parser.add_argument("--experiment-root", type=Path, default=None, help="Shared root storing the one-combined-run marker.")
     parser.add_argument("--seeds", nargs="+", type=int, default=[42, 123, 314])
     parser.add_argument("--epochs", type=int, default=1000)
     parser.add_argument("--batch-size", type=int, default=128)
@@ -494,6 +549,8 @@ def main() -> None:
         batch_size=args.batch_size,
         learning_rate=args.lr,
         weight_decay=args.weight_decay,
+        standalone_results=tuple(args.standalone_result),
+        experiment_root=args.experiment_root,
     )
 
 

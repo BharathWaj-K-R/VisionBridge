@@ -123,3 +123,40 @@ def test_mirroring_and_random_hand_dropout_are_not_supported() -> None:
         augment_raw_landmarks(_pair(), augmentation="mirror", seed=1)
     with pytest.raises(ValueError, match="Unsupported single augmentation"):
         augment_raw_landmarks(_pair(), augmentation="single_hand_dropout", seed=1)
+
+
+
+def test_combined_augmentation_is_seeded_and_rejects_empty_or_duplicate_keep_sets() -> None:
+    from app.training.landmark_augment import (
+        apply_combined_augmentation_with_fallback,
+        combined_raw_augmentation,
+    )
+
+    raw = _pair()
+    one = combined_raw_augmentation(
+        raw,
+        augmentations=("gaussian_jitter", "in_plane_rotation"),
+        seed=31,
+    )
+    two = combined_raw_augmentation(
+        raw,
+        augmentations=("gaussian_jitter", "in_plane_rotation"),
+        seed=31,
+    )
+    np.testing.assert_array_equal(one, two)
+
+    batch = np.stack((raw, raw))
+    output, report = apply_combined_augmentation_with_fallback(
+        batch,
+        augmentations=("gaussian_jitter", "in_plane_rotation"),
+        seed=31,
+    )
+    assert output.shape == batch.shape
+    assert report["components"] == ["gaussian_jitter", "in_plane_rotation"]
+    assert report["attempted"] == 2
+    assert report["rejection_rate"] == 0.0
+
+    with pytest.raises(ValueError, match="non-empty list of unique kept augmentations"):
+        combined_raw_augmentation(raw, augmentations=(), seed=1)
+    with pytest.raises(ValueError, match="non-empty list of unique kept augmentations"):
+        combined_raw_augmentation(raw, augmentations=("depth_scale", "depth_scale"), seed=1)
