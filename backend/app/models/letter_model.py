@@ -244,6 +244,9 @@ class VisionBridgeLetterBaseV4Model(nn.Module):
                 nn.GELU(approximate="tanh"),
             )
             self.output_head = nn.Linear(self.embedding_dim, self.num_classes)
+            self.hand_embedding_dim = 0
+            self.geometry_dim = 0
+            self.fusion_input_dim = 0
             return
 
         self.hand_encoder = nn.Sequential(

@@ -12,7 +12,17 @@ import numpy as np
 import torch
 
 from app.core.config import get_settings
-from app.models.letter_model import LANDMARK_RUNTIME, MODEL_VERSION, PREPROCESSING_VERSION, VisionBridgeLetterBaseModel, load_checkpoint
+from app.models.letter_model import (
+    LANDMARK_RUNTIME,
+    MODEL_VERSION,
+    PREPROCESSING_VERSION,
+    V4_MODEL_VERSION,
+    VisionBridgeLetterBaseModel,
+    VisionBridgeLetterBaseV4Model,
+    load_checkpoint,
+    load_v4_checkpoint,
+)
+from app.models.letter_model import V4_PREPROCESSING_VERSION as V4_MODEL_PREPROCESSING_VERSION
 
 HAND_LANDMARKS = 21
 HAND_COORDS = 3
@@ -279,6 +289,141 @@ def validate_prototype_adapter_payload(payload: dict, base_model_path: str | Pat
         if vector.shape != (base_model.embedding_dim,) or not np.isfinite(vector).all():
             raise ValueError("Letter adapter prototype is incompatible with the current model")
 
+    return payload
+
+
+
+def _v4_feature_vector(
+    base_model: VisionBridgeLetterBaseV4Model,
+    raw: list[float],
+    left_present: bool | None,
+    right_present: bool | None,
+) -> np.ndarray:
+    if base_model.preprocessing_version == V4_PREPROCESSING_VERSION:
+        if not isinstance(left_present, bool) or not isinstance(right_present, bool):
+            raise ValueError("V4 geometry preprocessing requires explicit hand-presence booleans")
+        return normalize_hand_pair_v2(raw, left_present, right_present)
+    if base_model.preprocessing_version == PREPROCESSING_VERSION:
+        return normalize_hand_pair(raw)
+    raise ValueError("V4 adapter feature preprocessing is unsupported")
+
+
+def embed_hand_vector_v4(
+    base_model: VisionBridgeLetterBaseV4Model,
+    raw: list[float],
+    left_present: bool | None = None,
+    right_present: bool | None = None,
+) -> np.ndarray:
+    features = _v4_feature_vector(base_model, raw, left_present, right_present)
+    tensor = torch.from_numpy(features).unsqueeze(0)
+    with torch.inference_mode():
+        embedding = base_model.embed(tensor)[0].cpu().numpy()
+    return _unit(embedding)
+
+
+def fit_prototype_adapter_v4(
+    base_model: VisionBridgeLetterBaseV4Model,
+    samples: list[tuple[str, list[float], bool, bool]],
+    base_model_path: str | Path,
+) -> dict:
+    """Fit fresh V4 prototypes and bind them to this exact checkpoint and variant."""
+    base_path = Path(base_model_path)
+    if not base_path.is_file():
+        raise FileNotFoundError("V4 letter base-model checkpoint is missing")
+    checkpoint_model = load_v4_checkpoint(
+        base_path,
+        expected_variant=base_model.architecture_variant,
+    )
+    if any(
+        not torch.equal(checkpoint_model.state_dict()[key], value.detach().cpu())
+        for key, value in base_model.state_dict().items()
+    ):
+        raise ValueError("V4 model weights do not match the supplied checkpoint; reload before calibration")
+
+    grouped: dict[str, list[np.ndarray]] = {}
+    for letter, raw, left_present, right_present in samples:
+        label = letter.strip().upper()
+        if len(label) != 1 or label not in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+            raise ValueError("Unsupported letter label: {!r}".format(letter))
+        grouped.setdefault(label, []).append(
+            embed_hand_vector_v4(base_model, raw, left_present, right_present)
+        )
+    if len(grouped) < 2:
+        raise ValueError("Calibrate at least two different letters before fitting a V4 adapter")
+    insufficient = sorted(letter for letter, items in grouped.items() if len(items) < 3)
+    if insufficient:
+        raise ValueError(
+            "Each calibrated letter requires at least 3 examples: {}".format(", ".join(insufficient))
+        )
+
+    prototypes = {
+        letter: _unit(np.mean(np.stack(items, axis=0), axis=0))
+        for letter, items in sorted(grouped.items())
+    }
+    payload = {
+        "version": 5,
+        "method": "dynamic-base-embedding-prototype",
+        "base_model_version": base_model.model_version,
+        "base_model_sha256": _sha256(base_path),
+        "architecture_variant": base_model.architecture_variant,
+        "preprocessing_version": base_model.preprocessing_version,
+        "landmark_runtime": base_model.landmark_runtime,
+        "feature_dim": base_model.input_dim,
+        "embedding_dim": base_model.embedding_dim,
+        "prototypes": {key: value.tolist() for key, value in prototypes.items()},
+        "shots": {key: len(value) for key, value in sorted(grouped.items())},
+        "base_model_labels": list(base_model.labels),
+    }
+    return {
+        "payload": payload,
+        "letters": list(prototypes),
+        "shots": payload["shots"],
+        "param_count": sum(len(value) for value in payload["prototypes"].values()),
+    }
+
+
+def validate_prototype_adapter_payload_v4(
+    payload: dict,
+    base_model_path: str | Path,
+) -> dict:
+    """Validate only V4 adapter payloads; V3 adapters cannot cross this boundary."""
+    if (
+        payload.get("version") != 5
+        or payload.get("method") != "dynamic-base-embedding-prototype"
+        or payload.get("base_model_version") != V4_MODEL_VERSION
+    ):
+        raise ValueError("Invalid V4 letter adapter; V3 adapters require recalibration")
+    if payload.get("landmark_runtime") != LANDMARK_RUNTIME:
+        raise ValueError("V4 letter adapter landmark runtime is incompatible")
+
+    base_path = Path(base_model_path)
+    if not base_path.is_file():
+        raise FileNotFoundError("Letter base-model checkpoint is missing")
+    base_model = load_v4_checkpoint(base_path)
+    current_hash = _sha256(base_path)
+    if payload.get("base_model_sha256") != current_hash:
+        raise ValueError("V4 letter adapter requires recalibration for the current checkpoint SHA-256")
+    if payload.get("architecture_variant") != base_model.architecture_variant:
+        raise ValueError("V4 letter adapter requires recalibration for the current architecture variant")
+    if payload.get("preprocessing_version") != base_model.preprocessing_version:
+        raise ValueError("V4 letter adapter preprocessing is incompatible")
+    if payload.get("feature_dim") != base_model.input_dim:
+        raise ValueError("V4 letter adapter feature contract is incompatible")
+    if payload.get("embedding_dim") != base_model.embedding_dim:
+        raise ValueError("V4 letter adapter requires recalibration for the current embedding dimension")
+    if payload.get("base_model_labels") != list(base_model.labels):
+        raise ValueError("V4 letter adapter label vocabulary is incompatible")
+
+    prototypes = payload.get("prototypes")
+    if not isinstance(prototypes, dict) or len(prototypes) < 2:
+        raise ValueError("V4 letter adapter must contain at least two prototypes")
+    for letter, values in prototypes.items():
+        try:
+            vector = np.asarray(values, dtype=np.float32)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("V4 letter adapter prototype is invalid") from exc
+        if str(letter) not in base_model.labels or vector.shape != (64,) or not np.isfinite(vector).all():
+            raise ValueError("V4 letter adapter prototype is incompatible with the current model")
     return payload
 
 
