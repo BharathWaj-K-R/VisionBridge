@@ -361,7 +361,11 @@ def run_comparison(
         raise RuntimeError("Final test report checkpoint hash does not match the frozen candidate")
     test_report["evaluation_run"] = {
         "evaluation_id": test_evaluation_id,
-        "invocation": "evaluate(checkpoint=<frozen_checkpoint>, data_dir=<selected_split_dir>, split='test', batch_size={})".format(batch_size),
+        "invocation": (
+            f"evaluate(checkpoint={str(frozen_checkpoint)!r}, "
+            f"data_dir={str(selected_data_dir)!r}, split='test', batch_size={batch_size})"
+        ),
+        "checkpoint_sha256": frozen_hash,
         "started_at_utc": test_started_at,
         "finished_at_utc": test_finished_at,
         "evaluator_identity": getpass.getuser(),
