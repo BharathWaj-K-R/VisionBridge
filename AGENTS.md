@@ -2053,3 +2053,89 @@ backend/scripts/prepare_v4_feature_dataset.py requires a V1 dataset metadata con
 **Data limitation:** The active RealSign data has no verified signer IDs. No aligned V1/V4 real-data experiment was run during this phase, so V4 validation/test accuracy and measured real-data latency remain NOT RUN; docs/experiments/v4_comparison.md deliberately contains no invented metrics. Signer-independent evaluation remains blocked until verified, consented signer metadata/data are available.
 
 Latest fully completed implementation validation before this hand-off note: product CI run 40674189390 for code commit 232cb387247d4cf97e35eb9a0b99006be93e2f07 passed 100 backend tests, V3 browser/Python parity, frontend build and production artifact verification. V4 Python/TypeScript parity workflow 40673919246 passed 5 fixtures / 705 values with maximum absolute error 0 at tolerance 1e-6. The latest small report-metadata change in commit 48fdee19df9e2190ed1bda66095a47274be3503b is awaiting its own CI result at the time this entry is authored.
+
+
+---
+
+# 2026-10-28 — Phase 3 robustness and temporal recognition status
+
+Phase 3 adds experimental, opt-in raw-landmark augmentation and a validation-only comparison/finalization workflow. It does not change active V3 or V4 inference, production checkpoint weights, browser defaults, or release evidence.
+
+Implemented:
+    backend/app/training/landmark_augment.py
+        gaussian_jitter: seeded xyz Gaussian jitter, std=0.002
+        in_plane_rotation: seeded rotation, uniform ±5 degrees
+        depth_scale: shared XY/Z scale factors, each uniform 0.95–1.05
+        finger_joint_angle_perturbation: seeded rigid subtree rotations, ±5 degrees
+        anatomy gate: bone-length drift <=5%, reject flexion above documented caps
+        rejection reports: attempted/accepted/rejected and rejection rate
+        missing-hand zero slots stay unchanged
+        mirroring and random single-hand dropout are deliberately unsupported
+
+    backend/scripts/prepare_raw_landmark_dataset.py
+        default extraction is train+validation only
+        raw coordinates are saved before normalization; explicit per-hand presence is saved
+        sample IDs/paths/hashes/order and V1 labels are verified
+        stale test raw artifacts are removed before a train/validation-only preparation
+
+    backend/scripts/run_augmentation_experiment.py
+        requires an actual completed Phase 2 comparison JSON with a validation-selected winner
+        tests no-augmentation baseline vs one augmentation per run
+        >=3 distinct seeds, exact epoch budget, fixed loss/configuration
+        uses train/validation only, reports per-letter deltas, W→M/N/O validation confusion deltas, model latency, and anatomical rejection rate
+        no Phase 2 winner is guessed when Phase 2 comparison is still NOT RUN
+        combined augmentation is gated on all four standalone reports and at least two KEEP decisions, with a shared one-attempt marker
+
+    backend/scripts/aggregate_augmentation_results.py
+        refuses inconsistent reports, seeds, train/validation manifests, or reports that opened test
+        W→M/N/O deltas are reported as confusion counts, not percentage points
+
+    backend/scripts/finalize_augmentation_test.py
+        validation-only final candidate choice, checkpoint SHA verification, frozen selection evidence
+        one-shot marker written before the single final test evaluator call; reruns in that output directory are blocked
+
+    backend/scripts/diagnose_temporal_sequences.py
+        detects labelled groups with recording_id + numeric frame_index
+        duplicate frame indexes are reported and do not count as an ordered sequence
+
+    docs/experiments/augmentation_comparison.md
+    docs/experiments/temporal_decision.md
+
+Data/evidence boundary:
+    The repository's checked-in manifest schema has recording_id but no frame_index;
+    current preparation uses MediaPipe image mode and independent labelled image rows.
+    Temporal modelling is explicitly STOPPED and documented as
+    "not testable with current data". Synthetic fixtures only test the diagnostic;
+    they do not prove hidden or external data has sequences.
+
+    Phase 2's docs/experiments/v4_comparison.md still says NOT RUN, there is no
+    completed Phase 2 winner JSON available in this environment, and aligned raw
+    landmarks / dataset arrays were not available to run the actual experiment.
+    Consequently all per-augmentation real-data accuracy, seed standard deviation,
+    per-class validation change, W→M/N/O validation confusion deltas, and real-data
+    latency remain NOT RUN. No score has been fabricated. The existing frozen
+    V3 test confusion row (W→M=11, W→N=11, W→O=9) is historical test context only
+    and must not be used for augmentation tuning.
+
+Anatomical bounds in docs/experiments/augmentation_comparison.md are conservative
+clinical references, not ISL-specific hand-shape rules:
+    non-thumb PIP max flexion 120 degrees
+    non-thumb DIP max flexion 80 degrees
+    thumb IP max flexion 90 degrees
+    post-perturbation connected bone length drift at most 5 percent
+
+Latest verified CI:
+    commit: 06af35ebe62a1d4ff19533a8a8f4009c747898e8
+    run: https://github.com/BharathWaj-K-R/VisionBridge/actions/runs/40677743833
+    backend: 125 passed, 2 warnings in 8.86s
+    V3 browser/Python parity:
+        embedding_max_abs_error=1.9073486328125e-06
+        logits_max_abs_error=4.76837158203125e-06
+        tolerance=1e-05
+        passed=true
+    frontend:
+        VITE_LOCAL_MODE=false
+        production build succeeded
+        production artifact verified
+
+No model weights, visionbridge_letter_evaluation.json, or V3/V4 browser defaults were changed. The remaining Phase 3 acceptance gate is running the four standalone experiments on a real, aligned dataset after Phase 2 produces an actual validation-selected winner; only then may a single gated combined run and one final test evaluation occur.

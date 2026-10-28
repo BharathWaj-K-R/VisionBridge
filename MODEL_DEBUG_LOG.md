@@ -2323,3 +2323,75 @@ LATEST CODE CHANGE AT TIME OF THIS LOG:
     execution record. Its own GitHub Actions run was queued when this note was
     written. Previous completed run 40674189390 covers the implementation up
     through commit 232cb387247d4cf97e35eb9a0b99006be93e2f07.
+
+
+---
+
+# 2026-10-28 — Phase 3 augmentation and temporal audit
+
+IMPLEMENTATION:
+    Added seeded raw xyz augmentations in backend/app/training/landmark_augment.py:
+        Gaussian jitter std 0.002
+        in-plane rotation ±5 degrees
+        global XY/Z scale factors 0.95–1.05
+        per-finger PIP/DIP and thumb-IP rigid-subtree rotation ±5 degrees
+    Anatomical checks use a 5% maximum connected bone-length drift gate and
+    conservative flexion caps: non-thumb PIP 120 degrees, DIP 80 degrees,
+    thumb IP 90 degrees. These are clinical plausibility guardrails, not
+    ISL-specific definitions. Rejected joint-angle samples fall back to their
+    original raw samples, and rejection rates are recorded.
+    Mirroring and hand dropout are intentionally skipped because the current
+    repository data does not justify an ISL per-letter hand-configuration table.
+
+RAW / EXPERIMENT TOOLING:
+    backend/scripts/prepare_raw_landmark_dataset.py
+        default train/validation only; raw features are saved before normalization
+        per-hand presence flags saved separately; SHA/row/label alignment checked
+        stale test artifacts cleaned when rebuilding train/validation
+
+    backend/scripts/run_augmentation_experiment.py
+        fails closed unless an actual Phase 2 selected-winner JSON is provided
+        one augmentation per run; unaugmented baseline paired to same seeds
+        at least three seeds; fixed epoch budget, same train/val identities
+        test split not opened; records per-class accuracy and W-to-M/N/O validation
+        confusion-count changes, latency and anatomy rejection rates
+        combined run requires all four independent results and >=2 KEEP decisions,
+        and a shared marker blocks a second combined run
+
+    backend/scripts/aggregate_augmentation_results.py
+        validates common winner, seed set, train/val manifests and test untouched
+        W-to-M/N/O confusion deltas are formatted as counts, not percentage points
+
+    backend/scripts/finalize_augmentation_test.py
+        chooses from validation evidence, verifies chosen checkpoint SHA-256,
+        freezes evidence then marks one permitted final-test evaluator invocation
+        reruns in the same output directory are blocked
+
+TEMPORAL:
+    backend/scripts/diagnose_temporal_sequences.py and
+    backend/tests/test_temporal_diagnostics.py were added first.
+    Current manifest schema v2 has recording_id but not frame_index; the checked-in
+    preparation flow is image-based and there is no verified signer metadata.
+    No temporal head was implemented. docs/experiments/temporal_decision.md says
+    "not testable with current data" and STOPs temporal work for this revision.
+
+MEASURED RESULTS:
+    No real augmentation run was performed because:
+        1. Phase 2 result docs still show NOT RUN;
+        2. no completed validation-selected Phase 2 winner JSON was available;
+        3. no raw landmark dataset or aligned V1/V4 arrays were available.
+    Therefore the table in docs/experiments/augmentation_comparison.md remains NOT RUN.
+    No real-data accuracy, seed variance, per-class change, W-to-M/N/O validation
+    confusion delta, or real-data latency claim is made.
+    Existing V3 test W-to-M=11, W-to-N=11, W-to-O=9 remains historical context only,
+    never a target for tuning on the test set.
+
+FINAL CHECK:
+    CI run 40677743833 on commit 06af35ebe62a1d4ff19533a8f4009c747898e8:
+        backend tests: 125 passed, 2 warnings in 8.86s
+        V3 browser/Python parity: max embedding error 1.9073486328125e-06,
+            max logits error 4.76837158203125e-06, tolerance 1e-05, passed=true
+        frontend build: passed with VITE_LOCAL_MODE=false
+        production artifact verification: passed
+
+No checkpoint, evaluation JSON, release-evidence JSON, or production model default changed.
