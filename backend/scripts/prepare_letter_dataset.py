@@ -219,11 +219,14 @@ def process_split(
             )
             counts[letter] += 1
 
-    if not features:
-        raise RuntimeError(f"No usable samples in {split_root}")
+    feature_matrix = (
+        np.stack(features)
+        if features
+        else np.empty((0, 126), dtype=np.float32)
+    )
 
     return (
-        np.stack(features),
+        feature_matrix,
         np.asarray(labels, dtype=np.int64),
         {"counts": counts, "attempted": attempted, "skipped": skipped, "failures": failures},
         samples,
@@ -371,6 +374,7 @@ def build_extraction_failure_report(records: list[dict]) -> dict[str, object]:
     per_condition: dict[str, dict[str, dict]] = {
         field: {} for field in CAPTURE_FIELDS
     }
+    per_split: dict[str, dict] = {}
     failed_samples: list[dict] = []
     status_totals = {"ok": 0, "no_hand": 0, "low_conf": 0, "failed": 0}
 
@@ -389,9 +393,20 @@ def build_extraction_failure_report(records: list[dict]) -> dict[str, object]:
         skipped = status != "ok"
         status_totals[status] += 1
 
+        split_value = record.get("split", record.get("prepared_split", record.get("source_split")))
+        split_aliases = {
+            "training": "source_training",
+            "source_training": "source_training",
+            "validation": "source_validation",
+            "source_validation": "source_validation",
+            "testing": "test",
+            "source_testing": "test",
+        }
+        split_key = split_aliases.get(split_value, split_value or "<unknown>")
         targets = [per_letter[letter]]
         signer_id = record.get("signer_id") or "<unknown>"
         targets.append(bucket(per_signer, str(signer_id)))
+        targets.append(bucket(per_split, str(split_key)))
         for target in targets:
             target["attempted"] += 1
             target["skipped"] += int(skipped)
@@ -429,6 +444,8 @@ def build_extraction_failure_report(records: list[dict]) -> dict[str, object]:
         finalize(counter)
     for counter in per_signer.values():
         finalize(counter)
+    for counter in per_split.values():
+        finalize(counter)
     for condition_buckets in per_condition.values():
         for counter in condition_buckets.values():
             finalize(counter)
@@ -444,6 +461,7 @@ def build_extraction_failure_report(records: list[dict]) -> dict[str, object]:
         "status_counts": status_totals,
         "per_letter": per_letter,
         "per_signer": per_signer,
+        "per_split": per_split,
         "per_condition": per_condition,
         "skipped_samples": failed_samples,
     }
@@ -828,8 +846,10 @@ def prepare_manifest_v2_dataset(
             "seed": seed,
             "seed_applied": seed_applied,
             "label_coverage": label_coverage,
-            "test_signers_held_out": True,
-            "test_used_for_selection": False,
+            "test_signers_partitioned_separately": True,
+            "test_selection_history": (
+                "NOT_VERIFIABLE_FROM_MANIFEST; record actual use in the promotion provenance report"
+            ),
         },
         "stats": {
             "samples_by_split": {
@@ -980,6 +1000,28 @@ def prepare_dataset(
     finally:
         landmarker.close()
 
+    legacy_attempts: list[dict] = []
+    for successful_rows, failure_rows, prepared_split in (
+        (train_samples, train_report.get("failures", []), "source_training"),
+        (validation_samples, validation_report.get("failures", []), "source_validation"),
+        (test_samples, test_report.get("failures", []), "source_testing"),
+    ):
+        for sample in successful_rows:
+            legacy_attempts.append({
+                **sample,
+                "label": sample["letter"],
+                "split": prepared_split,
+                "landmark_status": "ok",
+                "failure_reason": None,
+                "capture_metadata": _empty_capture_metadata(),
+            })
+        legacy_attempts.extend(failure_rows)
+    extraction_failure_report = build_extraction_failure_report(legacy_attempts)
+    (output_dir / "extraction_failure_report.json").write_text(
+        json.dumps(extraction_failure_report, indent=2),
+        encoding="utf-8",
+    )
+
     test_hashes = {sample["image_sha256"] for sample in test_samples}
     pooled_records = [
         (vector, label, sample)
@@ -1062,28 +1104,6 @@ def prepare_dataset(
         raise RuntimeError(
             "Exact duplicate image hashes overlap the untouched source test split"
         )
-
-    legacy_attempts: list[dict] = []
-    for successful_rows, failure_rows, prepared_split in (
-        (train_samples, train_report.get("failures", []), "source_training"),
-        (validation_samples, validation_report.get("failures", []), "source_validation"),
-        (test_samples, test_report.get("failures", []), "source_testing"),
-    ):
-        for sample in successful_rows:
-            legacy_attempts.append({
-                **sample,
-                "label": sample["letter"],
-                "split": prepared_split,
-                "landmark_status": "ok",
-                "failure_reason": None,
-                "capture_metadata": _empty_capture_metadata(),
-            })
-        legacy_attempts.extend(failure_rows)
-    extraction_failure_report = build_extraction_failure_report(legacy_attempts)
-    (output_dir / "extraction_failure_report.json").write_text(
-        json.dumps(extraction_failure_report, indent=2),
-        encoding="utf-8",
-    )
 
     (output_dir / "duplicate_report.json").write_text(
         json.dumps(duplicate_report, indent=2),

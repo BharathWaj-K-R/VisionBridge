@@ -158,3 +158,4 @@ def test_extraction_failure_report_counts_letter_signer_and_conditions() -> None
     assert report["per_letter"]["B"]["skipped"] == 1
     assert report["per_signer"]["S002"]["skipped"] == 1
     assert report["per_condition"]["lighting"]["low-light"]["skipped"] == 1
+    assert report["per_split"]["unassigned"]["attempted"] == 2

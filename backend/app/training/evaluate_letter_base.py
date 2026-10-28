@@ -42,8 +42,8 @@ def load_split(root: Path, name: str) -> tuple[torch.Tensor, torch.Tensor]:
 
 
 
-def load_extraction_failure_summary(data_dir: Path) -> dict[str, object]:
-    """Read preparation failure counts when available; never infer missing coverage."""
+def load_extraction_failure_summary(data_dir: Path, split: str) -> dict[str, object]:
+    """Read split-scoped preparation failure counts when available."""
     path = data_dir / "extraction_failure_report.json"
     if not path.is_file():
         return {
@@ -51,12 +51,27 @@ def load_extraction_failure_summary(data_dir: Path) -> dict[str, object]:
             "failure_rate": None,
             "total_attempted": None,
             "total_skipped": None,
+            "scope": None,
             "path": str(path),
         }
+
     payload = json.loads(path.read_text(encoding="utf-8"))
-    rate = payload.get("failure_rate")
-    attempted = payload.get("total_attempted")
-    skipped = payload.get("total_skipped")
+    per_split = payload.get("per_split", {})
+    scoped = per_split.get(split) if isinstance(per_split, dict) else None
+    if scoped is None and split == "test" and isinstance(per_split, dict):
+        scoped = per_split.get("source_testing")
+
+    if isinstance(scoped, dict):
+        rate = scoped.get("failure_rate")
+        attempted = scoped.get("attempted")
+        skipped = scoped.get("skipped")
+        scope = split if split in per_split else "source_testing"
+    else:
+        rate = payload.get("failure_rate")
+        attempted = payload.get("total_attempted")
+        skipped = payload.get("total_skipped")
+        scope = "all_source_samples"
+
     if (
         not isinstance(rate, (int, float))
         or not isinstance(attempted, int)
@@ -72,6 +87,7 @@ def load_extraction_failure_summary(data_dir: Path) -> dict[str, object]:
         "failure_rate": float(rate),
         "total_attempted": attempted,
         "total_skipped": skipped,
+        "scope": scope,
         "path": str(path),
     }
 
@@ -156,7 +172,7 @@ def evaluate(
     mean_batch_ms = float(np.mean(timings) * 1000.0)
     mean_sample_ms = mean_batch_ms / max(len(sample), 1)
 
-    extraction_failure = load_extraction_failure_summary(data_dir)
+    extraction_failure = load_extraction_failure_summary(data_dir, split)
     report = {
         "extraction_failure": extraction_failure,
         "checkpoint": str(checkpoint),
@@ -220,6 +236,7 @@ def main() -> None:
         print(
             f"overall_accuracy={report['overall_accuracy']:.4f} "
             f"extraction_failure_rate={extraction_failure['failure_rate']:.4%} "
+            f"scope={extraction_failure['scope']} "
             f"skipped={extraction_failure['total_skipped']} "
             f"attempted={extraction_failure['total_attempted']}"
         )
