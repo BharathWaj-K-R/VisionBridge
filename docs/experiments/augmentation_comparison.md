@@ -11,9 +11,9 @@ Each augmentation operates on raw 126D MediaPipe coordinates before wrist center
 
 | Augmentation | Validation macro mean ± std | Macro delta vs baseline | Required seed-variance threshold | Keep? | Joint rejection rate | W→M count Δ | W→N count Δ | W→O count Δ | Python model latency |
 |---|---|---|---|---|---|---|---|---|---|
-| gaussian_jitter | NOT RUN | NOT RUN | NOT RUN | NOT RUN | 0% (not measured) | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
-| in_plane_rotation | NOT RUN | NOT RUN | NOT RUN | NOT RUN | 0% (not measured) | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
-| depth_scale | NOT RUN | NOT RUN | NOT RUN | NOT RUN | 0% (not measured) | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| gaussian_jitter | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| in_plane_rotation | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| depth_scale | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
 | finger_joint_angles | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
 
 ### Per-class validation accuracy change (candidate minus unaugmented baseline)
@@ -54,3 +54,50 @@ Once Phase 2 winner selection and raw split-aligned data exist:
 6. Record measured Python model-only latency; browser latency remains NOT MEASURED unless measured on a named browser/device.
 
 The existing checked-in V3 test confusion matrix is historical baseline context only. Its W row has 11 W→M, 11 W→N and 9 W→O errors. That test split must not be reused to tune or rank these augmentations.
+
+
+## Reproduction sequence
+
+The current repository has no completed Phase 2 comparison JSON and no aligned raw dataset. The experiment runner therefore stops with an explicit error until a real Phase 2 validation winner and local dataset are supplied. The placeholders below are paths on the training machine; generated arrays, checkpoints, and result JSON must stay outside Git.
+
+### 1. Diagnose temporal data first
+
+    PYTHONPATH=backend python backend/scripts/diagnose_temporal_sequences.py --manifest-root /path/to/dataset-manifests --output-json /path/outside/repo/temporal_diagnostic.json
+
+If the status is NOT TESTABLE, do not train a temporal head. The present schema has recording_id but no frame_index; see docs/experiments/temporal_decision.md.
+
+### 2. Extract raw coordinates for train and validation only
+
+    PYTHONPATH=backend python backend/scripts/prepare_raw_landmark_dataset.py --input-root /path/to/raw_dataset --data-dir-v1 /path/to/visionbridge_letter_data --output-dir /path/to/phase3_raw_train_val
+
+The default splits are train and val. This command does not read test manifest rows or images. It verifies source image hashes and row/label order and saves raw xyz arrays plus explicit left/right presence flags.
+
+### 3. Run each standalone augmentation separately
+
+Run the command once per augmentation ID: gaussian_jitter, in_plane_rotation, depth_scale, and finger_joint_angles. Use a different output directory for each, but retain the same Phase 2 report, source split directories, raw feature manifest, seed set, and epoch budget.
+
+    PYTHONPATH=backend python backend/scripts/run_augmentation_experiment.py --phase2-report /path/to/v4_comparison.json --data-dir-v1 /path/to/visionbridge_letter_data --data-dir-v4 /path/to/visionbridge_v4_letter_data --raw-dir /path/to/phase3_raw_train_val --output-dir /path/to/phase3_results/gaussian_jitter --augmentation gaussian_jitter --seeds 42 123 314 --epochs 1000 --batch-size 128
+
+The runner retrains the Phase 2 winner architecture without augmentation and with exactly one named augmentation for each of at least three seeds. It opens train and validation only. It records per-class validation accuracy deltas, validation W→M/N/O confusion-count deltas, Python model-only latency, and anatomical rejection rate where applicable. It will not invent a Phase 2 winner if the comparison JSON is absent or incomplete.
+
+### 4. Aggregate only completed standalone validation reports
+
+    PYTHONPATH=backend python backend/scripts/aggregate_augmentation_results.py --result /path/to/phase3_results/gaussian_jitter/augmentation_result.json --result /path/to/phase3_results/in_plane_rotation/augmentation_result.json --result /path/to/phase3_results/depth_scale/augmentation_result.json --result /path/to/phase3_results/finger_joint_angles/augmentation_result.json
+
+The aggregator rejects reports that opened test, use a different Phase 2 winner, use different seeds, or reference different train/validation manifests.
+
+### 5. Optional one combined run
+
+Only if all four standalone experiments have completed and at least two are marked KEEP by the validation rule, run at most one combined candidate. The runner reads the keep decisions from all four result JSONs and combines exactly that kept set; it records a shared one-attempt marker.
+
+    PYTHONPATH=backend python backend/scripts/run_augmentation_experiment.py --phase2-report /path/to/v4_comparison.json --data-dir-v1 /path/to/visionbridge_letter_data --data-dir-v4 /path/to/visionbridge_v4_letter_data --raw-dir /path/to/phase3_raw_train_val --output-dir /path/to/phase3_results/combined --experiment-root /path/to/phase3_results --augmentation combined --standalone-result /path/to/phase3_results/gaussian_jitter/augmentation_result.json --standalone-result /path/to/phase3_results/in_plane_rotation/augmentation_result.json --standalone-result /path/to/phase3_results/depth_scale/augmentation_result.json --standalone-result /path/to/phase3_results/finger_joint_angles/augmentation_result.json --seeds 42 123 314 --epochs 1000 --batch-size 128
+
+The shared experiment root refuses a second combined attempt.
+
+### 6. Freeze validation decisions, then open test once
+
+After all validation decisions have been made, run the finalizer once. Include the combined result only if a combined run was performed.
+
+    PYTHONPATH=backend python backend/scripts/finalize_augmentation_test.py --phase2-report /path/to/v4_comparison.json --standalone-result /path/to/phase3_results/gaussian_jitter/augmentation_result.json --standalone-result /path/to/phase3_results/in_plane_rotation/augmentation_result.json --standalone-result /path/to/phase3_results/depth_scale/augmentation_result.json --standalone-result /path/to/phase3_results/finger_joint_angles/augmentation_result.json --combined-result /path/to/phase3_results/combined/augmentation_result.json --data-dir-v1 /path/to/visionbridge_letter_data --data-dir-v4 /path/to/visionbridge_v4_letter_data --output-dir /path/to/phase3_results/final --batch-size 128
+
+The finalizer chooses the candidate from validation evidence only, verifies the checkpoint hash, writes the frozen selection manifest and one-shot marker before calling the evaluator. The marker blocks re-opening test in the same output directory, even if the evaluator fails. If no standalone augmentation meets the keep rule, the unaugmented Phase 2 architecture is evaluated as the final baseline.
