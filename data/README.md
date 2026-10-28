@@ -37,7 +37,17 @@ The preparation pipeline:
 4. Groups exact-hash duplicates so they stay together during the generated train/validation split; reports exact-hash overlap involving the source test split.
 5. Records class counts and images skipped when a usable hand landmark set cannot be extracted.
 
-These checks address exact duplicate leakage, but they do not establish signer independence or detect all near-duplicate frames.
+Exact-hash checks and landmark-space near-duplicate checks address data leakage. Signer-independent evaluation still requires verified signer IDs; legacy RealSign source folders do not provide them.
+
+## Manifest v2 and extraction failure reporting
+
+The schema and validator are documented in MANIFEST_SCHEMA.md. A manifest contains real, consented pseudonymous signer IDs; the tooling never infers signer identity. Place manifest_v2.jsonl under the input root or pass --manifest-v2. Rows may use split = unassigned for deterministic signer-group allocation, or may provide preassigned train/val/test splits that already keep each signer in only one partition.
+
+Run the validator with:
+
+    PYTHONPATH=backend python backend/scripts/validate_manifest.py --manifest /path/to/manifest_v2.jsonl
+
+For legacy inputs without manifest v2, the existing sample-level train/validation procedure remains active and labels.json explicitly records signer_split = unavailable. Preparation writes extraction_failure_report.json with per-letter, per-signer and per-capture-condition failure rates. duplicate_report.json includes landmark-space near-duplicate checks; a cross-split near-duplicate is a pipeline failure. The RMS distance threshold defaults to 0.01 and can be changed with --near-duplicate-threshold.
 
 ## Training and evaluation
 

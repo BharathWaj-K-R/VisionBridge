@@ -41,6 +41,41 @@ def load_split(root: Path, name: str) -> tuple[torch.Tensor, torch.Tensor]:
     return torch.from_numpy(x), torch.from_numpy(y)
 
 
+
+def load_extraction_failure_summary(data_dir: Path) -> dict[str, object]:
+    """Read preparation failure counts when available; never infer missing coverage."""
+    path = data_dir / "extraction_failure_report.json"
+    if not path.is_file():
+        return {
+            "available": False,
+            "failure_rate": None,
+            "total_attempted": None,
+            "total_skipped": None,
+            "path": str(path),
+        }
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    rate = payload.get("failure_rate")
+    attempted = payload.get("total_attempted")
+    skipped = payload.get("total_skipped")
+    if (
+        not isinstance(rate, (int, float))
+        or not isinstance(attempted, int)
+        or not isinstance(skipped, int)
+        or attempted < 0
+        or skipped < 0
+        or skipped > attempted
+        or not 0.0 <= float(rate) <= 1.0
+    ):
+        raise ValueError(f"Invalid extraction failure report: {path}")
+    return {
+        "available": True,
+        "failure_rate": float(rate),
+        "total_attempted": attempted,
+        "total_skipped": skipped,
+        "path": str(path),
+    }
+
+
 def evaluate(
     checkpoint: Path,
     data_dir: Path,
@@ -121,7 +156,9 @@ def evaluate(
     mean_batch_ms = float(np.mean(timings) * 1000.0)
     mean_sample_ms = mean_batch_ms / max(len(sample), 1)
 
+    extraction_failure = load_extraction_failure_summary(data_dir)
     report = {
+        "extraction_failure": extraction_failure,
         "checkpoint": str(checkpoint),
         "checkpoint_sha256": sha256_file(checkpoint),
         "split": split,
@@ -178,7 +215,19 @@ def main() -> None:
 
     print(f"split={report['split']}")
     print(f"samples={report['samples']}")
-    print(f"overall_accuracy={report['overall_accuracy']:.4f}")
+    extraction_failure = report["extraction_failure"]
+    if extraction_failure["available"]:
+        print(
+            f"overall_accuracy={report['overall_accuracy']:.4f} "
+            f"extraction_failure_rate={extraction_failure['failure_rate']:.4%} "
+            f"skipped={extraction_failure['total_skipped']} "
+            f"attempted={extraction_failure['total_attempted']}"
+        )
+    else:
+        print(
+            f"overall_accuracy={report['overall_accuracy']:.4f} "
+            "extraction_failure_rate=unavailable (no extraction_failure_report.json)"
+        )
     print(f"macro_accuracy={report['macro_accuracy']:.4f}")
     print(
         f"worst_letter={report['worst_letter']} "
