@@ -345,11 +345,16 @@ def train_model(
                 )
 
             optimizer.zero_grad(set_to_none=True)
-            batch_x = augment_landmark_batch(
-                x.to(device),
-                jitter_std=landmark_jitter_std,
-                rotation_degrees=rotation_degrees,
-            )
+            if model_version == "v3":
+                batch_x = augment_landmark_batch(
+                    x.to(device),
+                    jitter_std=landmark_jitter_std,
+                    rotation_degrees=rotation_degrees,
+                )
+            else:
+                # V4 input includes presence and relative geometry; the current
+                # augmentation implementation is defined only for V1 126D data.
+                batch_x = x.to(device)
             batch_y = y.to(device)
             logits = model(batch_x)
             loss = classification_loss(

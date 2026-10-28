@@ -25,6 +25,8 @@ from app.services.letter_fewshot import (
     validate_prototype_adapter_payload,
     validate_prototype_adapter_payload_v4,
 )
+from app.training.letter_base import train_model
+from scripts.run_v4_comparison import verify_aligned_splits
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_PATH = BACKEND_ROOT / "tests" / "fixtures" / "v4_feature_parity.json"
@@ -180,3 +182,85 @@ def test_v4_adapter_binding_rejects_cross_version_and_hash_mismatch(tmp_path: Pa
         validate_prototype_adapter_payload_v4(v3_payload, v4_path)
     with pytest.raises(ValueError, match="Invalid VisionBridge letter adapter"):
         validate_prototype_adapter_payload(good_v4_payload, v3_path)
+
+
+
+def test_v4_training_runs_without_applying_v1_only_augmentation(tmp_path: Path) -> None:
+    rng = np.random.default_rng(42)
+    labels = np.arange(26, dtype=np.int64)
+    root = tmp_path / "data"
+    root.mkdir()
+    (root / "labels.json").write_text(
+        json.dumps({"labels": list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")}),
+        encoding="utf-8",
+    )
+    for split in ("train", "val"):
+        features = rng.normal(0.0, 0.05, size=(26, 141)).astype(np.float32)
+        features[:, 63] = 1.0
+        features[:, 127] = 1.0
+        np.savez_compressed(root / f"{split}.npz", x=features, y=labels)
+
+    report = train_model(
+        root=root,
+        output_path=tmp_path / "v4-one-epoch.pt",
+        epochs=1,
+        batch_size=26,
+        learning_rate=1e-3,
+        weight_decay=1e-4,
+        target_class_accuracy=1.0,
+        seed=42,
+        hidden_dim=128,
+        embedding_dim=64,
+        dropout=0.10,
+        loss_name="cross_entropy",
+        landmark_jitter_std=0.0,
+        rotation_degrees=0.0,
+        validation_only=True,
+        model_version="v4",
+        v4_variant="full_v4",
+    )
+    assert report["model_version"] == "visionbridge-letter-base-v4"
+    assert report["input_dim"] == 141
+    assert report["parameter_count"] == 25_156
+    assert (tmp_path / "v4-one-epoch.pt").is_file()
+
+
+def test_comparison_runner_verifies_split_identity_and_label_order(tmp_path: Path) -> None:
+    v1_root = tmp_path / "v1"
+    v4_root = tmp_path / "v4"
+    v1_root.mkdir()
+    v4_root.mkdir()
+
+    rows = []
+    labels = np.asarray([0, 1, 2], dtype=np.int64)
+    for i, label in enumerate("ABC"):
+        rows.append({
+            "sample_id": f"sample-{i}",
+            "source_path": f"images/{label.lower()}.png",
+            "image_sha256": f"{i + 1:064x}",
+            "label": label,
+            "landmark_status": "ok",
+        })
+
+    for split in ("train", "val", "test"):
+        x1 = np.zeros((3, 126), dtype=np.float32)
+        x4 = np.zeros((3, 141), dtype=np.float32)
+        np.savez_compressed(v1_root / f"{split}.npz", x=x1, y=labels)
+        np.savez_compressed(v4_root / f"{split}.npz", x=x4, y=labels)
+        for root in (v1_root, v4_root):
+            with (root / f"{split}_manifest.jsonl").open("w", encoding="utf-8") as handle:
+                for row in rows:
+                    handle.write(json.dumps(row) + "\n")
+
+    result = verify_aligned_splits(v1_root, v4_root)
+    assert result["train"]["samples"] == 3
+    assert result["val"]["samples"] == 3
+    assert result["test"]["samples"] == 3
+
+    wrong_rows = [dict(row) for row in rows]
+    wrong_rows[1]["sample_id"] = "different-sample"
+    with (v4_root / "test_manifest.jsonl").open("w", encoding="utf-8") as handle:
+        for row in wrong_rows:
+            handle.write(json.dumps(row) + "\n")
+    with pytest.raises(ValueError, match="sample identities/order differ"):
+        verify_aligned_splits(v1_root, v4_root)
