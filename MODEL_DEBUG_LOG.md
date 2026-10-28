@@ -2235,3 +2235,91 @@ STATUS:
     Documentation facts reconciled to current repository artifacts.
     No training, model promotion, live Render probe, or physical-device test was
     performed as part of this documentation-only change.
+
+
+---
+
+# 2026-10-28 — Phase 2 V4 feature/model candidate implementation
+
+SCOPE:
+    Defined the V4 feature contract before code; added separate V4 model/checkpoint
+    loaders, Python and TypeScript preprocessors, adapter binding/recalibration
+    gates, aligned feature preparation, a matched experiment runner, and tests.
+    Existing V3 identifiers and the active browser model path remain unchanged.
+
+CONTRACT:
+    V3 model: visionbridge-letter-base-v3
+    V3 preprocessing: two-hand-wrist-scale-v1
+    V4 model: visionbridge-letter-base-v4
+    V4 preprocessing: two-hand-geometry-v2
+    V4 feature width: 141 float32
+    V4 slots: left 63 coordinates + presence, right 63 coordinates + presence
+    V4 geometry: 3D right-minus-left wrist offset plus 10 cross-wrist fingertip distances
+    Embedding: 64D
+    Classes: 26 A-Z logits
+    Landmark runtime: mediapipe-hand-landmarker-0.10.35
+
+IMPLEMENTED:
+    docs/v4/CONTRACT.md
+    backend/app/models/letter_model.py
+    backend/app/services/letter_fewshot.py
+    backend/app/training/letter_base.py
+    backend/app/training/evaluate_letter_base.py
+    backend/scripts/prepare_v4_feature_dataset.py
+    backend/scripts/run_v4_comparison.py
+    backend/tests/test_v4_contract.py
+    backend/tests/fixtures/v4_feature_parity.json
+    frontend/src/landmarks.ts
+    frontend/scripts/v4-feature-entry.mjs
+    frontend/scripts/verify-v4-feature-parity.mjs
+    .github/workflows/v4-feature-parity.yml
+    docs/experiments/v4_comparison.md
+
+TEST/CI EVIDENCE:
+    Product validation: run 40674189390, commit 232cb387247d4cf97e35eb9a0b99006be93e2f07
+        backend: 100 passed, 2 warnings
+        V3 browser/Python parity:
+            embedding_max_abs_error=1.9073486328125e-06
+            logits_max_abs_error=4.76837158203125e-06
+            tolerance=1e-05
+            passed=true
+        frontend:
+            VITE_LOCAL_MODE=false
+            production build succeeded
+            production artifact verified
+
+    V4 Python/TypeScript feature parity: run 40673919246
+        fixture_frames=5
+        values_compared=705
+        max_abs_error=0
+        tolerance=1e-06
+        passed=true
+
+FAIR COMPARISON DESIGN:
+    At least three fixed seeds and one fixed epoch budget across all candidates.
+    Dedicated seeded DataLoader generator in matched-comparison mode keeps the
+    training sample order aligned across candidate architectures.
+    The training/evaluator path does not calculate test accuracy during candidate
+    training. Validation mean±standard deviation ranks variants. A frozen
+    selection manifest binds the one final test evaluation to the candidate SHA-256
+    and records a unique evaluation ID, timestamp and evaluator identity.
+
+DATA / RELEASE BOUNDARY:
+    No aligned real V1/V4 dataset was available in this execution environment.
+    The V4 preparation and comparison scripts were not run on the real dataset.
+    Therefore validation/test comparison scores and real-data latency remain
+    NOT RUN; docs/experiments/v4_comparison.md uses no fabricated metric values.
+    Browser latency is NOT MEASURED.
+    Verified signer IDs remain unavailable, so signer-independent evaluation is
+    BLOCKED.
+    No V4 checkpoint promotion or browser default wiring occurred.
+    No checkpoint weights, V3 evaluation JSON, or V3 release-evidence JSON were
+    changed. The active V3 checkpoint hash remains:
+        f903872e96f269c5fbee6ea897f0027b91e162f2fc45b4c9a115e8ba8e38c917
+
+LATEST CODE CHANGE AT TIME OF THIS LOG:
+    48fdee19df9e2190ed1bda66095a47274be3503b
+    This adds exact invocation/checkpoint hash fields to the frozen final-test
+    execution record. Its own GitHub Actions run was queued when this note was
+    written. Previous completed run 40674189390 covers the implementation up
+    through commit 232cb387247d4cf97e35eb9a0b99006be93e2f07.

@@ -2032,3 +2032,24 @@ Remaining explicit boundaries:
     dedicated pgTAP release evidence: NOT YET IMPLEMENTED
 
 The full restart rule remains in force: any newly discovered defect invalidates dependent evidence and requires another audit cycle.
+
+
+---
+
+# 2026-10-28 — Phase 2 V4 candidate boundary
+
+The V3 model/checkpoint remains the active production baseline. Phase 2 added a separate V4 experiment contract in docs/v4/CONTRACT.md and experimental implementation paths. The V4 checkpoint loader is versioned independently; V3 and V4 loaders reject cross-version checkpoints. No V4 checkpoint was promoted or installed, and frontend/src/browserModel.ts remains V3-only.
+
+V4 feature layout is 141 float32 values: left 63D wrist-centered/scale-normalized landmarks + presence flag, right 63D landmarks + presence flag, then 13D relative-hand geometry. Python and TypeScript implementations share golden fixtures and an explicit parity workflow.
+
+Candidate variants:
+
+- v4_features_old_mlp: V4 141D features with a V3-shaped MLP.
+- v1_features_shared_encoder: V1 126D features with a shared hand encoder.
+- full_v4: V4 141D features with the shared hand encoder and relative geometry.
+
+backend/scripts/prepare_v4_feature_dataset.py requires a V1 dataset metadata contract, reuses existing split manifests, rechecks source image hashes, checks output row/label alignment, and removes stale generated split outputs before preparation. backend/scripts/run_v4_comparison.py validates ordered sample identity/label alignment, uses three or more fixed seeds and an exact epoch budget with a dedicated shuffle generator, trains validation-only, selects only on validation mean metrics, freezes a checkpoint plus hashed selection manifest, and has one final test evaluator invocation.
+
+**Data limitation:** The active RealSign data has no verified signer IDs. No aligned V1/V4 real-data experiment was run during this phase, so V4 validation/test accuracy and measured real-data latency remain NOT RUN; docs/experiments/v4_comparison.md deliberately contains no invented metrics. Signer-independent evaluation remains blocked until verified, consented signer metadata/data are available.
+
+Latest fully completed implementation validation before this hand-off note: product CI run 40674189390 for code commit 232cb387247d4cf97e35eb9a0b99006be93e2f07 passed 100 backend tests, V3 browser/Python parity, frontend build and production artifact verification. V4 Python/TypeScript parity workflow 40673919246 passed 5 fixtures / 705 values with maximum absolute error 0 at tolerance 1e-6. The latest small report-metadata change in commit 48fdee19df9e2190ed1bda66095a47274be3503b is awaiting its own CI result at the time this entry is authored.
