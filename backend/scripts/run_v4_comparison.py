@@ -7,11 +7,13 @@ dataset or checkpoint files to Git.
 from __future__ import annotations
 
 import argparse
+import getpass
 import hashlib
 import json
 import shutil
 import subprocess
 import time
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -325,16 +327,47 @@ def run_comparison(
     frozen_checkpoint = output_dir / "final_selected_candidate.pt"
     shutil.copy2(selected_checkpoint, frozen_checkpoint)
     frozen_hash = sha256_file(frozen_checkpoint)
+    test_evaluation_id = uuid.uuid4().hex
+    selection_frozen_at = datetime.now(timezone.utc).isoformat()
+    selection_manifest = {
+        "selected_variant": selected_name,
+        "selected_seed": selected_row["seed"],
+        "checkpoint_sha256": frozen_hash,
+        "checkpoint_path": str(frozen_checkpoint),
+        "selected_data_dir": str(selected_data_dir),
+        "protocol_seeds": list(seeds),
+        "epoch_budget": epochs,
+        "loss": "cross_entropy",
+        "validation_only_selection": True,
+        "test_evaluation_id": test_evaluation_id,
+        "frozen_at_utc": selection_frozen_at,
+        "evaluator_identity": getpass.getuser(),
+        "aligned_splits": aligned,
+    }
+    selection_path = output_dir / "selection_frozen.json"
+    selection_path.write_text(json.dumps(selection_manifest, indent=2), encoding="utf-8")
+    selection_hash = sha256_file(selection_path)
+    test_started_at = datetime.now(timezone.utc).isoformat()
 
-    # This is the sole accuracy evaluation on the held-out test split.
+    # The final candidate has been frozen and hashed. Open the test split once.
     test_report = evaluate(
         checkpoint=frozen_checkpoint,
         data_dir=selected_data_dir,
         split="test",
         batch_size=batch_size,
     )
+    test_finished_at = datetime.now(timezone.utc).isoformat()
     if test_report["checkpoint_sha256"] != frozen_hash:
         raise RuntimeError("Final test report checkpoint hash does not match the frozen candidate")
+    test_report["evaluation_run"] = {
+        "evaluation_id": test_evaluation_id,
+        "invocation": "evaluate(checkpoint=<frozen_checkpoint>, data_dir=<selected_split_dir>, split='test', batch_size={})".format(batch_size),
+        "started_at_utc": test_started_at,
+        "finished_at_utc": test_finished_at,
+        "evaluator_identity": getpass.getuser(),
+        "selection_manifest_sha256": selection_hash,
+        "test_accuracy_evaluation_calls": 1,
+    }
 
     try:
         code_commit = subprocess.run(
@@ -346,7 +379,6 @@ def run_comparison(
     except (OSError, subprocess.CalledProcessError):
         code_commit = "unavailable"
 
-    import getpass
     report = {
         "status": "completed",
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -366,6 +398,12 @@ def run_comparison(
             "browser_latency": "NOT MEASURED",
         },
         "aligned_splits": aligned,
+        "selection_manifest": {
+            "path": str(selection_path),
+            "sha256": selection_hash,
+            "frozen_at_utc": selection_frozen_at,
+            "test_evaluation_id": test_evaluation_id,
+        },
         "selection": {
             "variant": selected_name,
             "seed": selected_row["seed"],
