@@ -11,7 +11,7 @@ const fixture = JSON.parse(readFileSync(fixturePath, "utf8"));
 
 try {
   await build({
-    entryPoints: [resolve(frontendDir, "src/landmarks.ts")],
+    entryPoints: [resolve(frontendDir, "scripts/v4-feature-entry.mjs")],
     bundle: true,
     platform: "node",
     format: "esm",
@@ -26,24 +26,24 @@ try {
   for (const frame of fixture.frames) {
     const actual = module.normalizeHandPairV2(frame.raw, frame.left_present, frame.right_present);
     if (actual.length !== fixture.output_dim) {
-      throw new Error(\`\${frame.id}: expected \${fixture.output_dim} outputs, got \${actual.length}\`);
+      throw new Error(frame.id + ": expected " + fixture.output_dim + " outputs, got " + actual.length);
     }
     for (let i = 0; i < fixture.output_dim; i += 1) {
       const error = Math.abs(actual[i] - frame.expected[i]);
       maxAbsError = Math.max(maxAbsError, error);
       comparisons += 1;
       if (!Number.isFinite(actual[i]) || error > fixture.atol) {
-        throw new Error(\`\${frame.id}[ \${i} ] expected \${frame.expected[i]}, got \${actual[i]}, abs_error=\${error}\`);
+        throw new Error(frame.id + "[" + i + "] expected " + frame.expected[i] + ", got " + actual[i] + ", abs_error=" + error);
       }
     }
-    if (!frame.left_present) {
-      if (actual.slice(0, 64).some(value => value !== 0)) throw new Error(\`\${frame.id}: absent left slot is not zero-filled\`);
+    if (!frame.left_present && actual.slice(0, 64).some(value => value !== 0)) {
+      throw new Error(frame.id + ": absent left slot is not zero-filled");
     }
-    if (!frame.right_present) {
-      if (actual.slice(64, 128).some(value => value !== 0)) throw new Error(\`\${frame.id}: absent right slot is not zero-filled\`);
+    if (!frame.right_present && actual.slice(64, 128).some(value => value !== 0)) {
+      throw new Error(frame.id + ": absent right slot is not zero-filled");
     }
-    if (!frame.left_present || !frame.right_present) {
-      if (actual.slice(128).some(value => value !== 0)) throw new Error(\`\${frame.id}: missing-hand geometry is not zero-filled\`);
+    if ((!frame.left_present || !frame.right_present) && actual.slice(128).some(value => value !== 0)) {
+      throw new Error(frame.id + ": missing-hand geometry is not zero-filled");
     }
   }
   console.log(JSON.stringify({

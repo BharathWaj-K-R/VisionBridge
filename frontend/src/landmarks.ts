@@ -161,8 +161,9 @@ export function normalizeHandPairV2(
     throw new Error("V4 requires 126 finite raw hand-coordinate values");
   }
 
-  const rawLeft = values.slice(0, HAND_DIM);
-  const rawRight = values.slice(HAND_DIM);
+  const rawValues = values.map(Math.fround);
+  const rawLeft = rawValues.slice(0, HAND_DIM);
+  const rawRight = rawValues.slice(HAND_DIM);
   const leftPoints = Array.from({ length: 21 }, (_, index) => rawLeft.slice(index * 3, index * 3 + 3));
   const rightPoints = Array.from({ length: 21 }, (_, index) => rawRight.slice(index * 3, index * 3 + 3));
 

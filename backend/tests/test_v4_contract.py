@@ -92,7 +92,12 @@ def test_v4_variants_save_load_and_produce_expected_shapes(
     inputs = torch.zeros((3, input_dim), dtype=torch.float32)
     assert model.embed(inputs).shape == (3, 64)
     assert model(inputs).shape == (3, 26)
-    assert sum(p.numel() for p in model.parameters()) > 0
+    expected_parameters = {
+        "full_v4": 25_156,
+        "v4_features_old_mlp": 28_532,
+        "v1_features_shared_encoder": 25_156,
+    }
+    assert sum(p.numel() for p in model.parameters()) == expected_parameters[variant]
 
     checkpoint = tmp_path / f"{variant}.pt"
     save_v4_checkpoint(model, checkpoint)

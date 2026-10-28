@@ -1,0 +1,34 @@
+name: V4 Python/TypeScript feature parity
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/src/landmarks.ts"
+      - "frontend/scripts/verify-v4-feature-parity.mjs"
+      - "frontend/scripts/v4-feature-entry.mjs"
+      - "backend/tests/fixtures/v4_feature_parity.json"
+      - ".github/workflows/v4-feature-parity.yml"
+  pull_request:
+    paths:
+      - "frontend/src/landmarks.ts"
+      - "frontend/scripts/verify-v4-feature-parity.mjs"
+      - "frontend/scripts/v4-feature-entry.mjs"
+      - "backend/tests/fixtures/v4_feature_parity.json"
+      - ".github/workflows/v4-feature-parity.yml"
+  workflow_dispatch:
+
+jobs:
+  v4-feature-parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        run: npm ci --prefix frontend
+      - name: Compare TypeScript features to Python golden fixture
+        run: node frontend/scripts/verify-v4-feature-parity.mjs

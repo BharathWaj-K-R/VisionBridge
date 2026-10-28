@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import shutil
 from pathlib import Path
 
 import numpy as np
@@ -176,6 +177,9 @@ def prepare_v4_dataset(
         for split in SPLITS
     }
     (output_dir / "labels.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+    failure_report = v1_data_dir / "extraction_failure_report.json"
+    if failure_report.is_file():
+        shutil.copy2(failure_report, output_dir / failure_report.name)
     print("v4_feature_preparation=PASS; no V3 checkpoint or model code was changed")
     return metadata
 

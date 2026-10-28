@@ -22,7 +22,6 @@ from app.models.letter_model import (
     load_checkpoint,
     load_v4_checkpoint,
 )
-from app.models.letter_model import V4_PREPROCESSING_VERSION as V4_MODEL_PREPROCESSING_VERSION
 
 HAND_LANDMARKS = 21
 HAND_COORDS = 3
