@@ -6,12 +6,12 @@
 
 | Contract | Identifier |
 |---|---|
-| V3 model | \`visionbridge-letter-base-v3\` |
-| V3 preprocessing | \`two-hand-wrist-scale-v1\` |
-| V4 model | \`visionbridge-letter-base-v4\` |
-| V4 preprocessing | \`two-hand-geometry-v2\` |
-| Landmark runtime | \`mediapipe-hand-landmarker-0.10.35\` |
-| Vocabulary | \`ABCDEFGHIJKLMNOPQRSTUVWXYZ\` |
+| V3 model | `visionbridge-letter-base-v3` |
+| V3 preprocessing | `two-hand-wrist-scale-v1` |
+| V4 model | `visionbridge-letter-base-v4` |
+| V4 preprocessing | `two-hand-geometry-v2` |
+| Landmark runtime | `mediapipe-hand-landmarker-0.10.35` |
+| Vocabulary | `ABCDEFGHIJKLMNOPQRSTUVWXYZ` |
 | Embedding dimension | 64 |
 | Classifier outputs | 26 logits, A through Z |
 | Numeric dtype | IEEE-754 float32 in Python and JavaScript |
@@ -39,11 +39,11 @@ The output is one flat vector. Offsets below are inclusive.
 | 131–135 | 5 | Euclidean distance from each left fingertip (4, 8, 12, 16, 20) to the right wrist, divided by the shared geometry scale |
 | 136–140 | 5 | Euclidean distance from each right fingertip (4, 8, 12, 16, 20) to the left wrist, divided by the shared geometry scale |
 
-The shape is exactly \`[141]\` per sample or \`[batch, 141]\` per batch. There is no implicit padding or optional trailing geometry.
+The shape is exactly `[141]` per sample or `[batch, 141]` per batch. There is no implicit padding or optional trailing geometry.
 
 ## Normalization equations
 
-For each present hand independently, let \(p_0\) be its raw wrist and let \(s_h = \max_i ||p_i-p_0||_2\) over its 21 raw landmarks. Each normalized hand landmark is \((p_i-p_0)/s_h\), with the same \`1e-6\` degeneracy guard used by v1. If a hand is absent, all 63 coordinate values in its slot are zeros, regardless of the coordinate buffer contents. The explicit presence flag still reflects the supplied detection boolean; a detected degenerate hand may therefore have a 1.0 presence flag and zero normalized coordinates.
+For each present hand independently, let \(p_0\) be its raw wrist and let \(s_h = \max_i ||p_i-p_0||_2\) over its 21 raw landmarks. Each normalized hand landmark is \((p_i-p_0)/s_h\), with the same `1e-6` degeneracy guard used by v1. If a hand is absent, all 63 coordinate values in its slot are zeros, regardless of the coordinate buffer contents. The explicit presence flag still reflects the supplied detection boolean; a detected degenerate hand may therefore have a 1.0 presence flag and zero normalized coordinates.
 
 When both hands are present, the shared geometry scale is \(s_g = \max(s_{left}, s_{right}, 1e-6)\). The inter-wrist vector is \((w_{right}-w_{left})/s_g\). Each cross-wrist fingertip distance is \(||tip-wrist_{opposite}||_2/s_g\). Geometry values are float32.
 
@@ -55,7 +55,7 @@ The entire output must be finite. Inputs of the wrong length, non-finite raw coo
 
 The full V4 model consumes the 141D vector. Its shared hand encoder receives each 64D hand slot (63 coordinates plus explicit presence flag) with the exact same weights for left and right. The encoder output is 32D per hand. Left/right roles remain explicit: encoded hand vectors are combined in left-then-right order and receive separate learned role embeddings before fusion. The fusion block concatenates the 32D left embedding, 32D right embedding, and 13D relative-geometry block (77D total), applies a 128D hidden fusion layer, then produces a 64D embedding and 26 A-Z logits.
 
-The model must expose \`embed(inputs) -> [batch, 64]\` and \`forward(inputs) -> [batch, 26]\`. Every checkpoint records model version, architecture variant, preprocessing version, runtime, input/hidden/embedding/class dimensions, and the exact A-Z labels.
+The model must expose `embed(inputs) -> [batch, 64]` and `forward(inputs) -> [batch, 26]`. Every checkpoint records model version, architecture variant, preprocessing version, runtime, input/hidden/embedding/class dimensions, and the exact A-Z labels.
 
 ## Named ablations
 
@@ -63,9 +63,9 @@ Ablations are different metadata-bound V4 variants; none is a production default
 
 | Variant ID | Preprocessing | Input width | Model |
 |---|---|---:|---|
-| \`v4_features_old_mlp\` | \`two-hand-geometry-v2\` | 141 | Original V3-style MLP shape with input width adjusted to 141; no shared hand encoder |
-| \`v1_features_shared_encoder\` | \`two-hand-wrist-scale-v1\` | 126 | Shared hand encoder and fusion head; relative geometry unavailable and set to zero; hand-presence flags are derived from whether each legacy 63D hand slot is nonzero |
-| \`full_v4\` | \`two-hand-geometry-v2\` | 141 | Shared hand encoder, explicit presence, and 13D relative-hand geometry |
+| `v4_features_old_mlp` | `two-hand-geometry-v2` | 141 | Original V3-style MLP shape with input width adjusted to 141; no shared hand encoder |
+| `v1_features_shared_encoder` | `two-hand-wrist-scale-v1` | 126 | Shared hand encoder and fusion head; relative geometry unavailable and set to zero; hand-presence flags are derived from whether each legacy 63D hand slot is nonzero |
+| `full_v4` | `two-hand-geometry-v2` | 141 | Shared hand encoder, explicit presence, and 13D relative-hand geometry |
 
 Use the same sample identities and split assignments for all candidate variants. A V4 141D array cannot be reconstructed truthfully from legacy v1-normalized 126D arrays because per-hand normalization removes absolute wrist placement. The full V4 data path therefore needs raw landmark frames or precomputed V4 features generated from those frames, aligned with the same split manifests and sample IDs.
 

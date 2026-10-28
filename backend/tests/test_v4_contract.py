@@ -27,6 +27,7 @@ from app.services.letter_fewshot import (
 )
 from app.training.letter_base import train_model
 from scripts.run_v4_comparison import verify_aligned_splits
+import scripts.prepare_v4_feature_dataset as v4_preparer
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_PATH = BACKEND_ROOT / "tests" / "fixtures" / "v4_feature_parity.json"
@@ -311,3 +312,105 @@ def test_fixed_epoch_budget_uses_all_epochs_even_after_target_is_met(
     assert report["epochs_completed"] == 3
     assert report["best_epoch"] == 1
     assert report["training"]["fixed_epoch_budget"] is True
+
+
+
+def test_v4_dataset_preparation_requires_v1_contract_metadata(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    v1_root = tmp_path / "v1"
+    v1_root.mkdir()
+    (v1_root / "labels.json").write_text(
+        json.dumps({"labels": list("ABCDEFGHIJKLMNOPQRSTUVWXYZ"), "preprocessing_version": "wrong"}),
+        encoding="utf-8",
+    )
+    called = False
+
+    def must_not_create_landmarker(path: Path):
+        nonlocal called
+        called = True
+        raise AssertionError("landmarker should not be initialized for incompatible V1 data")
+
+    monkeypatch.setattr(v4_preparer, "create_hand_landmarker", must_not_create_landmarker)
+    with pytest.raises(ValueError, match="validated V1 data directory"):
+        v4_preparer.prepare_v4_dataset(
+            input_root=tmp_path / "raw",
+            v1_data_dir=v1_root,
+            output_dir=tmp_path / "v4",
+        )
+    assert called is False
+
+
+def test_v4_dataset_preparation_rebuilds_all_splits_and_preserves_row_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))["frames"][0]["expected"]
+    raw_root = tmp_path / "raw"
+    v1_root = tmp_path / "v1"
+    output_root = tmp_path / "v4"
+    raw_root.mkdir()
+    v1_root.mkdir()
+    v1_metadata = {
+        "labels": list("ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
+        "preprocessing_version": "two-hand-wrist-scale-v1",
+        "landmarker": {"runtime": "mediapipe-hand-landmarker-0.10.35"},
+    }
+    (v1_root / "labels.json").write_text(json.dumps(v1_metadata), encoding="utf-8")
+    stale = output_root / "test.npz"
+    output_root.mkdir()
+    np.savez_compressed(stale, x=np.zeros((1, 141), dtype=np.float32), y=np.asarray([0]))
+
+    class FakeLandmarker:
+        closed = False
+
+        def close(self) -> None:
+            self.closed = True
+
+    fake_landmarker = FakeLandmarker()
+    monkeypatch.setattr(v4_preparer, "create_hand_landmarker", lambda path: fake_landmarker)
+    monkeypatch.setattr(
+        v4_preparer,
+        "_extract_v4_vector",
+        lambda image_path, landmarker: (np.asarray(fixture, dtype=np.float32), None, None),
+    )
+
+    rows_by_split = {}
+    for split in ("train", "val", "test"):
+        relpath = f"{split}/A.png"
+        image = raw_root / relpath
+        image.parent.mkdir(parents=True, exist_ok=True)
+        image.write_bytes((split + "-image").encode("utf-8"))
+        import hashlib
+        row = {
+            "sample_id": f"{split}-sample-1",
+            "source_path": relpath,
+            "image_sha256": hashlib.sha256(image.read_bytes()).hexdigest(),
+            "label": "A",
+            "letter": "A",
+            "landmark_status": "ok",
+            "signer_id": None,
+            "recording_id": None,
+            "split": split,
+        }
+        rows_by_split[split] = row
+        (v1_root / f"{split}_manifest.jsonl").write_text(json.dumps(row) + "\n", encoding="utf-8")
+        np.savez_compressed(
+            v1_root / f"{split}.npz",
+            x=np.zeros((1, 126), dtype=np.float32),
+            y=np.asarray([0], dtype=np.int64),
+        )
+
+    report = v4_preparer.prepare_v4_dataset(
+        input_root=raw_root,
+        v1_data_dir=v1_root,
+        output_dir=output_root,
+        hand_model_path=tmp_path / "fake.task",
+    )
+    assert fake_landmarker.closed is True
+    assert report["input_dim"] == 141
+    for split, row in rows_by_split.items():
+        with np.load(output_root / f"{split}.npz", allow_pickle=False) as data:
+            assert data["x"].shape == (1, 141)
+            assert data["y"].tolist() == [0]
+        output_row = json.loads((output_root / f"{split}_manifest.jsonl").read_text(encoding="utf-8"))
+        assert output_row["sample_id"] == row["sample_id"]
+        assert output_row["image_sha256"] == row["image_sha256"]

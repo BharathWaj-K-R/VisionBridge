@@ -94,8 +94,33 @@ def prepare_v4_dataset(
     output_dir: Path,
     hand_model_path: Path = LANDMARK_MODEL_DEFAULT,
 ) -> dict:
-    output_dir.mkdir(parents=True, exist_ok=True)
     root = input_root.resolve()
+    v1_root = v1_data_dir.resolve()
+    output_root = output_dir.resolve()
+    if output_root in {root, v1_root}:
+        raise ValueError("V4 output directory must be separate from the raw source and V1 dataset directories")
+
+    v1_metadata_path = v1_root / "labels.json"
+    if not v1_metadata_path.is_file():
+        raise FileNotFoundError(f"Missing V1 dataset contract metadata: {v1_metadata_path}")
+    v1_metadata = json.loads(v1_metadata_path.read_text(encoding="utf-8"))
+    runtime = v1_metadata.get("landmarker", {}).get("runtime") if isinstance(v1_metadata.get("landmarker"), dict) else None
+    if (
+        v1_metadata.get("preprocessing_version") != "two-hand-wrist-scale-v1"
+        or v1_metadata.get("labels") != list(LABELS)
+        or runtime != "mediapipe-hand-landmarker-0.10.35"
+    ):
+        raise ValueError("V4 preparation requires a validated V1 data directory using the documented preprocessing/runtime contract")
+
+    # Clear only generated files from prior V4 runs. If a later split fails,
+    # stale arrays from an earlier attempt cannot be mistaken for fresh output.
+    output_root.mkdir(parents=True, exist_ok=True)
+    for split in SPLITS:
+        for filename in (f"{split}.npz", f"{split}_manifest.jsonl"):
+            (output_root / filename).unlink(missing_ok=True)
+    for filename in ("labels.json", "extraction_failure_report.json", "duplicate_report.json"):
+        (output_root / filename).unlink(missing_ok=True)
+
     manifest_hashes: dict[str, str] = {}
     landmarker = create_hand_landmarker(hand_model_path)
     metadata: dict[str, object] = {
@@ -113,8 +138,16 @@ def prepare_v4_dataset(
             manifest_bytes = manifest_path.read_bytes()
             manifest_hashes[split] = hashlib.sha256(manifest_bytes).hexdigest()
             rows = _read_split_manifest(manifest_path)
-            v1_npz = np.load(v1_data_dir / f"{split}.npz", allow_pickle=False)
-            v1_y = np.asarray(v1_npz["y"], dtype=np.int64)
+            with np.load(v1_data_dir / f"{split}.npz", allow_pickle=False) as v1_npz:
+                v1_x = np.asarray(v1_npz["x"], dtype=np.float32)
+                v1_y = np.asarray(v1_npz["y"], dtype=np.int64)
+            if (
+                v1_x.ndim != 2
+                or v1_x.shape[1] != 126
+                or not np.isfinite(v1_x).all()
+                or v1_y.ndim != 1
+            ):
+                raise RuntimeError(f"{split}: source V1 feature array violates the 126D finite feature contract")
             expected_y = np.asarray([LABELS.index(row["_v4_label"]) for row in rows], dtype=np.int64)
             if len(rows) != len(v1_y) or not np.array_equal(expected_y, v1_y):
                 raise RuntimeError(
