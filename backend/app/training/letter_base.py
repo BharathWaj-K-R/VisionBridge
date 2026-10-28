@@ -12,7 +12,21 @@ from torch import nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
 
-from app.models.letter_model import INPUT_DIM, LETTER_LABELS, NUM_CLASSES, VisionBridgeLetterBaseModel, save_checkpoint
+from app.models.letter_model import (
+    EMBEDDING_DIM,
+    INPUT_DIM,
+    LETTER_LABELS,
+    MODEL_VERSION,
+    NUM_CLASSES,
+    V4_MODEL_VERSION,
+    V4_VARIANTS,
+    V4_VARIANT_INPUT_DIMS,
+    V4_VARIANT_PREPROCESSING,
+    VisionBridgeLetterBaseModel,
+    VisionBridgeLetterBaseV4Model,
+    save_checkpoint,
+    save_v4_checkpoint,
+)
 
 
 def seed_everything(seed: int) -> None:
@@ -117,7 +131,7 @@ def classification_loss(
     return (per_example * sample_weights).sum() / sample_weights.sum().clamp_min(1e-8)
 
 
-def load_split(root: Path, name: str):
+def load_split(root: Path, name: str, input_dim: int = INPUT_DIM):
     path = root / (name + ".npz")
     if not path.is_file():
         raise FileNotFoundError(f"Missing {name} split: {path}")
@@ -128,19 +142,19 @@ def load_split(root: Path, name: str):
 
     if (
         x.ndim != 2
-        or x.shape[1] != INPUT_DIM
+        or x.shape[1] != input_dim
         or y.ndim != 1
         or len(x) != len(y)
         or len(x) == 0
     ):
-        raise ValueError(f"Invalid {name} split")
+        raise ValueError(f"Invalid {name} split: expected features with width {input_dim}")
     if not torch.isfinite(x).all():
         raise ValueError(f"Invalid {name} split: features contain NaN/Inf")
     return x, y
 
 
 def class_accuracy(
-    model: VisionBridgeLetterBaseModel,
+    model: VisionBridgeLetterBaseModel | VisionBridgeLetterBaseV4Model,
     loader: DataLoader,
     device: torch.device,
 ) -> tuple[float, dict[str, float], dict[str, int]]:
@@ -210,8 +224,25 @@ def train_model(
     focus_letters: tuple[str, ...] = (),
     focus_weight: float = 1.0,
     validation_only: bool = False,
+    model_version: str = "v3",
+    v4_variant: str = "full_v4",
 ) -> dict[str, object]:
     seed_everything(seed)
+
+    if model_version not in {"v3", "v4"}:
+        raise ValueError("model_version must be 'v3' or 'v4'")
+    if model_version == "v3":
+        input_dim = INPUT_DIM
+        model_variant = MODEL_VERSION
+        preprocessing_version = "two-hand-wrist-scale-v1"
+    else:
+        if v4_variant not in V4_VARIANTS:
+            raise ValueError("Unsupported V4 architecture variant")
+        input_dim = V4_VARIANT_INPUT_DIMS[v4_variant]
+        model_variant = V4_MODEL_VERSION
+        preprocessing_version = V4_VARIANT_PREPROCESSING[v4_variant]
+    if input_dim != INPUT_DIM and (landmark_jitter_std != 0 or rotation_degrees != 0):
+        raise ValueError("Landmark augmentation is only implemented for 126D inputs; use zero jitter/rotation for V4 comparison")
 
     labels = tuple(
         json.loads(
@@ -222,16 +253,16 @@ def train_model(
         raise ValueError("Dataset must define the active A-Z label vocabulary")
 
     train = DataLoader(
-        TensorDataset(*load_split(root, "train")),
+        TensorDataset(*load_split(root, "train", input_dim=input_dim)),
         batch_size=batch_size,
         shuffle=True,
     )
     val = DataLoader(
-        TensorDataset(*load_split(root, "val")),
+        TensorDataset(*load_split(root, "val", input_dim=input_dim)),
         batch_size=batch_size,
     )
     test = None if validation_only else DataLoader(
-        TensorDataset(*load_split(root, "test")),
+        TensorDataset(*load_split(root, "test", input_dim=input_dim)),
         batch_size=batch_size,
     )
 
@@ -247,13 +278,23 @@ def train_model(
         )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = VisionBridgeLetterBaseModel(
-        input_dim=INPUT_DIM,
-        hidden_dim=hidden_dim,
-        embedding_dim=embedding_dim,
-        labels=labels,
-        dropout=dropout,
-    ).to(device)
+    if model_version == "v3":
+        model = VisionBridgeLetterBaseModel(
+            input_dim=INPUT_DIM,
+            hidden_dim=hidden_dim,
+            embedding_dim=embedding_dim,
+            labels=labels,
+            dropout=dropout,
+        )
+    else:
+        model = VisionBridgeLetterBaseV4Model(
+            variant=v4_variant,
+            hidden_dim=hidden_dim,
+            embedding_dim=embedding_dim,
+            labels=labels,
+            dropout=dropout,
+        )
+    model = model.to(device)
 
     optimizer = torch.optim.AdamW(
         model.parameters(),
@@ -384,7 +425,10 @@ def train_model(
         test_acc, test_per_letter, test_counts = None, None, None
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    save_checkpoint(model, output_path)
+    if model_version == "v3":
+        save_checkpoint(model, output_path)
+    else:
+        save_v4_checkpoint(model, output_path)
 
     print(f"best_epoch={best_epoch}")
     print(f"best_validation_accuracy={best_key[2]:.4f}")
@@ -410,6 +454,11 @@ def train_model(
         )
 
     return {
+        "model_version": model_variant,
+        "architecture_variant": "v3_mlp" if model_version == "v3" else v4_variant,
+        "preprocessing_version": preprocessing_version,
+        "input_dim": input_dim,
+        "parameter_count": sum(parameter.numel() for parameter in model.parameters()),
         "reached_target": reached_target,
         "best_epoch": best_epoch,
         "validation_accuracy": best_key[2],
@@ -464,6 +513,8 @@ def main() -> None:
     parser.add_argument("--focus-letters", nargs="*", default=[])
     parser.add_argument("--focus-weight", type=float, default=1.0)
     parser.add_argument("--validation-only", action="store_true")
+    parser.add_argument("--model-version", choices=("v3", "v4"), default="v3")
+    parser.add_argument("--v4-variant", choices=V4_VARIANTS, default="full_v4")
     parser.add_argument("--output-json", default=None)
     args = parser.parse_args()
 
@@ -491,6 +542,8 @@ def main() -> None:
         focus_letters=tuple(letter.upper() for letter in args.focus_letters),
         focus_weight=args.focus_weight,
         validation_only=args.validation_only,
+        model_version=args.model_version,
+        v4_variant=args.v4_variant,
     )
     if args.output_json:
         report_path = Path(args.output_json)

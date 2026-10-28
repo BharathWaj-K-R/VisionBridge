@@ -11,7 +11,14 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
-from app.models.letter_model import INPUT_DIM, LANDMARK_RUNTIME, MODEL_VERSION, PREPROCESSING_VERSION, load_checkpoint
+from app.models.letter_model import (
+    INPUT_DIM,
+    LANDMARK_RUNTIME,
+    MODEL_VERSION,
+    PREPROCESSING_VERSION,
+    VisionBridgeLetterBaseModel,
+    load_model_checkpoint,
+)
 
 
 def sha256_file(path: Path) -> str:
@@ -22,7 +29,7 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def load_split(root: Path, name: str) -> tuple[torch.Tensor, torch.Tensor]:
+def load_split(root: Path, name: str, input_dim: int = INPUT_DIM) -> tuple[torch.Tensor, torch.Tensor]:
     path = root / (name + ".npz")
     if not path.is_file():
         raise FileNotFoundError(f"Missing {name} split: {path}")
@@ -31,8 +38,8 @@ def load_split(root: Path, name: str) -> tuple[torch.Tensor, torch.Tensor]:
     x = data["x"].astype(np.float32)
     y = data["y"].astype(np.int64)
 
-    if x.ndim != 2 or x.shape[1] != INPUT_DIM:
-        raise ValueError(f"{name} features must have shape [N,{INPUT_DIM}], got {x.shape}")
+    if x.ndim != 2 or x.shape[1] != input_dim:
+        raise ValueError(f"{name} features must have shape [N,{input_dim}], got {x.shape}")
     if y.ndim != 1 or len(x) != len(y) or len(x) == 0:
         raise ValueError(f"{name} labels are invalid")
     if not np.isfinite(x).all():
@@ -98,8 +105,8 @@ def evaluate(
     split: str,
     batch_size: int,
 ) -> dict[str, object]:
-    model = load_checkpoint(checkpoint)
-    x, y = load_split(data_dir, split)
+    model = load_model_checkpoint(checkpoint)
+    x, y = load_split(data_dir, split, input_dim=model.input_dim)
 
     if y.min().item() < 0 or y.max().item() >= model.num_classes:
         raise ValueError(f"{split} labels exceed the model vocabulary")
@@ -189,9 +196,10 @@ def evaluate(
         "confusion_matrix": confusion.tolist(),
         "labels": list(model.labels),
         "model": {
-            "model_version": MODEL_VERSION,
-            "preprocessing_version": PREPROCESSING_VERSION,
-            "landmark_runtime": LANDMARK_RUNTIME,
+            "model_version": MODEL_VERSION if isinstance(model, VisionBridgeLetterBaseModel) else model.model_version,
+            "preprocessing_version": PREPROCESSING_VERSION if isinstance(model, VisionBridgeLetterBaseModel) else model.preprocessing_version,
+            "landmark_runtime": LANDMARK_RUNTIME if isinstance(model, VisionBridgeLetterBaseModel) else model.landmark_runtime,
+            "architecture_variant": "v3_mlp" if isinstance(model, VisionBridgeLetterBaseModel) else model.architecture_variant,
             "input_dim": model.input_dim,
             "hidden_dim": model.hidden_dim,
             "embedding_dim": model.embedding_dim,
