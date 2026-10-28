@@ -253,10 +253,12 @@ def train_model(
     if labels != LETTER_LABELS or len(labels) != NUM_CLASSES:
         raise ValueError("Dataset must define the active A-Z label vocabulary")
 
+    train_generator = torch.Generator().manual_seed(seed) if fixed_epoch_budget else None
     train = DataLoader(
         TensorDataset(*load_split(root, "train", input_dim=input_dim)),
         batch_size=batch_size,
         shuffle=True,
+        generator=train_generator,
     )
     val = DataLoader(
         TensorDataset(*load_split(root, "val", input_dim=input_dim)),
@@ -324,6 +326,7 @@ def train_model(
     best_epoch = 0
     best_per_letter: dict[str, float] = {}
     reached_target = False
+    completed_epochs = 0
 
     print(
         f"device={device} "
@@ -331,10 +334,11 @@ def train_model(
         f"loss={loss_name} focal_gamma={focal_gamma:.2f} "
         f"jitter_std={landmark_jitter_std:.4f} rotation_degrees={rotation_degrees:.1f} "
         f"focus_letters={','.join(focus_letters) or 'none'} focus_weight={focus_weight:.2f} "
-        f"validation_only={validation_only} max_epochs={epochs}"
+        f"validation_only={validation_only} fixed_epoch_budget={fixed_epoch_budget} max_epochs={epochs}"
     )
 
     for epoch in range(1, epochs + 1):
+        completed_epochs = epoch
         model.train()
         total_loss = 0.0
         total = 0
@@ -467,6 +471,7 @@ def train_model(
         "parameter_count": sum(parameter.numel() for parameter in model.parameters()),
         "reached_target": reached_target,
         "best_epoch": best_epoch,
+        "epochs_completed": completed_epochs,
         "validation_accuracy": best_key[2],
         "validation_macro_accuracy": best_key[1],
         "worst_validation_accuracy": best_key[0],

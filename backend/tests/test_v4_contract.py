@@ -264,3 +264,50 @@ def test_comparison_runner_verifies_split_identity_and_label_order(tmp_path: Pat
             handle.write(json.dumps(row) + "\n")
     with pytest.raises(ValueError, match="sample identities/order differ"):
         verify_aligned_splits(v1_root, v4_root)
+
+
+
+def test_fixed_epoch_budget_uses_all_epochs_even_after_target_is_met(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import app.training.letter_base as trainer
+
+    rng = np.random.default_rng(21)
+    root = tmp_path / "data"
+    root.mkdir()
+    (root / "labels.json").write_text(
+        json.dumps({"labels": list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")}),
+        encoding="utf-8",
+    )
+    for split in ("train", "val"):
+        features = rng.normal(0.0, 0.05, size=(26, 141)).astype(np.float32)
+        features[:, 63] = 1.0
+        features[:, 127] = 1.0
+        np.savez_compressed(root / f"{split}.npz", x=features, y=np.arange(26, dtype=np.int64))
+
+    all_letters = {letter: 1.0 for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"}
+    counts = {letter: 1 for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"}
+    monkeypatch.setattr(trainer, "class_accuracy", lambda model, loader, device: (1.0, all_letters, counts))
+    report = trainer.train_model(
+        root=root,
+        output_path=tmp_path / "budget.pt",
+        epochs=3,
+        batch_size=26,
+        learning_rate=1e-3,
+        weight_decay=1e-4,
+        target_class_accuracy=1.0,
+        seed=42,
+        hidden_dim=128,
+        embedding_dim=64,
+        dropout=0.10,
+        loss_name="cross_entropy",
+        validation_only=True,
+        model_version="v4",
+        v4_variant="full_v4",
+        fixed_epoch_budget=True,
+    )
+    assert report["reached_target"] is True
+    assert report["epochs_completed"] == 3
+    assert report["best_epoch"] == 1
+    assert report["training"]["fixed_epoch_budget"] is True
