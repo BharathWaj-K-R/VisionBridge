@@ -40,6 +40,7 @@ def test_raw_prep_defaults_to_train_val_and_aligns_existing_manifest_rows(
     output = tmp_path / "raw"
     raw_images.mkdir()
     v1_root.mkdir()
+    output.mkdir()
     (v1_root / "labels.json").write_text(
         json.dumps({
             "labels": list("ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
