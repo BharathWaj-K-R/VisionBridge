@@ -451,8 +451,12 @@ def apply_combined_augmentation_with_fallback(
     if samples.ndim != 2 or samples.shape[1] != RAW_PAIR_DIM or len(samples) == 0:
         raise ValueError(f"raw_samples must be a non-empty [N, {RAW_PAIR_DIM}] float32 matrix")
     components = tuple(augmentations)
-    # Validate the component list even for an empty input or an all-rejected batch.
-    combined_raw_augmentation(samples[0], augmentations=components, seed=seed)
+    valid_components = tuple(name for name in AUGMENTATION_NAMES if name != "none")
+    if not components or len(set(components)) != len(components):
+        raise ValueError("A combined run requires a non-empty list of unique kept augmentations")
+    if any(name not in valid_components for name in components):
+        raise ValueError("Combined components must be standalone augmentation IDs")
+    _seeded_rng(seed)
     output = np.empty_like(samples)
     rejections: Counter[str] = Counter()
     accepted = 0
