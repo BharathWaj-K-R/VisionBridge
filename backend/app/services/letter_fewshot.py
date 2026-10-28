@@ -53,6 +53,72 @@ def normalize_hand_pair(values: Iterable[float]) -> np.ndarray:
     return np.concatenate([left, right]).astype(np.float32)
 
 
+
+
+V4_COMBINED_HAND_DIM = 141
+V4_PREPROCESSING_VERSION = "two-hand-geometry-v2"
+V4_FINGERTIP_INDICES = (4, 8, 12, 16, 20)
+
+
+def normalize_hand_pair_v2(
+    values: Iterable[float],
+    left_present: bool,
+    right_present: bool,
+) -> np.ndarray:
+    """Create the documented 141D v2 hand/presence/relative-geometry vector."""
+    if not isinstance(left_present, (bool, np.bool_)) or not isinstance(
+        right_present, (bool, np.bool_)
+    ):
+        raise ValueError("V4 hand-presence flags must be booleans")
+
+    try:
+        vector = np.asarray(list(values), dtype=np.float32)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("V4 raw hand coordinates must be numeric") from exc
+    if vector.size != COMBINED_HAND_DIM:
+        raise ValueError(
+            "Expected {} raw hand coordinates, got {}".format(COMBINED_HAND_DIM, vector.size)
+        )
+    if not np.isfinite(vector).all():
+        raise ValueError("V4 raw hand coordinates contain a non-finite value")
+
+    raw_left = vector[:HAND_DIM].reshape(HAND_LANDMARKS, HAND_COORDS)
+    raw_right = vector[HAND_DIM:].reshape(HAND_LANDMARKS, HAND_COORDS)
+    left_scale = (
+        float(np.linalg.norm(raw_left - raw_left[0], axis=1).max())
+        if left_present else 0.0
+    )
+    right_scale = (
+        float(np.linalg.norm(raw_right - raw_right[0], axis=1).max())
+        if right_present else 0.0
+    )
+
+    left = _normalize_single_hand(raw_left) if left_present else np.zeros(HAND_DIM, dtype=np.float32)
+    right = _normalize_single_hand(raw_right) if right_present else np.zeros(HAND_DIM, dtype=np.float32)
+    left_flag = np.asarray([1.0 if left_present else 0.0], dtype=np.float32)
+    right_flag = np.asarray([1.0 if right_present else 0.0], dtype=np.float32)
+    geometry = np.zeros(13, dtype=np.float32)
+
+    if left_present and right_present:
+        geometry_scale = max(left_scale, right_scale)
+        if math.isfinite(geometry_scale) and geometry_scale >= 1e-6:
+            geometry[0:3] = (
+                (raw_right[0].astype(np.float64) - raw_left[0].astype(np.float64))
+                / geometry_scale
+            ).astype(np.float32)
+            for offset, fingertip in enumerate(V4_FINGERTIP_INDICES, start=3):
+                delta = raw_left[fingertip].astype(np.float64) - raw_right[0].astype(np.float64)
+                geometry[offset] = np.float32(np.linalg.norm(delta) / geometry_scale)
+            for offset, fingertip in enumerate(V4_FINGERTIP_INDICES, start=8):
+                delta = raw_right[fingertip].astype(np.float64) - raw_left[0].astype(np.float64)
+                geometry[offset] = np.float32(np.linalg.norm(delta) / geometry_scale)
+
+    result = np.concatenate((left, left_flag, right, right_flag, geometry)).astype(np.float32)
+    if result.shape != (V4_COMBINED_HAND_DIM,) or not np.isfinite(result).all():
+        raise ValueError("V4 preprocessing produced an invalid feature vector")
+    return result
+
+
 def _unit(vector: np.ndarray) -> np.ndarray:
     norm = float(np.linalg.norm(vector))
     if norm < 1e-8:

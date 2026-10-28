@@ -139,6 +139,103 @@ export function normalizeHandPair(values: number[]): number[] {
 }
 
 
+export const V4_HAND_SLOT_DIM = HAND_DIM + 1;
+export const V4_GEOMETRY_DIM = 13;
+export const V4_COMBINED_HAND_DIM = V4_HAND_SLOT_DIM * 2 + V4_GEOMETRY_DIM;
+export const V4_PREPROCESSING_VERSION = "two-hand-geometry-v2";
+export const V4_FINGERTIP_INDICES = [4, 8, 12, 16, 20] as const;
+
+/**
+ * Match docs/v4/CONTRACT.md. Raw left xyz precedes raw right xyz;
+ * presence is supplied from MediaPipe handedness detection, never inferred here.
+ */
+export function normalizeHandPairV2(
+  values: number[],
+  leftPresent: boolean,
+  rightPresent: boolean,
+): number[] {
+  if (typeof leftPresent !== "boolean" || typeof rightPresent !== "boolean") {
+    throw new Error("V4 hand-presence flags must be booleans");
+  }
+  if (values.length !== COMBINED_HAND_DIM || !values.every(Number.isFinite)) {
+    throw new Error("V4 requires 126 finite raw hand-coordinate values");
+  }
+
+  const rawLeft = values.slice(0, HAND_DIM);
+  const rawRight = values.slice(HAND_DIM);
+  const leftPoints = Array.from({ length: 21 }, (_, index) => rawLeft.slice(index * 3, index * 3 + 3));
+  const rightPoints = Array.from({ length: 21 }, (_, index) => rawRight.slice(index * 3, index * 3 + 3));
+
+  const handScale = (points: number[][], present: boolean): number => {
+    if (!present) return 0;
+    const wrist = points[0];
+    let scale = 0;
+    for (const point of points) {
+      scale = Math.max(
+        scale,
+        Math.hypot(point[0] - wrist[0], point[1] - wrist[1], point[2] - wrist[2]),
+      );
+    }
+    return scale;
+  };
+
+  const leftScale = handScale(leftPoints, leftPresent);
+  const rightScale = handScale(rightPoints, rightPresent);
+  const normalizePresentHand = (points: number[][], present: boolean): number[] => {
+    if (!present) return new Array<number>(HAND_DIM).fill(0);
+    const wrist = points[0];
+    const centered = points.flatMap((point) => [
+      point[0] - wrist[0],
+      point[1] - wrist[1],
+      point[2] - wrist[2],
+    ]);
+    const scale = handScale(points, true);
+    if (!Number.isFinite(scale) || scale < 1e-6) return new Array<number>(HAND_DIM).fill(0);
+    return centered.map((value) => Math.fround(value / scale));
+  };
+
+  const left = normalizePresentHand(leftPoints, leftPresent);
+  const right = normalizePresentHand(rightPoints, rightPresent);
+  const geometry = new Array<number>(V4_GEOMETRY_DIM).fill(0);
+  if (leftPresent && rightPresent) {
+    const scale = Math.max(leftScale, rightScale);
+    if (Number.isFinite(scale) && scale >= 1e-6) {
+      const leftWrist = leftPoints[0];
+      const rightWrist = rightPoints[0];
+      geometry[0] = Math.fround((rightWrist[0] - leftWrist[0]) / scale);
+      geometry[1] = Math.fround((rightWrist[1] - leftWrist[1]) / scale);
+      geometry[2] = Math.fround((rightWrist[2] - leftWrist[2]) / scale);
+      for (let index = 0; index < V4_FINGERTIP_INDICES.length; index += 1) {
+        const leftTip = leftPoints[V4_FINGERTIP_INDICES[index]];
+        geometry[3 + index] = Math.fround(Math.hypot(
+          leftTip[0] - rightWrist[0],
+          leftTip[1] - rightWrist[1],
+          leftTip[2] - rightWrist[2],
+        ) / scale);
+        const rightTip = rightPoints[V4_FINGERTIP_INDICES[index]];
+        geometry[8 + index] = Math.fround(Math.hypot(
+          rightTip[0] - leftWrist[0],
+          rightTip[1] - leftWrist[1],
+          rightTip[2] - leftWrist[2],
+        ) / scale);
+      }
+    }
+  }
+
+  const normalized = [
+    ...left,
+    leftPresent ? 1 : 0,
+    ...right,
+    rightPresent ? 1 : 0,
+    ...geometry,
+  ].map(Math.fround);
+  if (normalized.length !== V4_COMBINED_HAND_DIM || !normalized.every(Number.isFinite)) {
+    throw new Error("V4 preprocessing produced an invalid feature vector");
+  }
+  return normalized;
+}
+
+
 export type TrackerOverlayMeta = {
   prediction?: string;
   confidence?: number;
