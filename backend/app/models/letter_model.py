@@ -396,10 +396,10 @@ def load_v4_checkpoint(
         labels=tuple(payload["labels"]),
         dropout=dropout,
     )
-    if int(payload.get("hand_embedding_dim", model.hand_embedding_dim)) != model.hand_embedding_dim:
-        raise ValueError("V4 checkpoint shared-hand embedding dimension is incompatible")
-    if int(payload.get("fusion_input_dim", model.fusion_input_dim)) != model.fusion_input_dim:
-        raise ValueError("V4 checkpoint fusion input dimension is incompatible")
+    if payload.get("hand_embedding_dim") != model.hand_embedding_dim:
+        raise ValueError("V4 checkpoint shared-hand embedding metadata is missing or incompatible")
+    if payload.get("fusion_input_dim") != model.fusion_input_dim:
+        raise ValueError("V4 checkpoint fusion input metadata is missing or incompatible")
     model.load_state_dict(state, strict=True)
     model.eval()
     return model

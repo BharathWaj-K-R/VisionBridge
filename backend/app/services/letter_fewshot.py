@@ -17,6 +17,7 @@ from app.models.letter_model import (
     MODEL_VERSION,
     PREPROCESSING_VERSION,
     V4_MODEL_VERSION,
+    V4_PREPROCESSING_VERSION,
     VisionBridgeLetterBaseModel,
     VisionBridgeLetterBaseV4Model,
     load_checkpoint,
@@ -65,7 +66,6 @@ def normalize_hand_pair(values: Iterable[float]) -> np.ndarray:
 
 
 V4_COMBINED_HAND_DIM = 141
-V4_PREPROCESSING_VERSION = "two-hand-geometry-v2"
 V4_FINGERTIP_INDICES = (4, 8, 12, 16, 20)
 
 

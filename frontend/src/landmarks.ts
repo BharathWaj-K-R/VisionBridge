@@ -157,7 +157,7 @@ export function normalizeHandPairV2(
   if (typeof leftPresent !== "boolean" || typeof rightPresent !== "boolean") {
     throw new Error("V4 hand-presence flags must be booleans");
   }
-  if (values.length !== COMBINED_HAND_DIM || !values.every(Number.isFinite)) {
+  if (values.length !== COMBINED_HAND_DIM || !Array.from(values).every(Number.isFinite)) {
     throw new Error("V4 requires 126 finite raw hand-coordinate values");
   }
 

@@ -127,6 +127,16 @@ def test_v3_and_v4_loaders_reject_each_others_checkpoints(tmp_path: Path) -> Non
         load_checkpoint(v4_path)
 
 
+def test_v4_loader_rejects_missing_architecture_metadata(tmp_path: Path) -> None:
+    checkpoint = tmp_path / "v4_missing_metadata.pt"
+    save_v4_checkpoint(VisionBridgeLetterBaseV4Model(), checkpoint)
+    payload = torch.load(checkpoint, map_location="cpu", weights_only=True)
+    payload.pop("hand_embedding_dim")
+    torch.save(payload, checkpoint)
+    with pytest.raises(ValueError, match="embedding metadata is missing"):
+        load_v4_checkpoint(checkpoint)
+
+
 def test_v4_loader_rejects_preprocessing_variant_mismatch(tmp_path: Path) -> None:
     checkpoint = tmp_path / "v4_bad_metadata.pt"
     save_v4_checkpoint(VisionBridgeLetterBaseV4Model(variant="full_v4"), checkpoint)
