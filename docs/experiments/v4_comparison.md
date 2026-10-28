@@ -6,7 +6,7 @@ The V4 implementation is selectable, but no candidate has been promoted or wired
 
 ## Candidate table
 
-The parameter counts below are structural counts from the model definitions, not trained performance measurements. The V3 count is also asserted by the frozen-baseline test; V4 counts are asserted by the V4 variant tests.
+The parameter counts below are structural counts from the model definitions, not trained performance measurements. V4 variant tests assert the V4 counts; the V3 count is calculated from the existing V3 architecture.
 
 | Candidate | Feature contract | Parameters | Validation overall (mean ± std) | Validation macro (mean ± std) | Python latency | Final test |
 |---|---|---:|---|---|---|---|

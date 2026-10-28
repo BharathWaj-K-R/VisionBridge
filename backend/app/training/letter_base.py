@@ -226,6 +226,7 @@ def train_model(
     validation_only: bool = False,
     model_version: str = "v3",
     v4_variant: str = "full_v4",
+    fixed_epoch_budget: bool = False,
 ) -> dict[str, object]:
     seed_everything(seed)
 
@@ -413,7 +414,7 @@ def train_model(
             score >= target_class_accuracy
             for score in per_letter.values()
         )
-        if reached_target:
+        if reached_target and not fixed_epoch_budget:
             print(
                 "TARGET REACHED: every A-Z letter met "
                 "the validation accuracy target."
@@ -485,6 +486,7 @@ def train_model(
             "embedding_dim": int(embedding_dim),
             "dropout": float(dropout),
             "epochs": int(epochs),
+            "fixed_epoch_budget": bool(fixed_epoch_budget),
             "batch_size": int(batch_size),
             "learning_rate": float(learning_rate),
             "weight_decay": float(weight_decay),
@@ -518,6 +520,7 @@ def main() -> None:
     parser.add_argument("--focus-letters", nargs="*", default=[])
     parser.add_argument("--focus-weight", type=float, default=1.0)
     parser.add_argument("--validation-only", action="store_true")
+    parser.add_argument("--fixed-epoch-budget", action="store_true", help="Disable early stopping; still save the best validation checkpoint.")
     parser.add_argument("--model-version", choices=("v3", "v4"), default="v3")
     parser.add_argument("--v4-variant", choices=V4_VARIANTS, default="full_v4")
     parser.add_argument("--output-json", default=None)
@@ -547,6 +550,7 @@ def main() -> None:
         focus_letters=tuple(letter.upper() for letter in args.focus_letters),
         focus_weight=args.focus_weight,
         validation_only=args.validation_only,
+        fixed_epoch_budget=args.fixed_epoch_budget,
         model_version=args.model_version,
         v4_variant=args.v4_variant,
     )

@@ -255,10 +255,12 @@ def run_comparison(
                 validation_only=True,
                 model_version=version,
                 v4_variant=variant or "full_v4",
+                fixed_epoch_budget=True,
             )
             latency = measure_python_latency(checkpoint, data_dir, batch_size)
             per_run[name].append({
                 "seed": seed,
+                "best_epoch": report["best_epoch"],
                 "checkpoint": str(checkpoint),
                 "checkpoint_sha256": sha256_file(checkpoint),
                 "parameter_count": report["parameter_count"],
