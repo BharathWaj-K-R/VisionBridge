@@ -4,16 +4,25 @@
 
 ## Implemented independent augmentations
 
-Each augmentation operates on raw 126D MediaPipe coordinates before wrist centering and scale normalization. One named augmentation is allowed per training run. Mirroring is excluded. Random single-hand dropout is skipped because the available source does not establish a verified ISL per-letter hand-configuration table, and dropout could remove label-defining information.
+Each augmentation operates on raw 126D MediaPipe coordinates before wrist centering and scale normalization. One named augmentation is allowed per standalone run. Mirroring is excluded. Random single-hand dropout is skipped because the available source does not establish a verified ISL per-letter hand-configuration table, and dropout could remove label-defining information.
 
-| ID | Operation | Default magnitude | Plausibility/rejection policy | Real-data result |
+<!-- AUTO_RESULTS_START -->
+**Real-data status: NOT RUN.** Phase 2 has no recorded validation-selected winner and no aligned raw landmarks are available in this environment. Run separate single-augmentation experiments before treating this table as evidence.
+
+| Augmentation | Validation macro mean ± std | Macro delta vs baseline | Required seed-variance threshold | Keep? | Joint rejection rate | W→M count Δ | W→N count Δ | W→O count Δ | Python model latency |
+|---|---|---|---|---|---|---|---|---|---|
+| gaussian_jitter | NOT RUN | NOT RUN | NOT RUN | NOT RUN | 0% (not measured) | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| in_plane_rotation | NOT RUN | NOT RUN | NOT RUN | NOT RUN | 0% (not measured) | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| depth_scale | NOT RUN | NOT RUN | NOT RUN | NOT RUN | 0% (not measured) | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+| finger_joint_angles | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN | NOT RUN |
+
+### Per-class validation accuracy change (candidate minus unaugmented baseline)
+
+All values below will be measured on validation across paired seeds. Positive values are accuracy gains; negative values are regressions. Test data is not used to tune the augmentation.
+
+| Letter | gaussian_jitter | in_plane_rotation | depth_scale | finger_joint_angles |
 |---|---|---|---|---|
-| gaussian_jitter | independent xyz Gaussian noise on detected hands | std 0.002 in raw MediaPipe coordinate units | finite input/output; missing hand stays zero | NOT RUN |
-| in_plane_rotation | jointly rotate detected hands around their mean wrist center in x/y | uniform angle ±5° | finite input/output; relative hand arrangement rotates together | NOT RUN |
-| depth_scale | global image-plane and z scale about mean wrist center | independent factors 0.95–1.05 | finite input/output; both hands use same factors | NOT RUN |
-| finger_joint_angles | perturb one PIP/DIP angle per non-thumb finger and thumb IP; rigidly rotate its distal subtree | uniform angular delta ±5° | reject bad base geometry, joint flexion above caps, non-finite values, or bone-length drift above 5%; rejected augmentations fall back to the original raw sample and are counted | NOT RUN |
-| single_hand_dropout | intentionally not implemented | n/a | no verified per-letter ISL hand-configuration table | SKIPPED |
-| mirroring | intentionally not implemented | n/a | can alter handedness/letter semantics without ISL validation | SKIPPED |
+<!-- AUTO_RESULTS_END -->
 
 ## Anatomical plausibility bounds
 
