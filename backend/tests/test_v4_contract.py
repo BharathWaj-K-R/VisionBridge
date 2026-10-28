@@ -28,6 +28,7 @@ from app.services.letter_fewshot import (
 from app.training.letter_base import train_model
 from scripts.run_v4_comparison import verify_aligned_splits
 import scripts.prepare_v4_feature_dataset as v4_preparer
+import scripts.run_v4_comparison as comparison
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_PATH = BACKEND_ROOT / "tests" / "fixtures" / "v4_feature_parity.json"
@@ -424,3 +425,120 @@ def test_v4_dataset_preparation_rebuilds_all_splits_and_preserves_row_identity(
         output_row = json.loads((output_root / f"{split}_manifest.jsonl").read_text(encoding="utf-8"))
         assert output_row["sample_id"] == row["sample_id"]
         assert output_row["image_sha256"] == row["image_sha256"]
+
+
+
+def test_comparison_runner_freezes_selection_then_evaluates_test_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    v1_root = tmp_path / "v1"
+    v4_root = tmp_path / "v4"
+    output_root = tmp_path / "run"
+    v1_root.mkdir()
+    v4_root.mkdir()
+
+    labels = np.arange(26, dtype=np.int64)
+    manifest_rows = []
+    for index, letter in enumerate("ABCDEFGHIJKLMNOPQRSTUVWXYZ"):
+        manifest_rows.append({
+            "sample_id": f"sample-{index}",
+            "source_path": f"images/{letter.lower()}.png",
+            "image_sha256": f"{index + 1:064x}",
+            "label": letter,
+            "letter": letter,
+            "landmark_status": "ok",
+        })
+    for split in ("train", "val", "test"):
+        np.savez_compressed(v1_root / f"{split}.npz", x=np.zeros((26, 126), dtype=np.float32), y=labels)
+        np.savez_compressed(v4_root / f"{split}.npz", x=np.zeros((26, 141), dtype=np.float32), y=labels)
+        for root in (v1_root, v4_root):
+            (root / f"{split}_manifest.jsonl").write_text(
+                "".join(json.dumps(row) + "\n" for row in manifest_rows),
+                encoding="utf-8",
+            )
+
+    train_calls = []
+    test_calls = []
+    variant_accuracy = {
+        "v3_mlp": (0.50, 0.50, 0.30),
+        "v4_features_old_mlp": (0.60, 0.60, 0.40),
+        "v1_features_shared_encoder": (0.65, 0.65, 0.45),
+        "full_v4": (0.80, 0.80, 0.60),
+    }
+
+    def fake_train_model(**kwargs):
+        train_calls.append(kwargs)
+        output = kwargs["output_path"]
+        if kwargs["model_version"] == "v3":
+            model = VisionBridgeLetterBaseModel()
+            save_checkpoint(model, output)
+            variant_name = "v3_mlp"
+        else:
+            model = VisionBridgeLetterBaseV4Model(variant=kwargs["v4_variant"])
+            save_v4_checkpoint(model, output)
+            variant_name = kwargs["v4_variant"]
+        overall, macro, worst = variant_accuracy[variant_name]
+        return {
+            "best_epoch": 2,
+            "parameter_count": sum(parameter.numel() for parameter in model.parameters()),
+            "validation_accuracy": overall,
+            "validation_macro_accuracy": macro,
+            "worst_validation_accuracy": worst,
+            "validation_per_letter": {letter: worst for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"},
+        }
+
+    def fake_latency(checkpoint, data_dir, batch_size):
+        return {
+            "device": "cpu",
+            "batch_size": min(batch_size, 26),
+            "warmup_runs": 5,
+            "measured_runs": 20,
+            "mean_batch_ms": 0.2,
+            "mean_sample_ms": 0.2 / min(batch_size, 26),
+        }
+
+    def fake_evaluate(*, checkpoint, data_dir, split, batch_size):
+        test_calls.append({"checkpoint": checkpoint, "data_dir": data_dir, "split": split})
+        frozen_manifest = output_root / "selection_frozen.json"
+        assert frozen_manifest.is_file(), "selection must be frozen before touching test"
+        frozen = json.loads(frozen_manifest.read_text(encoding="utf-8"))
+        assert frozen["selected_variant"] == "full_v4"
+        assert frozen["checkpoint_sha256"] == comparison.sha256_file(checkpoint)
+        assert frozen["test_evaluation_id"]
+        assert split == "test"
+        assert data_dir == v4_root
+        return {
+            "checkpoint_sha256": comparison.sha256_file(checkpoint),
+            "overall_accuracy": 0.77,
+            "macro_accuracy": 0.75,
+            "samples": 26,
+            "worst_letter": "W",
+            "worst_letter_accuracy": 0.50,
+            "device": "cpu",
+        }
+
+    monkeypatch.setattr(comparison, "train_model", fake_train_model)
+    monkeypatch.setattr(comparison, "measure_python_latency", fake_latency)
+    monkeypatch.setattr(comparison, "evaluate", fake_evaluate)
+    report = comparison.run_comparison(
+        v1_dir=v1_root,
+        v4_dir=v4_root,
+        output_dir=output_root,
+        seeds=(7, 11, 19),
+        epochs=3,
+        batch_size=26,
+        learning_rate=1e-3,
+        weight_decay=1e-4,
+        markdown_output=tmp_path / "comparison.md",
+    )
+    assert len(train_calls) == 12
+    assert all(call["validation_only"] is True for call in train_calls)
+    assert all(call["fixed_epoch_budget"] is True for call in train_calls)
+    assert {call["seed"] for call in train_calls} == {7, 11, 19}
+    assert len(test_calls) == 1
+    assert report["selection"]["variant"] == "full_v4"
+    assert report["protocol"]["test_accuracy_evaluation_calls"] == 1
+    assert report["final_test"]["evaluation_run"]["test_accuracy_evaluation_calls"] == 1
+    assert (output_root / "selection_frozen.json").is_file()
+    assert (output_root / "v4_comparison.json").is_file()
