@@ -512,6 +512,15 @@ def run_augmentation_experiment(
     }
     report_path = output_dir / "augmentation_result.json"
     report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    if combined_marker is not None:
+        marker_payload = json.loads(combined_marker.read_text(encoding="utf-8"))
+        marker_payload.update({
+            "status": "completed",
+            "completed_at_utc": datetime.now(timezone.utc).isoformat(),
+            "result_path": str(report_path.resolve()),
+            "result_sha256": sha256_file(report_path),
+        })
+        combined_marker.write_text(json.dumps(marker_payload, indent=2), encoding="utf-8")
     print(f"mean_macro_gain={macro_gain:.6%}")
     print(f"required_seed_variance_threshold={required_gain:.6%}")
     print(f"keep_candidate={str(keep_candidate).lower()}")
