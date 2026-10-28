@@ -136,6 +136,12 @@ def prepare_raw_landmark_dataset(
         raise ValueError("Raw extraction requires the documented V1 label/preprocessing/runtime contract")
 
     output_dir.mkdir(parents=True, exist_ok=True)
+    # Clear only this tool's generated split artifacts so an earlier explicit
+    # test extraction cannot survive a later train/val-only invocation.
+    for split in SPLITS:
+        (output_dir / f"{split}_raw.npz").unlink(missing_ok=True)
+        (output_dir / f"{split}_manifest.jsonl").unlink(missing_ok=True)
+    (output_dir / "labels.json").unlink(missing_ok=True)
     landmarker = create_hand_landmarker(hand_model_path) if hand_model_path is not None else create_hand_landmarker(
         Path.home() / ".cache" / "visionbridge" / "hand_landmarker.task"
     )

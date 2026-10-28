@@ -59,6 +59,10 @@ def test_raw_prep_defaults_to_train_val_and_aligns_existing_manifest_rows(
     monkeypatch.setattr(raw_prep, "create_hand_landmarker", lambda path: landmarker)
     monkeypatch.setattr(raw_prep, "_extract_raw_hand_pair", lambda path, obj: (fake_vector.copy(), left_present, right_present))
 
+    # A previous run may have explicitly extracted test; a default run must remove that stale artifact.
+    np.savez_compressed(output / "test_raw.npz", x=np.zeros((1, 126), dtype=np.float32), y=np.asarray([0]))
+    (output / "test_manifest.jsonl").write_text("{}\n", encoding="utf-8")
+
     for split in ("train", "val", "test"):
         source_rel = f"{split}/a.png"
         image = raw_images / source_rel
@@ -94,6 +98,7 @@ def test_raw_prep_defaults_to_train_val_and_aligns_existing_manifest_rows(
     assert (output / "train_raw.npz").is_file()
     assert (output / "val_raw.npz").is_file()
     assert not (output / "test_raw.npz").exists()
+    assert not (output / "test_manifest.jsonl").exists()
     with np.load(output / "train_raw.npz", allow_pickle=False) as data:
         assert data["x"].shape == (1, 126)
         assert data["left_present"].tolist() == [True]
