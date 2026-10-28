@@ -763,27 +763,6 @@ def prepare_manifest_v2_dataset(
             for split in ("train", "val", "test")
         },
     }
-    legacy_attempts: list[dict] = []
-    for successful_rows, failure_rows, prepared_split in (
-        (train_samples, train_report.get("failures", []), "source_training"),
-        (validation_samples, validation_report.get("failures", []), "source_validation"),
-        (test_samples, test_report.get("failures", []), "source_testing"),
-    ):
-        for sample in successful_rows:
-            legacy_attempts.append({
-                **sample,
-                "label": sample["letter"],
-                "split": prepared_split,
-                "landmark_status": "ok",
-                "failure_reason": None,
-                "capture_metadata": _empty_capture_metadata(),
-            })
-        legacy_attempts.extend(failure_rows)
-    extraction_failure_report = build_extraction_failure_report(legacy_attempts)
-    (output_dir / "extraction_failure_report.json").write_text(
-        json.dumps(extraction_failure_report, indent=2),
-        encoding="utf-8",
-    )
     (output_dir / "duplicate_report.json").write_text(
         json.dumps(duplicate_report, indent=2),
         encoding="utf-8",
@@ -1083,6 +1062,28 @@ def prepare_dataset(
         raise RuntimeError(
             "Exact duplicate image hashes overlap the untouched source test split"
         )
+
+    legacy_attempts: list[dict] = []
+    for successful_rows, failure_rows, prepared_split in (
+        (train_samples, train_report.get("failures", []), "source_training"),
+        (validation_samples, validation_report.get("failures", []), "source_validation"),
+        (test_samples, test_report.get("failures", []), "source_testing"),
+    ):
+        for sample in successful_rows:
+            legacy_attempts.append({
+                **sample,
+                "label": sample["letter"],
+                "split": prepared_split,
+                "landmark_status": "ok",
+                "failure_reason": None,
+                "capture_metadata": _empty_capture_metadata(),
+            })
+        legacy_attempts.extend(failure_rows)
+    extraction_failure_report = build_extraction_failure_report(legacy_attempts)
+    (output_dir / "extraction_failure_report.json").write_text(
+        json.dumps(extraction_failure_report, indent=2),
+        encoding="utf-8",
+    )
 
     (output_dir / "duplicate_report.json").write_text(
         json.dumps(duplicate_report, indent=2),
