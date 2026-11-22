@@ -18,6 +18,7 @@ const SESSION_HINT_KEY = "visionbridge_session_hint";
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 let csrfTokenMemory: string | null = null;
+let csrfTokenPromise: Promise<string> | null = null;
 
 export function hasSessionHint(): boolean { return localStorage.getItem(SESSION_HINT_KEY) === "1"; }
 export function setSessionHint(): void { localStorage.setItem(SESSION_HINT_KEY, "1"); }
@@ -32,34 +33,50 @@ export function clearLocalAuth(): void {
   clearSessionHint();
   localStorage.removeItem(LOCAL_USER_KEY);
   csrfTokenMemory = null;
+  csrfTokenPromise = null;
 }
 
 async function ensureCsrfToken(): Promise<string> {
   if (csrfTokenMemory) return csrfTokenMemory;
+  if (csrfTokenPromise) return csrfTokenPromise;
 
   const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), 20_000);
-  try {
-    const response = await fetch(API_BASE + "/auth/csrf", {
-      method: "GET",
-      credentials: "include",
-      headers: { Accept: "application/json" },
-      signal: controller.signal,
-    });
-    if (!response.ok) {
-      const error = new Error("CSRF bootstrap failed (" + response.status + ")") as ApiError;
-      error.status = response.status;
-      throw error;
+  // Free Render services may need about a minute to wake after inactivity.
+  const timer = window.setTimeout(() => controller.abort(), 90_000);
+
+  csrfTokenPromise = (async () => {
+    try {
+      const response = await fetch(API_BASE + "/auth/csrf", {
+        method: "GET",
+        credentials: "include",
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        const error = new Error("CSRF bootstrap failed (" + response.status + ")") as ApiError;
+        error.status = response.status;
+        throw error;
+      }
+      const payload = await response.json() as { csrf_token?: unknown };
+      if (typeof payload.csrf_token !== "string" || !payload.csrf_token) {
+        throw new Error("CSRF bootstrap returned an invalid token");
+      }
+      csrfTokenMemory = payload.csrf_token;
+      return csrfTokenMemory;
+    } finally {
+      window.clearTimeout(timer);
     }
-    const payload = await response.json() as { csrf_token?: unknown };
-    if (typeof payload.csrf_token !== "string" || !payload.csrf_token) {
-      throw new Error("CSRF bootstrap returned an invalid token");
-    }
-    csrfTokenMemory = payload.csrf_token;
-    return csrfTokenMemory;
-  } finally {
-    window.clearTimeout(timer);
-  }
+  })().catch((error) => {
+    csrfTokenPromise = null;
+    throw error;
+  });
+
+  return csrfTokenPromise;
+}
+
+export async function prepareAuthConnection(): Promise<void> {
+  if (LOCAL_MODE) return;
+  await ensureCsrfToken();
 }
 
 function formatApiDetail(detail: unknown): string | null {
@@ -89,7 +106,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (!headers.has("Content-Type") && init.body) headers.set("Content-Type", "application/json");
   const method = (init.method || "GET").toUpperCase();
   const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), 20_000);
+  const authRequest = path === "/auth/login" || path === "/auth/register";
+  const timer = window.setTimeout(() => controller.abort(), authRequest ? 120_000 : 20_000);
 
   try {
     if (!SAFE_METHODS.has(method)) {
@@ -105,6 +123,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
     if (response.status === 403 && !SAFE_METHODS.has(method) && path !== "/auth/csrf") {
       csrfTokenMemory = null;
+      csrfTokenPromise = null;
       headers.set("X-CSRF-Token", await ensureCsrfToken());
       response = await fetch(API_BASE + path, {
         ...init,
