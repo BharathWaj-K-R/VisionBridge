@@ -1487,3 +1487,177 @@ button,a{
     word-break:normal!important;
   }
 }
+
+
+/* Refined empty states: visible structure instead of isolated placeholder glyphs. */
+.sentence-empty-state{
+  display:grid;
+  grid-template-columns:92px minmax(0,1fr);
+  align-items:center;
+  gap:18px;
+  min-height:136px;
+  padding:18px;
+  border:1px dashed var(--gx-line);
+  background:color-mix(in srgb,var(--gx-surface-2) 62%,var(--gx-surface));
+}
+.sentence-empty-visual{
+  display:grid;
+  align-content:space-between;
+  gap:10px;
+  width:92px;
+  aspect-ratio:1;
+  padding:11px;
+  border:1px solid color-mix(in srgb,var(--gx-accent) 35%,var(--gx-line));
+  background:linear-gradient(145deg,var(--gx-surface),var(--gx-accent-soft));
+}
+.sentence-empty-index{
+  color:var(--gx-accent);
+  font:700 9px/1 "Space Mono",monospace;
+  letter-spacing:.1em;
+}
+.sentence-empty-bars{
+  display:flex;
+  align-items:center;
+  gap:5px;
+  height:28px;
+}
+.sentence-empty-bars i{
+  display:block;
+  width:5px;
+  height:9px;
+  background:var(--gx-accent);
+  opacity:.78;
+}
+.sentence-empty-bars i:nth-child(2){height:18px}
+.sentence-empty-bars i:nth-child(3){height:27px}
+.sentence-empty-bars i:nth-child(4){height:15px}
+.sentence-empty-bars i:nth-child(5){height:22px}
+.sentence-empty-lines{
+  display:grid;
+  gap:4px;
+}
+.sentence-empty-lines i{
+  display:block;
+  height:3px;
+  background:var(--gx-line);
+}
+.sentence-empty-lines i:last-child{width:62%}
+.sentence-empty-copy{min-width:0}
+.sentence-empty-copy .eyebrow{color:var(--gx-accent-2)}
+.sentence-empty-copy h3{
+  margin:6px 0 4px;
+  color:var(--gx-ink);
+  font:700 19px/1.15 "Literata",Georgia,serif;
+}
+.sentence-empty-copy p{
+  max-width:440px;
+  margin:0;
+  color:var(--gx-muted);
+  font-size:11px;
+  line-height:1.5;
+}
+.sentence-sign-placeholder{
+  position:relative;
+  align-content:center;
+  justify-items:center;
+  gap:12px;
+  background:
+    linear-gradient(135deg,color-mix(in srgb,var(--gx-accent) 9%,var(--gx-surface)),var(--gx-surface-2));
+}
+.sentence-sign-placeholder:before{
+  content:"";
+  position:absolute;
+  inset:16px;
+  border:1px solid color-mix(in srgb,var(--gx-accent) 20%,var(--gx-line));
+  pointer-events:none;
+}
+.sentence-sign-placeholder .eyebrow{
+  color:var(--gx-accent-2);
+  font:700 8px/1.3 "Space Mono",monospace;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
+.sentence-sign-placeholder strong{
+  position:relative;
+  color:var(--gx-ink);
+  font:700 clamp(34px,5vw,54px)/1 "Literata",Georgia,serif;
+  letter-spacing:-.04em;
+}
+.sentence-sign-placeholder small{
+  position:relative;
+  max-width:265px;
+  color:var(--gx-muted);
+  font:500 10px/1.5 "Atkinson Hyperlegible",Arial,sans-serif;
+}
+
+/* Auth connection status and clearer focus feedback. */
+.auth-card{
+  border-radius:12px!important;
+  border-color:var(--gx-line)!important;
+  box-shadow:0 24px 76px rgba(8,17,14,.14)!important;
+}
+.auth-intro{
+  background:
+    radial-gradient(ellipse at 12% 88%,color-mix(in srgb,var(--gx-accent) 24%,transparent),transparent 46%),
+    var(--gx-ink)!important;
+}
+.auth-intro:before{
+  width:300px;
+  height:300px;
+  right:-110px;
+  top:-110px;
+  border:0;
+  border-radius:50%;
+  background:radial-gradient(circle,color-mix(in srgb,var(--gx-accent) 20%,transparent),transparent 72%);
+  box-shadow:none;
+  opacity:.72;
+}
+.auth-intro:after{
+  content:"";
+  position:absolute;
+  inset:0;
+  background-image:
+    linear-gradient(color-mix(in srgb,var(--gx-bg) 8%,transparent) 1px,transparent 1px),
+    linear-gradient(90deg,color-mix(in srgb,var(--gx-bg) 8%,transparent) 1px,transparent 1px);
+  background-size:30px 30px;
+  opacity:.22;
+  pointer-events:none;
+  z-index:-1;
+}
+.auth-status{
+  white-space:nowrap;
+  transition:color .18s ease,border-color .18s ease;
+}
+.auth-status i{
+  background:var(--gx-muted);
+}
+.auth-status.ready i{
+  background:var(--gx-accent);
+}
+.auth-status.connecting i{
+  background:var(--gx-focus);
+  animation:auth-status-pulse 1.2s ease-in-out infinite;
+}
+.auth-status.retry i{
+  background:var(--gx-danger);
+}
+@keyframes auth-status-pulse{
+  50%{opacity:.35;transform:scale(.78)}
+}
+.auth-submit:disabled{
+  opacity:.62!important;
+  cursor:wait!important;
+}
+@media(max-width:560px){
+  .sentence-empty-state{
+    grid-template-columns:1fr;
+    gap:12px;
+    padding:14px;
+  }
+  .sentence-empty-visual{
+    width:76px;
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  .auth-status.connecting i{animation:none}
+}

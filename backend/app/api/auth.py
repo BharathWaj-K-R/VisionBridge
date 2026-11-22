@@ -69,10 +69,12 @@ def register(
     db.info["visionbridge_auth_username"] = username
     db.info["visionbridge_auth_email"] = email
 
-    if db.query(User).filter(User.username == username).first():
+    existing_accounts = db.query(User.username, User.email).filter(
+        (User.username == username) | (User.email == email)
+    ).all()
+    if any(row[0] == username for row in existing_accounts):
         raise HTTPException(status_code=400, detail="Username already taken")
-
-    if db.query(User).filter(User.email == email).first():
+    if any(row[1] == email for row in existing_accounts):
         raise HTTPException(status_code=400, detail="Email already registered")
 
     user = User(
@@ -84,8 +86,8 @@ def register(
     try:
         db.add(user)
         db.flush()
+        user_id = user.id
         db.commit()
-        db.refresh(user)
     except Exception:
         db.rollback()
         raise HTTPException(
@@ -93,7 +95,7 @@ def register(
             detail="We could not create the account right now. Please try again.",
         ) from None
 
-    token = _set_session_cookie(response, user.id)
+    token = _set_session_cookie(response, user_id)
     return Token(access_token=token)
 
 
@@ -109,13 +111,13 @@ def login(
     db.info["visionbridge_auth_operation"] = "login"
     db.info["visionbridge_auth_identifier"] = identifier
 
-    user = db.query(User).filter(
+    credentials = db.query(User.id, User.hashed_password).filter(
         (User.username == identifier) | (User.email == identifier.lower())
     ).first()
-    if not user or not verify_password(payload.password, user.hashed_password):
+    if not credentials or not verify_password(payload.password, credentials.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid username/email or password")
 
-    token = _set_session_cookie(response, user.id)
+    token = _set_session_cookie(response, credentials.id)
     return Token(access_token=token)
 
 

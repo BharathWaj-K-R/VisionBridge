@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import { api, clearLocalAuth, clearSessionHint, hasSessionHint, setSessionHint, isLocalAuthenticated } from "./api";
+import { api, clearLocalAuth, clearSessionHint, hasSessionHint, setSessionHint, isLocalAuthenticated, prepareAuthConnection } from "./api";
 import NotFound from "./NotFound";
 import Seo from "./components/Seo";
 import QuickAccessBar from "./components/QuickAccessBar";
@@ -55,6 +55,7 @@ function Auth({ onAuthed }: { onAuthed: () => void }) {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [authConnection, setAuthConnection] = useState<"connecting" | "ready" | "retry">("connecting");
 
   const checks = passwordChecks(password);
   const strongPassword = isStrongPassword(password);
@@ -64,6 +65,15 @@ function Auth({ onAuthed }: { onAuthed: () => void }) {
     const authError = params.get("auth_error");
     if (authError) setError(authError.replaceAll("_", " "));
   }, [location.search]);
+
+  useEffect(() => {
+    let active = true;
+    // Warm the secure auth handshake while the user is reading the sign-in form.
+    prepareAuthConnection()
+      .then(() => { if (active) setAuthConnection("ready"); })
+      .catch(() => { if (active) setAuthConnection("retry"); });
+    return () => { active = false; };
+  }, []);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -121,7 +131,10 @@ function Auth({ onAuthed }: { onAuthed: () => void }) {
                 <strong>Communication tool</strong>
               </div>
             </div>
-            <span className="auth-status"><i aria-hidden="true" /> System ready</span>
+            <span className={"auth-status " + authConnection}>
+              <i aria-hidden="true" />
+              {authConnection === "ready" ? "Secure sign-in ready" : authConnection === "connecting" ? "Warming account service" : "Will retry on sign-in"}
+            </span>
           </div>
 
           <div className="auth-intro-copy">
@@ -295,7 +308,7 @@ function Auth({ onAuthed }: { onAuthed: () => void }) {
               className="primary-btn auth-submit"
               disabled={busy || (mode === "register" && (!strongPassword || password !== confirmPassword))}
             >
-              <span>{busy ? "Submitting…" : mode === "login" ? "Sign in" : "Create account"}</span>
+              <span>{busy ? (mode === "login" ? "Signing in securely…" : "Creating your account…") : mode === "login" ? "Sign in" : "Create account"}</span>
               <span aria-hidden="true">↗</span>
             </button>
           </form>

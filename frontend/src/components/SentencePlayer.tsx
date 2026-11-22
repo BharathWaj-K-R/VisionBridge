@@ -81,11 +81,16 @@ export default function SentencePlayer({
             </button>
           );
         }) : (
-          <div className="system-state-inline empty-state">
-            <div className="system-state-icon" aria-hidden="true">◉</div>
-            <div className="system-state-copy">
+          <div className="sentence-empty-state" role="status">
+            <div className="sentence-empty-visual" aria-hidden="true">
+              <span className="sentence-empty-index">01</span>
+              <span className="sentence-empty-bars"><i /><i /><i /><i /><i /></span>
+              <span className="sentence-empty-lines"><i /><i /></span>
+            </div>
+            <div className="sentence-empty-copy">
+              <span className="eyebrow">VOICE QUEUE · READY</span>
               <h3>No sentences yet</h3>
-              <p>Start listening, speak a sentence, then play the available sign references.</p>
+              <p>Start listening and finish a sentence. Each sentence will appear here as a selectable playback item.</p>
             </div>
           </div>
         )}
