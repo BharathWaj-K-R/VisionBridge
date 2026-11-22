@@ -35,9 +35,11 @@ export default function SignReferenceStage({ item, sentenceText, sentenceIndex, 
           <img className="sentence-sign-image sentence-sign-image-direct" src={asset.src} alt={asset.label} />
         ) : (
           <div className="sentence-sign-placeholder">
-            <span className="eyebrow">No sign asset</span>
+            <span className="eyebrow">{item ? "Text-only reference" : "Reference stage ready"}</span>
             <strong>{item?.sourceText || "Ready"}</strong>
-            <small>This token has no matching visual asset.</small>
+            <small>{item
+              ? "A validated sign image is not available for this token yet. The text stays visible rather than showing an unverified sign."
+              : "Speak a sentence to see the validated sign references available for its tokens."}</small>
           </div>
         )}
         {item && <div className="sentence-reference-token">{item.sourceText}</div>}
