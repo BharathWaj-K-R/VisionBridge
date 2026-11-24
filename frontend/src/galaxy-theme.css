@@ -300,18 +300,6 @@ body:before{
   align-items:flex-end!important;
 }
 
-.page-header:after{
-  content:"";
-  position:absolute;
-  right:0;
-  bottom:0;
-  width:180px;
-  height:180px;
-  border:1px solid color-mix(in srgb, var(--gx-ink) 14%, var(--vb-g-472));
-  border-radius:50%;
-  pointer-events:none;
-}
-
 .page-header h1{
   max-width:900px;
   margin:7px 0 10px!important;
@@ -849,7 +837,6 @@ body:before{
   .page{padding:30px 14px 104px!important}
   .breadcrumbs{padding:12px 14px 0!important}
   .page-header{min-height:120px!important}
-  .page-header:after{width:100px;height:100px}
   .welcome-panel{padding:22px!important}
   .welcome-panel h2{font-size:clamp(40px,12vw,58px)!important}
   .communication-actions{grid-template-columns:1fr!important}
