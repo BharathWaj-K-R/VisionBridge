@@ -63,7 +63,11 @@ function Auth({ onAuthed }: { onAuthed: () => void }) {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const authError = params.get("auth_error");
-    if (authError) setError(authError.replaceAll("_", " "));
+    if (authError === "session_check_failed") {
+      setError("We couldn't verify your session because the account service could not be reached. Your session token has been kept; sign in again or refresh the page.");
+    } else if (authError) {
+      setError(authError.replaceAll("_", " "));
+    }
   }, [location.search]);
 
   useEffect(() => {
@@ -331,7 +335,23 @@ export default function App() {
   useEffect(() => {
     if (localMode) { if (authed) api.me().then(user => setUsername(user.username)).catch(() => { clearLocalAuth(); setAuthed(false); navigate("/login?auth_error=session_expired", { replace: true }); }); return; }
     if (!hasSessionHint()) { setAuthChecking(false); return; }
-    api.me().then(user => { setUsername(user.username); setAuthed(true); }).catch(() => { clearSessionHint(); setAuthed(false); navigate("/login?auth_error=session_expired", { replace: true }); }).finally(() => setAuthChecking(false));
+    api.me()
+      .then(user => { setUsername(user.username); setAuthed(true); })
+      .catch((error: unknown) => {
+        const status = typeof error === "object" && error !== null && "status" in error
+          ? Number((error as { status?: unknown }).status)
+          : undefined;
+        setAuthed(false);
+        if (status === 401) {
+          clearSessionHint();
+          navigate("/login?auth_error=session_expired", { replace: true });
+        } else {
+          // Do not discard a valid tab token because of a temporary CORS,
+          // network, or Render cold-start failure.
+          navigate("/login?auth_error=session_check_failed", { replace: true });
+        }
+      })
+      .finally(() => setAuthChecking(false));
   }, [authed, localMode]);
   const logout = () => void api.logout().then(() => {
     clearLocalAuth(); clearSessionHint(); setUsername(undefined); setAuthed(false); navigate("/login");
