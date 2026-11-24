@@ -179,6 +179,34 @@ def test_explicit_bearer_token_takes_precedence_over_ambient_cookie():
     assert response.json()["id"] == second_id
 
 
+def test_bearer_session_authenticates_without_browser_cookies():
+    from app.core.security import create_access_token
+
+    username = "bearer-only-" + uuid.uuid4().hex[:8]
+    db = SessionLocal()
+    user = User(
+        username=username,
+        email=f"{username}@example.com",
+        hashed_password=hash_password("StrongPass1!"),
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    token = create_access_token(str(user.id))
+    db.close()
+
+    # A fresh client has no session or CSRF cookies. This is the Chrome
+    # third-party-cookie-blocked path used by the frontend Bearer fallback.
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/v1/users/me",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["username"] == username
+
+
 def test_registration_rejects_duplicate_username_or_email():
     _reset_auth_limiters()
     username = "duplicate-" + uuid.uuid4().hex[:8]

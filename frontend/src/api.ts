@@ -15,14 +15,41 @@ const LOCAL_PROFILES_KEY = "visionbridge_personalization_profiles";
 const LOCAL_ACTIVE_PROFILE_KEY = "visionbridge_active_profile_id";
 const LOCAL_USAGE_KEY = "visionbridge_communication_usage";
 const SESSION_HINT_KEY = "visionbridge_session_hint";
+const SESSION_TOKEN_KEY = "visionbridge_access_token";
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 let csrfTokenMemory: string | null = null;
 let csrfTokenPromise: Promise<string> | null = null;
 
-export function hasSessionHint(): boolean { return localStorage.getItem(SESSION_HINT_KEY) === "1"; }
-export function setSessionHint(): void { localStorage.setItem(SESSION_HINT_KEY, "1"); }
-export function clearSessionHint(): void { localStorage.removeItem(SESSION_HINT_KEY); }
+function getStoredSessionToken(): string | null {
+  try {
+    return sessionStorage.getItem(SESSION_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function storeSessionToken(token: string): void {
+  if (!token) throw new Error("The sign-in response did not include a session token.");
+  sessionStorage.setItem(SESSION_TOKEN_KEY, token);
+}
+
+export function hasSessionHint(): boolean {
+  // Local demo sessions remain persistent; production sessions are per-tab.
+  return LOCAL_MODE
+    ? localStorage.getItem(SESSION_HINT_KEY) === "1"
+    : Boolean(getStoredSessionToken());
+}
+
+export function setSessionHint(): void {
+  if (LOCAL_MODE) localStorage.setItem(SESSION_HINT_KEY, "1");
+}
+
+export function clearSessionHint(): void {
+  localStorage.removeItem(SESSION_HINT_KEY);
+  sessionStorage.removeItem(SESSION_HINT_KEY);
+  sessionStorage.removeItem(SESSION_TOKEN_KEY);
+}
 
 export function isLocalAuthenticated(): boolean {
   return LOCAL_MODE && localStorage.getItem(LOCAL_AUTH_KEY) === "1";
@@ -107,28 +134,36 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const method = (init.method || "GET").toUpperCase();
   const controller = new AbortController();
   const authRequest = path === "/auth/login" || path === "/auth/register";
+  const cookieOnlyEndpoint = authRequest || path === "/auth/logout";
+  const sessionToken = cookieOnlyEndpoint ? null : getStoredSessionToken();
+  const credentials: RequestCredentials = sessionToken ? "omit" : "include";
+  if (sessionToken && !headers.has("Authorization")) {
+    headers.set("Authorization", "Bearer " + sessionToken);
+  }
   const timer = window.setTimeout(() => controller.abort(), authRequest ? 120_000 : 20_000);
 
   try {
-    if (!SAFE_METHODS.has(method)) {
+    // Bearer-authenticated calls deliberately omit cross-site cookies. This
+    // avoids Chrome blocking Render's third-party __Host- session cookie.
+    if (!SAFE_METHODS.has(method) && !sessionToken) {
       headers.set("X-CSRF-Token", await ensureCsrfToken());
     }
 
     let response = await fetch(API_BASE + path, {
       ...init,
       headers,
-      credentials: "include",
+      credentials,
       signal: init.signal || controller.signal,
     });
 
-    if (response.status === 403 && !SAFE_METHODS.has(method) && path !== "/auth/csrf") {
+    if (response.status === 403 && !sessionToken && !SAFE_METHODS.has(method) && path !== "/auth/csrf") {
       csrfTokenMemory = null;
       csrfTokenPromise = null;
       headers.set("X-CSRF-Token", await ensureCsrfToken());
       response = await fetch(API_BASE + path, {
         ...init,
         headers,
-        credentials: "include",
+        credentials,
         signal: init.signal || controller.signal,
       });
     }
@@ -283,12 +318,14 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ username: cleanUsername, email: cleanEmail, password }),
     });
+    storeSessionToken(token.access_token);
     setSessionHint();
     return token;
   },
   login: async (identifier: string, password: string): Promise<Token> => {
     if (LOCAL_MODE) { localUser(identifier); localStorage.setItem(LOCAL_AUTH_KEY, "1"); setSessionHint(); return { access_token: "visionbridge-local-token", token_type: "bearer" }; }
     const token = await request<Token>("/auth/login", { method: "POST", body: JSON.stringify({ identifier, password }) });
+    storeSessionToken(token.access_token);
     setSessionHint();
     return token;
   },
@@ -298,7 +335,9 @@ export const api = {
       return;
     }
     await request<{ logged_out: boolean }>("/auth/logout", { method: "POST" });
+    clearSessionHint();
     csrfTokenMemory = null;
+    csrfTokenPromise = null;
   },
   me: async (): Promise<User> => {
     if (LOCAL_MODE) return localUser();

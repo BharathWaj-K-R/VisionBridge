@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { api, clearLocalAuth, clearSessionHint, hasSessionHint, setSessionHint, isLocalAuthenticated, prepareAuthConnection } from "./api";
 import NotFound from "./NotFound";
@@ -63,7 +63,11 @@ function Auth({ onAuthed }: { onAuthed: () => void }) {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const authError = params.get("auth_error");
-    if (authError) setError(authError.replaceAll("_", " "));
+    if (authError === "session_check_failed") {
+      setError("We couldn't verify your session because the account service could not be reached. Your session token has been kept; sign in again or refresh the page.");
+    } else if (authError) {
+      setError(authError.replaceAll("_", " "));
+    }
   }, [location.search]);
 
   useEffect(() => {
@@ -328,10 +332,29 @@ export default function App() {
   const [authChecking, setAuthChecking] = useState(!localMode && hasSessionHint());
   const [username, setUsername] = useState<string>();
   const navigate = useNavigate();
+  const sessionCheckStarted = useRef(false);
   useEffect(() => {
     if (localMode) { if (authed) api.me().then(user => setUsername(user.username)).catch(() => { clearLocalAuth(); setAuthed(false); navigate("/login?auth_error=session_expired", { replace: true }); }); return; }
     if (!hasSessionHint()) { setAuthChecking(false); return; }
-    api.me().then(user => { setUsername(user.username); setAuthed(true); }).catch(() => { clearSessionHint(); setAuthed(false); navigate("/login?auth_error=session_expired", { replace: true }); }).finally(() => setAuthChecking(false));
+    if (sessionCheckStarted.current) return;
+    sessionCheckStarted.current = true;
+    api.me()
+      .then(user => { setUsername(user.username); setAuthed(true); })
+      .catch((error: unknown) => {
+        const status = typeof error === "object" && error !== null && "status" in error
+          ? Number((error as { status?: unknown }).status)
+          : undefined;
+        setAuthed(false);
+        if (status === 401) {
+          clearSessionHint();
+          navigate("/login?auth_error=session_expired", { replace: true });
+        } else {
+          // Do not discard a valid tab token because of a temporary CORS,
+          // network, or Render cold-start failure.
+          navigate("/login?auth_error=session_check_failed", { replace: true });
+        }
+      })
+      .finally(() => setAuthChecking(false));
   }, [authed, localMode]);
   const logout = () => void api.logout().then(() => {
     clearLocalAuth(); clearSessionHint(); setUsername(undefined); setAuthed(false); navigate("/login");
@@ -341,8 +364,8 @@ export default function App() {
   if (authChecking) return <><Seo /><LoadingFallback /></>;
   if (!authed) return <Routes>
     <Route path="/" element={<Navigate to="/login" replace />} />
-    <Route path="/login" element={<Auth onAuthed={() => setAuthed(true)} />} />
-    <Route path="*" element={<Auth onAuthed={() => setAuthed(true)} />} />
+    <Route path="/login" element={<Auth onAuthed={() => { sessionCheckStarted.current = false; setAuthed(true); }} />} />
+    <Route path="*" element={<Auth onAuthed={() => { sessionCheckStarted.current = false; setAuthed(true); }} />} />
   </Routes>;
   return <Shell username={username} onLogout={logout}><Suspense fallback={<LoadingFallback />}><Routes>
     <Route path="/" element={<Navigate to="/dashboard" replace />} />
