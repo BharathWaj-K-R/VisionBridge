@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { api, clearLocalAuth, clearSessionHint, hasSessionHint, setSessionHint, isLocalAuthenticated, prepareAuthConnection } from "./api";
 import NotFound from "./NotFound";
@@ -332,9 +332,12 @@ export default function App() {
   const [authChecking, setAuthChecking] = useState(!localMode && hasSessionHint());
   const [username, setUsername] = useState<string>();
   const navigate = useNavigate();
+  const sessionCheckStarted = useRef(false);
   useEffect(() => {
     if (localMode) { if (authed) api.me().then(user => setUsername(user.username)).catch(() => { clearLocalAuth(); setAuthed(false); navigate("/login?auth_error=session_expired", { replace: true }); }); return; }
     if (!hasSessionHint()) { setAuthChecking(false); return; }
+    if (sessionCheckStarted.current) return;
+    sessionCheckStarted.current = true;
     api.me()
       .then(user => { setUsername(user.username); setAuthed(true); })
       .catch((error: unknown) => {
@@ -361,8 +364,8 @@ export default function App() {
   if (authChecking) return <><Seo /><LoadingFallback /></>;
   if (!authed) return <Routes>
     <Route path="/" element={<Navigate to="/login" replace />} />
-    <Route path="/login" element={<Auth onAuthed={() => setAuthed(true)} />} />
-    <Route path="*" element={<Auth onAuthed={() => setAuthed(true)} />} />
+    <Route path="/login" element={<Auth onAuthed={() => { sessionCheckStarted.current = false; setAuthed(true); }} />} />
+    <Route path="*" element={<Auth onAuthed={() => { sessionCheckStarted.current = false; setAuthed(true); }} />} />
   </Routes>;
   return <Shell username={username} onLogout={logout}><Suspense fallback={<LoadingFallback />}><Routes>
     <Route path="/" element={<Navigate to="/dashboard" replace />} />
